@@ -27,7 +27,6 @@ doxydoc/
 *.srctrlbm
 *.srctrldb
 *.srctrlprj
-.clang-format
 /compile_commands.json
 .clangd
 .cache
