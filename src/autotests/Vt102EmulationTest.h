@@ -34,6 +34,9 @@ private Q_SLOTS:
 
     void testBufferedUpdates();
 
+    void testProfileChange_data();
+    void testProfileChange();
+
 private:
     static void sendAndCompare(TestEmulation *em, const char *input, size_t inputLen, const QString &expectedPrint, const QByteArray &expectedSent);
 };
