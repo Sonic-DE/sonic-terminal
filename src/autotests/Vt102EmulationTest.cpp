@@ -463,6 +463,55 @@ void Vt102EmulationTest::testBufferedUpdates()
     QCOMPARE(outputChangedSpy.count(), 2);
 }
 
+void Vt102EmulationTest::testProfileChange_data()
+{
+    QTest::addColumn<QByteArray>("settings");
+    QTest::addColumn<QByteArray>("terminator");
+    QTest::addColumn<QString>("forwardedSettings");
+    QTest::addColumn<int>("cursorRequests");
+
+    const QByteArray profileSettings("ColorScheme=WhiteOnBlack;TabColor=#FF0000");
+    const QByteArray cursorSettings("CursorShape=1;BlinkingCursorEnabled=true;AnimatingCursorEnabled=true;CustomCursorColor=#00FF00");
+    for (const QByteArray& terminator : {QByteArray("\a"), QByteArray("\033\\")}) {
+        const QByteArray suffix = terminator == "\a" ? "-bel" : "-st";
+        QTest::newRow(QByteArray("profile" + suffix).constData()) << profileSettings << terminator << QString::fromLatin1(profileSettings) << 0;
+        QTest::newRow(QByteArray("cursor" + suffix).constData()) << cursorSettings << terminator << QString() << 1;
+        const QByteArray mixedSettings("ColorScheme=WhiteOnBlack;CursorShape=1;TabColor=#FF0000;BlinkingCursorEnabled=true");
+        QTest::newRow(QByteArray("mixed" + suffix).constData()) << mixedSettings << terminator << QString::fromLatin1(profileSettings) << 1;
+    }
+}
+
+void Vt102EmulationTest::testProfileChange()
+{
+    QFETCH(QByteArray, settings);
+    QFETCH(QByteArray, terminator);
+    QFETCH(QString, forwardedSettings);
+    QFETCH(int, cursorRequests);
+
+    TestEmulation em;
+    em.reset();
+    QSignalSpy attributeSpy(&em, &Emulation::sessionAttributeChanged);
+    QVERIFY(attributeSpy.isValid());
+    int receivedCursorRequests = 0;
+    connect(&em, &Emulation::setCursorStyleRequest, this, [&receivedCursorRequests]() {
+        ++receivedCursorRequests;
+    });
+
+    const QByteArray sequence = "\033]50;" + settings + terminator;
+    em.receiveData(sequence.constData(), sequence.size());
+    QCOMPARE(receivedCursorRequests, cursorRequests);
+    if (forwardedSettings.isEmpty()) {
+        // Session attribute updates are buffered by a 20 ms timer.
+        QTest::qWait(50);
+        QCOMPARE(attributeSpy.count(), 0);
+    } else {
+        QTRY_COMPARE(attributeSpy.count(), 1);
+        const auto arguments = attributeSpy.takeFirst();
+        QCOMPARE(arguments.at(0).toInt(), 50);
+        QCOMPARE(arguments.at(1).toString(), forwardedSettings);
+    }
+}
+
 QTEST_GUILESS_MAIN(Vt102EmulationTest)
 
 #include "moc_Vt102EmulationTest.cpp"
