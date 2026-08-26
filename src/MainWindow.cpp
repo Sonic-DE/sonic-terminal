@@ -1113,6 +1113,10 @@ void MainWindow::setBlur(bool blur)
     _blurEnabled = blur;
 
     if (!_pluggedController->isKonsolePart()) {
+        // Set a property so Silver's kstyle knows not to overwrite our
+        // full-window blur with a scoped tools-area-only blur region.
+        setProperty("_silver_skip_tools_blur", blur);
+
         if (QWindow *window = windowHandle()) {
             KWindowEffects::enableBlurBehind(window, blur);
         } else {

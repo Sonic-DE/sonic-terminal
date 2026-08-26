@@ -54,5 +54,6 @@ ecm_add_tests(
     TerminalInterfaceTest.cpp
     TerminalTest.cpp
     ViewManagerTest.cpp
+    BlurTest.cpp
     LINK_LIBRARIES ${KONSOLE_TEST_LIBS} KF6::Parts
 )
