@@ -23,8 +23,7 @@
 
 class QKeyEvent;
 
-namespace Konsole
-{
+namespace Konsole {
 class KeyboardTranslator;
 class HistoryType;
 class Screen;
@@ -80,8 +79,7 @@ class TerminalCharacterDecoder;
  * how long the emulation has been active/idle for and also respond to
  * a 'bell' event in different ways.
  */
-class KONSOLEPRIVATE_EXPORT Emulation : public QObject
-{
+class KONSOLEPRIVATE_EXPORT Emulation : public QObject {
     Q_OBJECT
 
 public:
@@ -94,12 +92,12 @@ public:
      * of the window are then rendered by views which are set to use this window using the
      * TerminalDisplay::setScreenWindow() method.
      */
-    ScreenWindow *createWindow();
+    ScreenWindow* createWindow();
 
     /**
      * Associates a TerminalDisplay with this emulation.
      */
-    void setCurrentTerminalDisplay(TerminalDisplay *display);
+    void setCurrentTerminalDisplay(TerminalDisplay* display);
 
     /** Returns the size of the screen image which the emulation produces */
     QSize imageSize() const;
@@ -117,9 +115,9 @@ public:
      * The number of lines which are kept and the storage location depend on the
      * type of store.
      */
-    void setHistory(const HistoryType &);
+    void setHistory(const HistoryType&);
     /** Returns the history store used by this emulation.  See setHistory() */
-    const HistoryType &history() const;
+    const HistoryType& history() const;
     /** Clears the history scroll. */
     virtual void clearHistory();
 
@@ -134,22 +132,27 @@ public:
      * @param startLine Index of first line to copy
      * @param endLine Index of last line to copy
      */
-    virtual void writeToStream(TerminalCharacterDecoder *decoder, int startLine, int endLine);
+    virtual void writeToStream(TerminalCharacterDecoder* decoder, int startLine, int endLine);
 
     /** Returns the decoder used to decode incoming characters.  See setCodec() */
-    const QStringDecoder &decoder() const
+    const QStringDecoder& decoder() const
     {
         return _decoder;
     }
 
     /** Returns the encoder used to encode characters send to the terminal.  See setCodec() */
-    const QStringEncoder &encoder() const
+    const QStringEncoder& encoder() const
     {
         return _encoder;
     }
 
+    QByteArray codecName() const
+    {
+        return _codecName;
+    }
+
     /** Sets the codec used to decode incoming characters.  */
-    bool setCodec(const QByteArray &name);
+    bool setCodec(const QByteArray& name);
 
     /**
      * Convenience method.
@@ -175,7 +178,7 @@ public:
      * ( received through sendKeyEvent() ) into character
      * streams to send to the terminal.
      */
-    void setKeyBindings(const QString &name);
+    void setKeyBindings(const QString& name);
     /**
      * Returns the name of the emulation's current key bindings.
      * See setKeyBindings()
@@ -217,13 +220,13 @@ public Q_SLOTS:
      * Interprets a sequence of characters and sends the result to the terminal.
      * This is equivalent to calling sendKeyEvent() for each character in @p text in succession.
      */
-    virtual void sendText(const QString &text) = 0;
+    virtual void sendText(const QString& text) = 0;
 
     /**
      * Interprets a key press event and emits the sendData() signal with
      * the resulting character stream.
      */
-    virtual void sendKeyEvent(QKeyEvent *);
+    virtual void sendKeyEvent(QKeyEvent*);
 
     /**
      * Converts information about a mouse event into an xterm-compatible escape
@@ -238,7 +241,7 @@ public Q_SLOTS:
      *
      * @param string The characters to send.
      */
-    virtual void sendString(const QByteArray &string) = 0;
+    virtual void sendString(const QByteArray& string) = 0;
 
     /**
      * Processes an incoming stream of characters.  receiveData() decodes the incoming
@@ -252,7 +255,7 @@ public Q_SLOTS:
      * @param text A string of characters received from the terminal program.
      * @param length The length of @p text
      */
-    void receiveData(const char *text, int length);
+    void receiveData(const char* text, int length);
 
     /**
      * Sends information about the focus event to the terminal.
@@ -269,7 +272,7 @@ Q_SIGNALS:
      *
      * @param data The buffer of data ready to be sent
      */
-    void sendData(const QByteArray &data);
+    void sendData(const QByteArray& data);
 
     /**
      * Requests that the pty used by the terminal process
@@ -353,7 +356,7 @@ Q_SIGNALS:
      * </ul>
      * @param newValue Specifies the new value of the session attribute
      */
-    void sessionAttributeChanged(int attribute, const QString &newValue);
+    void sessionAttributeChanged(int attribute, const QString& newValue);
 
     /**
      * Emitted when the terminal emulator's size has changed
@@ -370,7 +373,7 @@ Q_SIGNALS:
      * Emitted after receiving the escape sequence which asks to change
      * the terminal emulator's size
      */
-    void imageResizeRequest(const QSize &sizz);
+    void imageResizeRequest(const QSize& sizz);
 
     /**
      * Emitted when the terminal program requests to change various properties
@@ -383,7 +386,7 @@ Q_SIGNALS:
      * @param text A string expected to contain a series of key and value pairs in
      * the form:  name=value;name2=value2 ...
      */
-    void profileChangeCommandReceived(const QString &text);
+    void profileChangeCommandReceived(const QString& text);
 
     /**
      * Emitted when a flow control key combination ( Ctrl+S or Ctrl+Q ) is pressed.
@@ -417,7 +420,7 @@ Q_SIGNALS:
      * @p customColor custom cursor color
      */
     void
-    setCursorStyleRequest(Enum::CursorShapeEnum shape = Enum::BlockCursor, bool isBlinking = false, bool isAnimating = false, const QColor &customColor = {});
+    setCursorStyleRequest(Enum::CursorShapeEnum shape = Enum::BlockCursor, bool isBlinking = false, bool isAnimating = false, const QColor& customColor = {});
 
     /**
      * Emitted when reset() is called to reset the cursor style to the
@@ -441,7 +444,7 @@ Q_SIGNALS:
      *
      * @param params The parameters from the OSC sequence, split by semicolons
      */
-    void osc777Received(const QStringList &params);
+    void osc777Received(const QStringList& params);
 
     /**
      * Mainly used to communicate dropped lines to active autosave tasks.
@@ -472,7 +475,7 @@ protected:
      * Processes an incoming character.  See receiveData()
      * @p c A unicode character code.
      */
-    virtual void receiveChars(const QVector<uint> &c);
+    virtual void receiveChars(const QVector<uint>& c);
 
     /**
      * Sets the active screen.  The terminal has two screens, primary and alternate.
@@ -490,12 +493,12 @@ protected:
 
     void setCodec(EmulationCodec codec);
 
-    QList<ScreenWindow *> _windows;
+    QList<ScreenWindow*> _windows;
 
-    Screen *_currentScreen = nullptr; // pointer to the screen which is currently active,
+    Screen* _currentScreen = nullptr; // pointer to the screen which is currently active,
     // this is one of the elements in the screen[] array
 
-    Screen *_screen[2]; // 0 = primary screen ( used by most programs, including the shell
+    Screen* _screen[2]; // 0 = primary screen ( used by most programs, including the shell
     //                      scrollbars are enabled in this mode )
     // 1 = alternate      ( used by vi , emacs etc.
     //                      scrollbars are not enabled in this mode )
@@ -506,8 +509,9 @@ protected:
     // the current text encoder to send unicode to the terminal
     // (this allows for rendering of non-ASCII characters in text files etc.)
     QStringEncoder _encoder;
+    QByteArray _codecName;
 
-    const KeyboardTranslator *_keyTranslator = nullptr; // the keyboard layout
+    const KeyboardTranslator* _keyTranslator = nullptr; // the keyboard layout
 
 protected Q_SLOTS:
     /**

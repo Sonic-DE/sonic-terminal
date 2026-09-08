@@ -74,7 +74,7 @@ void Emulation::synchronizedUpdateChanged(bool inProgress)
     }
 }
 
-ScreenWindow *Emulation::createWindow()
+ScreenWindow* Emulation::createWindow()
 {
     auto window = new ScreenWindow(_currentScreen);
     _windows << window;
@@ -87,7 +87,7 @@ ScreenWindow *Emulation::createWindow()
     return window;
 }
 
-void Emulation::setCurrentTerminalDisplay(TerminalDisplay *display)
+void Emulation::setCurrentTerminalDisplay(TerminalDisplay* display)
 {
     _screen[0]->setCurrentTerminalDisplay(display);
     _screen[1]->setCurrentTerminalDisplay(display);
@@ -106,7 +106,7 @@ void Emulation::checkSelectedText()
 
 Emulation::~Emulation()
 {
-    for (ScreenWindow *window : std::as_const(_windows)) {
+    for (ScreenWindow* window : std::as_const(_windows)) {
         delete window;
     }
 
@@ -133,11 +133,11 @@ void Emulation::setScreen(int index)
 
 void Emulation::setScreenInternal(int index)
 {
-    Screen *oldScreen = _currentScreen;
+    Screen* oldScreen = _currentScreen;
     _currentScreen = _screen[index & 1];
     if (_currentScreen != oldScreen) {
         // tell all windows onto this emulation to switch to the newly active screen
-        for (ScreenWindow *window : std::as_const(_windows)) {
+        for (ScreenWindow* window : std::as_const(_windows)) {
             window->setScreen(_currentScreen);
         }
 
@@ -155,19 +155,19 @@ void Emulation::clearHistory()
     _screen[0]->setScroll(_screen[0]->getScroll(), false);
 }
 
-void Emulation::setHistory(const HistoryType &history)
+void Emulation::setHistory(const HistoryType& history)
 {
     _screen[0]->setScroll(history);
 
     showBulk();
 }
 
-const HistoryType &Emulation::history() const
+const HistoryType& Emulation::history() const
 {
     return _screen[0]->getScroll();
 }
 
-bool Emulation::setCodec(const QByteArray &name)
+bool Emulation::setCodec(const QByteArray& name)
 {
     // if we requested a specific codec, only try that one
     if (!name.isEmpty()) {
@@ -176,6 +176,8 @@ bool Emulation::setCodec(const QByteArray &name)
         if (decoder.isValid() && encoder.isValid()) {
             _decoder = std::move(decoder);
             _encoder = std::move(encoder);
+            const char* canonicalName = _encoder.name();
+            _codecName = canonicalName ? QByteArray(canonicalName) : name;
             Q_EMIT useUtf8Request(utf8());
             return true;
         }
@@ -202,7 +204,7 @@ void Emulation::setCodec(EmulationCodec codec)
     }
 }
 
-void Emulation::setKeyBindings(const QString &name)
+void Emulation::setKeyBindings(const QString& name)
 {
     _keyTranslator = KeyboardTranslatorManager::instance()->findTranslator(name);
     if (_keyTranslator == nullptr) {
@@ -217,7 +219,7 @@ QString Emulation::keyBindings() const
 
 // process application unicode input to terminal
 // this is a trivial scanner
-void Emulation::receiveChars(const QVector<uint> &chars)
+void Emulation::receiveChars(const QVector<uint>& chars)
 {
     for (uint c : chars) {
         c &= 0xff;
@@ -244,7 +246,7 @@ void Emulation::receiveChars(const QVector<uint> &chars)
     }
 }
 
-void Emulation::sendKeyEvent(QKeyEvent *ev)
+void Emulation::sendKeyEvent(QKeyEvent* ev)
 {
     if (!ev->text().isEmpty()) {
         // A block of text
@@ -254,7 +256,7 @@ void Emulation::sendKeyEvent(QKeyEvent *ev)
     }
 }
 
-void Emulation::receiveData(const char *text, int length)
+void Emulation::receiveData(const char* text, int length)
 {
     Q_ASSERT(_decoder.isValid());
 
@@ -272,7 +274,7 @@ void Emulation::receiveData(const char *text, int length)
     // look for z-modem indicator
     //-- someone who understands more about z-modems that I do may be able to move
     // this check into the above for loop?
-    auto *found = static_cast<const char *>(memchr(text, '\030', length));
+    auto* found = static_cast<const char*>(memchr(text, '\030', length));
     if (found) {
         auto startPos = found - text;
         if (startPos < 0) {
@@ -290,7 +292,7 @@ void Emulation::receiveData(const char *text, int length)
     }
 }
 
-void Emulation::writeToStream(TerminalCharacterDecoder *decoder, int startLine, int endLine)
+void Emulation::writeToStream(TerminalCharacterDecoder* decoder, int startLine, int endLine)
 {
     _currentScreen->writeLinesToStream(decoder, startLine, endLine);
 }
@@ -343,7 +345,7 @@ void Emulation::setImageSize(int lines, int columns)
     }
 
     QSize screenSize[2] = {QSize(_screen[0]->getColumns(), _screen[0]->getLines()), //
-                           QSize(_screen[1]->getColumns(), _screen[1]->getLines())};
+        QSize(_screen[1]->getColumns(), _screen[1]->getLines())};
     QSize newSize(columns, lines);
 
     if (newSize == screenSize[0] && newSize == screenSize[1]) {

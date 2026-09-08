@@ -10,8 +10,9 @@
 #include <QDBusConnectionInterface>
 #include <QDBusInterface>
 #include <QDBusReply>
+#include <QStringConverter>
+#include <QStringDecoder>
 #include <QTest>
-#include <QTextCodec>
 
 #include <unistd.h>
 

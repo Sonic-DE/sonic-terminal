@@ -161,18 +161,21 @@ void DBusTest::testSessions()
     arrayReply = iface.call(QStringLiteral("codec"));
     QVERIFY(arrayReply.isValid());
 
-    // Obtain a list of system's Codecs
-    QList<QByteArray> availableCodecs = QTextCodec::availableCodecs();
-    for (int i = 0; i < availableCodecs.count(); ++i) {
-        boolReply = iface.call(QStringLiteral("setCodec"), availableCodecs[i]);
+    const QStringList availableCodecs = QStringConverter::availableCodecs();
+    for (const QString& availableCodec : availableCodecs) {
+        const QByteArray codecName = availableCodec.toUtf8();
+        boolReply = iface.call(QStringLiteral("setCodec"), codecName);
         QVERIFY(boolReply.isValid());
         QCOMPARE(boolReply.value(), true);
 
         arrayReply = iface.call(QStringLiteral("codec"));
         QVERIFY(arrayReply.isValid());
-        // Compare result with name due to aliases issue
-        // Better way to do this?
-        QCOMPARE((QTextCodec::codecForName(arrayReply.value()))->name(), (QTextCodec::codecForName(availableCodecs[i]))->name());
+
+        const QStringDecoder actualCodec(arrayReply.value());
+        const QStringDecoder expectedCodec(codecName);
+        QVERIFY(actualCodec.isValid());
+        QVERIFY(expectedCodec.isValid());
+        QCOMPARE(QByteArray(actualCodec.name()), QByteArray(expectedCodec.name()));
     }
 
     //****************** Test is/set flowControlEnabled

@@ -32,7 +32,6 @@
 #include "konsoleprivate_export.h"
 
 class QColor;
-class QTextCodec;
 
 class KConfigGroup;
 class KProcess;
@@ -639,7 +638,7 @@ public Q_SLOTS:
 
     /** Sets the text codec used by this sessions terminal emulation.
      * Overloaded to accept a QByteArray for convenience since DBus
-     * does not accept QTextCodec directly.
+     * does not accept a converter name directly.
      */
     Q_SCRIPTABLE bool setCodec(const QByteArray &name);
 

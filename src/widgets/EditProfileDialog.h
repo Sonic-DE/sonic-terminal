@@ -30,7 +30,6 @@
 class KPluralHandlingSpinBox;
 class KLocalizedString;
 class QItemSelectionModel;
-class QTextCodec;
 
 namespace Ui
 {

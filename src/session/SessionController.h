@@ -27,7 +27,6 @@
 #include "konsoleprivate_export.h"
 
 class QAction;
-class QTextCodec;
 class QKeyEvent;
 class QTimer;
 class QUrl;
