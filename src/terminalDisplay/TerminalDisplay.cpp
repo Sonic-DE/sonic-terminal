@@ -742,7 +742,7 @@ void TerminalDisplay::paintEvent(QPaintEvent *pe)
         dirtyImageRegion += widgetToImage(rect);
         // We can use the opacity settings only if we are in a top level window which actually supports opacity.
         // Many apps that use a konsole part such as kate or dolphin don't for performance reasons.
-        // This will result in repaint glitches iin wayland due to missing damage information
+        // This can cause repaint glitches on backends that require explicit damage information.
         const bool useOpacity = window() && window()->testAttribute(Qt::WA_TranslucentBackground);
         _terminalPainter->drawBackground(paint, rect, _terminalColor->backgroundColor(), useOpacity);
     }

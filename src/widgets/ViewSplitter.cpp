@@ -232,15 +232,28 @@ void ViewSplitter::childEvent(QChildEvent *event)
 void ViewSplitter::handleFocusDirection(Qt::Orientation orientation, int direction)
 {
     auto terminalDisplay = activeTerminalDisplay();
-    auto parentSplitter = qobject_cast<ViewSplitter *>(terminalDisplay->parentWidget());
+    if (terminalDisplay == nullptr) {
+        return;
+    }
+
+    QWidget* parentWidget = terminalDisplay->parentWidget();
+    while (parentWidget != nullptr && qobject_cast<ViewSplitter*>(parentWidget) == nullptr) {
+        parentWidget = parentWidget->parentWidget();
+    }
+    auto parentSplitter = qobject_cast<ViewSplitter*>(parentWidget);
+    if (parentSplitter == nullptr) {
+        return;
+    }
     auto topSplitter = parentSplitter->getToplevelSplitter();
 
     // Find the theme's splitter width + extra space to find valid terminal
     // See https://bugs.kde.org/show_bug.cgi?id=411387 for more info
     const auto handleWidth = parentSplitter->handleWidth() + 3;
 
-    const auto start = ViewSplitter::containerWidgetForDisplay(terminalDisplay)->pos();
-    const auto startMapped = parentSplitter->mapTo(topSplitter, start);
+    // QWidget::mapTo() includes intermediate container widgets. This keeps the
+    // directional shortcut fix from BUG 524598 without requiring the unsynced
+    // containerWidgetForDisplay() API.
+    const auto startMapped = terminalDisplay->mapTo(topSplitter, QPoint{});
 
     const int newX = orientation != Qt::Horizontal ? startMapped.x() + handleWidth
         : direction == 1                           ? startMapped.x() + terminalDisplay->width() + handleWidth
@@ -253,13 +266,18 @@ void ViewSplitter::handleFocusDirection(Qt::Orientation orientation, int directi
     const auto newPoint = QPoint(newX, newY);
     auto child = topSplitter->childAt(newPoint);
 
-    TerminalDisplay *focusTerminal = nullptr;
-    if (auto *terminal = qobject_cast<TerminalDisplay *>(child)) {
-        focusTerminal = terminal;
-    } else if (qobject_cast<QSplitterHandle *>(child) != nullptr) {
+    const auto terminalFromWidget = [](QWidget* widget) -> TerminalDisplay* {
+        if (auto* terminal = qobject_cast<TerminalDisplay*>(widget)) {
+            return terminal;
+        }
+        return widget != nullptr ? widget->findChild<TerminalDisplay*>(QString(), Qt::FindDirectChildrenOnly) : nullptr;
+    };
+
+    TerminalDisplay* focusTerminal = terminalFromWidget(child);
+    if (focusTerminal == nullptr && qobject_cast<QSplitterHandle*>(child) != nullptr) {
         auto targetSplitter = qobject_cast<QSplitter *>(child->parent());
-        focusTerminal = qobject_cast<TerminalDisplay *>(targetSplitter->widget(0));
-    } else if (qobject_cast<QWidget *>(child) != nullptr) {
+        focusTerminal = terminalFromWidget(targetSplitter->widget(0));
+    } else if (focusTerminal == nullptr && qobject_cast<QWidget*>(child) != nullptr) {
         while (child != nullptr && focusTerminal == nullptr) {
             focusTerminal = qobject_cast<TerminalDisplay *>(child->parentWidget());
             child = child->parentWidget();

@@ -2958,7 +2958,7 @@ void Vt102Emulation::sendKeyEvent(QKeyEvent *event)
 
         bool is_key_down = (event->type() == QEvent::KeyPress);
 
-        // X11 keycodes are offset by 8 from evdev and Wayland scancodes.
+        // X11 keycodes are offset by 8 from evdev scancodes.
         const xkb_keycode_t keycode = event->nativeScanCode() +
             (QGuiApplication::platformName() == QLatin1String("xcb") ? 8 : 0);
 

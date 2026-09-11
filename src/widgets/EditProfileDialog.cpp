@@ -30,7 +30,6 @@
 #include <KColorButton>
 #include <KIconDialog>
 #include <KLocalizedString>
-#include <KWindowSystem>
 
 #include <KNSWidgets/Button>
 

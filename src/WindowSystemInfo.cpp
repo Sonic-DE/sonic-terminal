@@ -12,7 +12,6 @@
 #include <QtGlobal>
 
 #if WITH_X11
-#include <KWindowSystem>
 #include <KX11Extras>
 #endif
 
@@ -23,8 +22,8 @@ bool WindowSystemInfo::HAVE_TRANSPARENCY = false;
 bool WindowSystemInfo::compositingActive()
 {
 #if WITH_X11
-    return !KWindowSystem::isPlatformX11() || KX11Extras::compositingActive();
+    return KX11Extras::compositingActive();
 #else
-    return true;
+    return false;
 #endif
 }

@@ -37,7 +37,6 @@
 #include <KToolBar>
 #include <KWindowConfig>
 #include <KWindowEffects>
-#include <KWindowSystem>
 #include <KXMLGUIFactory>
 
 #if WITH_X11
@@ -171,15 +170,10 @@ void MainWindow::updateUseTransparency()
 
 void MainWindow::activationRequest(const QString &xdgActivationToken)
 {
-    KWindowSystem::setCurrentXdgActivationToken(xdgActivationToken);
-
-    if (KWindowSystem::isPlatformX11()) {
+    Q_UNUSED(xdgActivationToken)
 #if WITH_X11
-        KX11Extras::forceActiveWindow(winId());
+    KX11Extras::forceActiveWindow(winId());
 #endif
-    } else {
-        KWindowSystem::activateWindow(windowHandle());
-    }
 }
 
 void MainWindow::rememberMenuAccelerators()
@@ -814,8 +808,7 @@ bool MainWindow::queryClose()
 
 #if WITH_X11
     // make sure the window is shown on current desktop and is not minimized
-    if (KWindowSystem::isPlatformX11())
-        KX11Extras::setOnDesktop(winId(), KX11Extras::currentDesktop());
+    KX11Extras::setOnDesktop(winId(), KX11Extras::currentDesktop());
 #endif
 
     int result;
@@ -1165,27 +1158,23 @@ void MainWindow::setRemoveWindowTitleBarAndFrame(bool frameless)
             confDialog->hide();
         }
 
-        if (KWindowSystem::isPlatformX11()) {
 #if WITH_X11
-            const auto oldGeometry = saveGeometry();
-            // This happens for every Konsole window. It depends on
-            // the fact that every window is processed in single thread
-            const auto oldActiveWindow = KX11Extras::activeWindow();
+        const auto oldGeometry = saveGeometry();
+        // This happens for every Konsole window. It depends on
+        // the fact that every window is processed in single thread
+        const auto oldActiveWindow = KX11Extras::activeWindow();
 
-            setWindowFlags(newFlags);
+        setWindowFlags(newFlags);
 
-            // The setWindowFlags() has hidden the window. Show it again
-            // with previous geometry
-            restoreGeometry(oldGeometry);
-            setVisible(true);
-            KX11Extras::activateWindow(oldActiveWindow);
+        // The setWindowFlags() has hidden the window. Show it again
+        // with previous geometry
+        restoreGeometry(oldGeometry);
+        setVisible(true);
+        KX11Extras::activateWindow(oldActiveWindow);
+#else
+        setWindowFlags(newFlags);
+        setVisible(true);
 #endif
-        } else {
-            // Restoring geometry ourselves doesn't work on Wayland
-            setWindowFlags(newFlags);
-            // The setWindowFlags() has hidden the window. Show it again
-            setVisible(true);
-        }
 
         if (confDialog != nullptr && isConfDialogVisible) {
             confDialog->restoreGeometry(confDialogGeometry);
