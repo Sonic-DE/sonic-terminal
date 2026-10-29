@@ -1,0 +1,33 @@
+# Every dialog, and every page of the page dialogs.
+{"op": "waitWindow"}
+{"op": "geometry", "x": 100, "y": 80, "width": 900, "height": 560}
+{"op": "waitText", "text": "$"}
+{"op": "action", "id": "options_configure"}
+{"op": "dialog", "name": "configure"}
+{"op": "action", "id": "edit-current-profile"}
+{"op": "dialog", "name": "edit-profile"}
+{"op": "action", "id": "rename-session"}
+{"op": "dialog", "name": "rename-tab"}
+{"op": "action", "id": "adjust-history"}
+{"op": "dialog", "name": "history-size"}
+{"op": "action", "id": "copy-input-to-selected-tabs"}
+{"op": "dialog", "name": "copy-input-to"}
+{"op": "action", "id": "options_configure_keybinding"}
+{"op": "dialog", "name": "shortcuts"}
+{"op": "action", "id": "options_configure_toolbars"}
+{"op": "dialog", "name": "toolbars"}
+{"op": "action", "id": "options_configure_notifications"}
+{"op": "dialog", "name": "notifications", "sortColumn": 1}
+{"op": "action", "id": "switch_application_language"}
+{"op": "dialog", "name": "language"}
+{"op": "action", "id": "new_bookmark_folder"}
+{"op": "dialog", "name": "bookmark-folder"}
+{"op": "action", "id": "help_about_app"}
+{"op": "dialog", "name": "about"}
+{"op": "action", "id": "help_about_kde"}
+{"op": "dialog", "name": "about-kde"}
+{"op": "action", "id": "file_save_as"}
+{"op": "dialog", "name": "save-output"}
+{"op": "action", "id": "file_print"}
+{"op": "dialog", "name": "print"}
+{"op": "quit"}

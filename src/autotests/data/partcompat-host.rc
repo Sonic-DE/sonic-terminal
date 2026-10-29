@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-FileCopyrightText: 2026 Joseph Crowell <joseph.w.crowell@gmail.com>
+     SPDX-License-Identifier: GPL-2.0-or-later
+     A minimal host window GUI for PartCompatTest, like the ones Kate or KDevelop provide. -->
+<!DOCTYPE gui SYSTEM "kpartgui.dtd">
+<gui name="partcompathost" version="1">
+    <MenuBar>
+        <Menu name="file"><text>File</text></Menu>
+        <Menu name="edit"><text>Edit</text></Menu>
+        <Menu name="view"><text>View</text></Menu>
+        <Menu name="settings"><text>Settings</text></Menu>
+    </MenuBar>
+</gui>

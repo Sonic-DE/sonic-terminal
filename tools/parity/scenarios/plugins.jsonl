@@ -1,0 +1,13 @@
+# A plugin built against the widget plugin interface (src/parity/compatplugin), loaded from
+# the phase 0 binary: its side panel, menu entry, shortcut, and its calls into konsole.
+{"op": "waitWindow"}
+{"op": "geometry", "x": 100, "y": 80, "width": 1000, "height": 600}
+{"op": "waitText", "text": "$"}
+{"op": "capture", "name": "plugin-panel"}
+{"op": "menu", "name": "plugins"}
+{"op": "key", "sequence": "Ctrl+Shift+F9"}
+{"op": "waitText", "text": "from-compat-plugin\n"}
+{"op": "capture", "name": "plugin-action"}
+{"op": "describe", "name": "plugin"}
+{"op": "homeFile", "file": "compatplugin.log"}
+{"op": "quit"}

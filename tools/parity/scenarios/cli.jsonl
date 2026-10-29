@@ -1,0 +1,5 @@
+# Command-line options: what windows, tabs and bars the option produced.
+{"op": "wait", "ms": 2500}
+{"op": "describe", "name": "cli"}
+{"op": "capture", "name": "cli"}
+{"op": "quit"}

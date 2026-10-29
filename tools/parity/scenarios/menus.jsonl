@@ -1,0 +1,22 @@
+# Every menu: menu bar menus, the hamburger menu, and the terminal's context menu.
+{"op": "waitWindow"}
+{"op": "geometry", "x": 100, "y": 80, "width": 900, "height": 560}
+{"op": "waitText", "text": "$"}
+{"op": "type", "text": "echo https://sonicde.org /etc/hostname\r"}
+{"op": "waitText", "text": "/etc/hostname\n"}
+{"op": "action", "id": "options_show_menubar"}
+{"op": "capture", "name": "menubar"}
+{"op": "menu", "name": "file"}
+{"op": "menu", "name": "edit"}
+{"op": "menu", "name": "view"}
+{"op": "menu", "name": "bookmark"}
+{"op": "menu", "name": "plugins"}
+{"op": "menu", "name": "settings"}
+{"op": "menu", "name": "help"}
+{"op": "action", "id": "options_show_menubar"}
+{"op": "action", "id": "hamburger_menu", "delay": 0}
+{"op": "popup", "name": "hamburger"}
+{"op": "contextMenu", "name": "context-text", "column": 6, "line": 1}
+{"op": "contextMenu", "name": "context-url", "column": 12, "line": 1}
+{"op": "contextMenu", "name": "context-file", "column": 30, "line": 1}
+{"op": "quit"}

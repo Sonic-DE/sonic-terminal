@@ -24,6 +24,14 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin" AND NOT WIN32)
         PartTest.cpp
         LINK_LIBRARIES KF6::XmlGui KF6::Parts KF6::Pty ${KONSOLE_TEST_LIBS}
     )
+    ecm_add_test(
+        PartCompatTest.cpp
+        LINK_LIBRARIES KF6::XmlGui KF6::Parts Qt::Xml Qt::Test
+    )
+    target_compile_definitions(PartCompatTest PRIVATE
+        PARTUI_RC="${CMAKE_SOURCE_DIR}/desktop/partui.rc"
+        PARTCOMPAT_HOST_RC="${CMAKE_CURRENT_SOURCE_DIR}/data/partcompat-host.rc")
+    set_tests_properties(PartCompatTest PROPERTIES LABELS compat ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endif()
 
 ecm_add_tests(

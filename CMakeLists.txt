@@ -48,6 +48,8 @@ find_package(Qt6 ${QT_MIN_VERSION} CONFIG REQUIRED
     Widgets
 )
 
+find_package(SonicLogging 6.31.0 REQUIRED)
+
 find_package(KF6 ${KF6_DEP_VERSION} REQUIRED
     Bookmarks
     Config

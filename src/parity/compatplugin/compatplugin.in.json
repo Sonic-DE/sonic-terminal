@@ -1,0 +1,6 @@
+{
+    "KPlugin": {
+        "Name": "Compat Plugin",
+        "Version": "@RELEASE_SERVICE_VERSION@"
+    }
+}

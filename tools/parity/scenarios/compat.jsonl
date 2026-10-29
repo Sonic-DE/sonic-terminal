@@ -1,0 +1,15 @@
+# External compatibility: D-Bus objects, shell environment, window identity, accessibility.
+{"op": "waitWindow"}
+{"op": "geometry", "x": 100, "y": 80, "width": 900, "height": 560}
+{"op": "waitText", "text": "$"}
+{"op": "type", "text": "env | sort > ~/env.txt\r"}
+{"op": "env", "file": "env.txt"}
+{"op": "type", "text": "printf 'accessible line\\n'\r"}
+{"op": "waitText", "text": "accessible line\n"}
+{"op": "mouse", "event": "double", "column": 3, "line": 2}
+{"op": "mouse", "event": "release", "column": 3, "line": 2}
+{"op": "accessible", "name": "main"}
+{"op": "introspect", "paths": ["/", "/Windows", "/Windows/1", "/Sessions", "/Sessions/1", "/konsole", "/konsole/MainWindow_1"]}
+{"op": "xprop", "name": "main"}
+{"op": "describe", "name": "main"}
+{"op": "quit"}

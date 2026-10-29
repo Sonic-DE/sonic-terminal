@@ -41,10 +41,17 @@
 #include <KStyleManager>
 #endif
 
+#include <Sonic/Logging/Logging>
+
+#ifdef KONSOLE_PARITY_HOOKS
+#include "parity/ParityHook.h"
+#endif
+
+SONIC_LOGGING_COMPONENT("org.sonicde.terminal")
+
 using Konsole::Application;
 
 #ifdef PROFILE_STARTUP
-#include <QDebug>
 #include <QElapsedTimer>
 #include <QTimer>
 #endif
@@ -159,6 +166,7 @@ int main(int argc, char *argv[])
 #endif
 
     auto app = new QApplication(argc, argv);
+    Sonic::Logging::install();
 
 #if HAVE_STYLE_MANAGER
     /**
@@ -206,6 +214,9 @@ int main(int argc, char *argv[])
     QStringList customCommand = Application::getCustomCommand(args);
 
     Application::populateCommandLineParser(parser.data());
+#ifdef KONSOLE_PARITY_HOOKS
+    parser->addOption(Konsole::ParityHook::commandLineOption());
+#endif
 
     parser->process(args);
     about.processCommandLine(parser.data());
@@ -250,10 +261,16 @@ int main(int argc, char *argv[])
         }
     }
 
+#ifdef KONSOLE_PARITY_HOOKS
+    if (parser->isSet(Konsole::ParityHook::commandLineOption())) {
+        Konsole::ParityHook::start(parser->value(Konsole::ParityHook::commandLineOption()));
+    }
+#endif
+
 #ifdef PROFILE_STARTUP
-    qDebug() << "Construction completed in" << timer.elapsed() << "ms";
+    sonicDebug() << "Construction completed in" << timer.elapsed() << "ms";
     QTimer::singleShot(0, [&timer]() {
-        qDebug() << "Startup complete in" << timer.elapsed() << "ms";
+        sonicDebug() << "Startup complete in" << timer.elapsed() << "ms";
     });
 #endif
 

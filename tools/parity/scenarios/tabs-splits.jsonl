@@ -1,0 +1,23 @@
+# Tab bar with 1, 3 and 12 tabs; splits both ways and nested.
+{"op": "waitWindow"}
+{"op": "geometry", "x": 100, "y": 80, "width": 1100, "height": 640}
+{"op": "waitText", "text": "$"}
+{"op": "capture", "name": "tabs-1"}
+{"op": "action", "id": "new-tab"}
+{"op": "action", "id": "new-tab"}
+{"op": "capture", "name": "tabs-3"}
+{"op": "action", "id": "new-tab"}
+{"op": "action", "id": "new-tab"}
+{"op": "action", "id": "new-tab"}
+{"op": "action", "id": "new-tab"}
+{"op": "action", "id": "new-tab"}
+{"op": "action", "id": "new-tab"}
+{"op": "action", "id": "new-tab"}
+{"op": "action", "id": "new-tab"}
+{"op": "action", "id": "new-tab"}
+{"op": "capture", "name": "tabs-12"}
+{"op": "action", "id": "split-view-left-right"}
+{"op": "capture", "name": "split-left-right"}
+{"op": "action", "id": "split-view-top-bottom"}
+{"op": "capture", "name": "split-nested"}
+{"op": "quit"}

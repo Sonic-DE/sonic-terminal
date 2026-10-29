@@ -1,0 +1,26 @@
+# Translucency and blur over known backgrounds; normal, maximized and inactive windows.
+{"op": "waitWindow"}
+{"op": "geometry", "x": 100, "y": 80, "width": 900, "height": 560}
+{"op": "waitText", "text": "$"}
+{"op": "type", "text": "printf 'translucent text\\n'\r"}
+{"op": "waitText", "text": "translucent text\n"}
+{"op": "backdrop", "fill": "#0000ff"}
+{"op": "capture", "name": "over-blue"}
+{"op": "backdrop", "fill": "#00ff00"}
+{"op": "capture", "name": "over-green"}
+{"op": "backdrop", "fill": "checker"}
+{"op": "capture", "name": "over-checker"}
+{"op": "windowState", "state": "maximized"}
+{"op": "capture", "name": "maximized"}
+{"op": "windowState", "state": "normal"}
+{"op": "action", "id": "new-window", "delay": 1000}
+{"op": "waitWindow", "window": 1}
+{"op": "useWindow", "window": 1}
+{"op": "geometry", "x": 1100, "y": 600, "width": 500, "height": 300}
+{"op": "useWindow", "window": 0}
+{"op": "action", "id": "new-tab", "delay": 0}
+{"op": "useWindow", "window": 1}
+{"op": "wait", "ms": 500}
+{"op": "useWindow", "window": 0}
+{"op": "capture", "name": "inactive"}
+{"op": "quit"}

@@ -42,6 +42,8 @@ option(ENABLE_DECRQCRA "Konsole: enable DEC request checksum rectangular area" O
 
 ### Development tools
 option(KONSOLE_BUILD_UNI2CHARACTERWIDTH "Konsole: build uni2characterwidth executable" OFF)
+# Scripted UI driver for the parity tests (tools/parity); never enable for packages.
+option(KONSOLE_PARITY_HOOKS "Konsole: build the --parity-script test hook" OFF)
 
 set(dbus_xml_srcs)
 if(HAVE_DBUS)
@@ -341,14 +343,24 @@ add_library(konsoleapp SHARED Application.cpp
     pluginsystem/IKonsolePlugin.cpp
     pluginsystem/PluginManager.cpp
     delegates/ProfileShortcutDelegate.cpp
+    SonicLoggingApp.cpp
 )
 
 generate_export_header(konsoleapp BASE_NAME konsoleapp)
 
 target_compile_definitions(konsoleapp PRIVATE -DRELEASE_SERVICE_VERSION="${RELEASE_SERVICE_VERSION}")
 
+if(KONSOLE_PARITY_HOOKS)
+    find_package(Qt6Test ${QT_MIN_VERSION} CONFIG REQUIRED)
+    target_sources(konsoleapp PRIVATE parity/ParityHook.cpp)
+    target_compile_definitions(konsoleapp PUBLIC KONSOLE_PARITY_HOOKS=1)
+    target_link_libraries(konsoleapp Qt::Test)
+    add_subdirectory(parity/compatplugin)
+endif()
+
 target_link_libraries(konsoleapp
   konsoleprivate
+  Sonic::Logging
   KF6::XmlGui
   KF6::WindowSystem
   KF6::Bookmarks
@@ -375,6 +387,7 @@ add_executable(konsole ${konsole_SRCS} ${ICONS_SOURCES})
 target_link_libraries(konsole
   konsoleprivate
   konsoleapp
+  Sonic::Logging
   KF6::XmlGui
   KF6::WindowSystem
   KF6::Bookmarks

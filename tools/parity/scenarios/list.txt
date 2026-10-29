@@ -1,0 +1,35 @@
+# scenario | extra run.py options (one run per line; the name is the output directory)
+main-window | main-window.jsonl |
+menus | menus.jsonl |
+tabs-splits | tabs-splits.jsonl |
+find-selection | find-selection.jsonl |
+dialogs | dialogs.jsonl |
+opaque | transparency.jsonl |
+translucent-80 | transparency.jsonl | --scheme-set Opacity=0.8
+translucent-50 | transparency.jsonl | --scheme-set Opacity=0.5
+translucent-80-blur | transparency.jsonl | --scheme-set Opacity=0.8 --scheme-set Blur=true
+translucent-50-blur | transparency.jsonl | --scheme-set Opacity=0.5 --scheme-set Blur=true
+compat | compat.jsonl |
+plugins | plugins.jsonl | --plugin-path {plugin_baseline}
+cli-plain | cli.jsonl |
+cli-profile | cli.jsonl | "--konsole-args=--profile Parity"
+cli-builtin-profile | cli.jsonl | --konsole-args=--builtin-profile
+cli-layout | cli.jsonl | "--konsole-args=--layout layout.json"
+cli-workdir | cli.jsonl | "--konsole-args=--workdir /tmp"
+cli-hold | cli.jsonl | "--konsole-args=--hold -e /bin/true"
+cli-new-tab | cli.jsonl | --konsole-args=--new-tab
+cli-tabs-from-file | cli.jsonl | "--konsole-args=--tabs-from-file tabs.txt"
+cli-background-mode | cli.jsonl | --konsole-args=--background-mode
+cli-show-menubar | cli.jsonl | --konsole-args=--show-menubar
+cli-hide-menubar | cli.jsonl | --konsole-args=--hide-menubar
+cli-show-toolbars | cli.jsonl | --konsole-args=--show-toolbars
+cli-hide-toolbars | cli.jsonl | --konsole-args=--hide-toolbars
+cli-show-tabbar | cli.jsonl | --konsole-args=--show-tabbar
+cli-hide-tabbar | cli.jsonl | --konsole-args=--hide-tabbar
+cli-fullscreen | cli.jsonl | --konsole-args=--fullscreen
+cli-notransparency | cli.jsonl | "--konsole-args=--notransparency" --scheme-set Opacity=0.8
+cli-property | cli.jsonl | "--konsole-args=-p TerminalColumns=100"
+cli-execute | cli.jsonl | "--konsole-args=-e /bin/sh -c 'echo executed; sleep 30'"
+cli-force-reuse | cli.jsonl | --konsole-args=--force-reuse
+cli-list-profiles | cli.jsonl | --konsole-args=--list-profiles --no-script
+cli-list-profile-properties | cli.jsonl | --konsole-args=--list-profile-properties --no-script

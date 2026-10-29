@@ -1,0 +1,17 @@
+# The main window with plain and colored output.
+{"op": "waitWindow"}
+{"op": "geometry", "x": 100, "y": 80, "width": 900, "height": 560}
+{"op": "waitText", "text": "$"}
+{"op": "capture", "name": "main-empty"}
+{"op": "type", "text": "printf 'plain \\033[1mbold\\033[0m \\033[3mitalic\\033[0m \\033[4munder\\033[0m \\033[31mred\\033[0m \\033[38;5;208morange\\033[0m \\033[38;2;30;144;255mtrue\\033[0m\\n'\r"}
+{"op": "waitText", "text": "orange"}
+{"op": "capture", "name": "main-colors"}
+{"op": "mouse", "event": "press", "column": 2, "line": 1}
+{"op": "mouse", "event": "move", "column": 12, "line": 1}
+{"op": "mouse", "event": "release", "column": 12, "line": 1}
+{"op": "selection", "label": "drag"}
+{"op": "mouse", "event": "double", "column": 8, "line": 1}
+{"op": "mouse", "event": "release", "column": 8, "line": 1}
+{"op": "selection", "label": "word"}
+{"op": "menu", "name": "file"}
+{"op": "quit"}
