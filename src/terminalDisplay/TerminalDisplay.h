@@ -821,6 +821,7 @@ private:
     TerminalHeaderBar *_headerBar = nullptr;
     QRect _searchResultRect;
     friend class TerminalDisplayAccessible;
+    friend class TerminalView;
 
     bool _drawOverlay = false;
     Qt::Edge _overlayEdge;

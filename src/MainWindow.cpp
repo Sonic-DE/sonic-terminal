@@ -101,6 +101,8 @@ MainWindow::MainWindow()
     connect(_viewManager, &Konsole::ViewManager::unplugController, this, &Konsole::MainWindow::disconnectController);
     connect(_viewManager, &Konsole::ViewManager::viewPropertiesChanged, bookmarkHandler(), &Konsole::BookmarkHandler::setViews);
     connect(_viewManager, &Konsole::ViewManager::blurSettingChanged, this, &Konsole::MainWindow::setBlur);
+    // For WinIdChange: the blur belongs to the native window, which Qt may recreate.
+    installEventFilter(this);
 
     connect(_viewManager, &Konsole::ViewManager::updateWindowIcon, this, &Konsole::MainWindow::updateWindowIcon);
     connect(_viewManager, &Konsole::ViewManager::newViewWithProfileRequest, this, &Konsole::MainWindow::newFromProfile);
@@ -1220,6 +1222,15 @@ void MainWindow::triggerAction(const QString &name) const
 
 bool MainWindow::eventFilter(QObject *obj, QEvent *event)
 {
+    if (obj == this && event->type() == QEvent::WinIdChange) {
+        // A new native window (e.g. when the first QQuickWidget arrives) starts without blur.
+        if (_blurEnabled && !_pluggedController.isNull() && !_pluggedController->isKonsolePart()) {
+            if (QWindow* window = windowHandle()) {
+                KWindowEffects::enableBlurBehind(window, true);
+            }
+        }
+    }
+
     if (!_pluggedController.isNull() && obj == _pluggedController->view()) {
         switch (event->type()) {
         case QEvent::MouseButtonPress:

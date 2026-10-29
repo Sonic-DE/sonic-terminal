@@ -59,6 +59,23 @@ def compare_image(name, baseline_dir, run_dir, report_dir):
     return None
 
 
+def xprop_properties(text):
+    # The X server lists properties in the order they were last changed; only the set matters.
+    properties = []
+    for line in text.splitlines():
+        if line[:1].isspace() and properties:
+            properties[-1] += "\n" + line
+        else:
+            properties.append(line)
+    return sorted(properties)
+
+
+def same_text(name, baseline, run):
+    if name.startswith("xprop-"):
+        return xprop_properties(baseline) == xprop_properties(run)
+    return baseline == run
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("baseline", type=Path)
@@ -72,7 +89,7 @@ def main():
         other = args.run / text
         if not other.exists():
             failures.append(f"{text}: missing")
-        elif (args.baseline / text).read_text() != other.read_text():
+        elif not same_text(text, (args.baseline / text).read_text(), other.read_text()):
             failures.append(f"{text} differs")
     for image in sorted(p.name for p in args.baseline.glob("*.png")):
         if not (args.run / image).exists():

@@ -48,6 +48,8 @@ Other checks:
 
 - Text files (`trace.txt`, `dbus.txt`, `env-masked.txt`, `xprop-*.txt`,
   `accessible-*.txt`, `describe-*.txt`, `stdout.txt`, plugin logs) must match exactly.
+  `xprop-*.txt` is compared as a sorted set of properties: the X server lists them in
+  the order they were last changed, which depends on timing.
 - Outside the text mask, images must be identical.
 - Inside the text mask, at most 10 % of the mask's pixels may differ (anti-aliasing and
   DPI handling). Symbolic icons take the text color, so they're part of the mask.

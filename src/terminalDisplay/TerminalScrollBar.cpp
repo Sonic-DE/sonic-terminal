@@ -13,6 +13,8 @@
 #include "../characters/Character.h"
 #include "TerminalDisplay.h"
 #include "TerminalFonts.h"
+#include "quick/TerminalView.h"
+#include "quick/TerminalViewRegistry.h"
 #include "session/SessionController.h"
 
 // KDE
@@ -240,7 +242,7 @@ void TerminalScrollBar::scrollImage(int lines, const QRect &screenWindowRegion, 
     }
 
     // scroll the display vertically to match internal _image
-    display->scroll(0, display->terminalFont()->fontHeight() * (-lines), scrollRect);
+    TerminalViewRegistry::view(display)->scrollSnapshot(display->terminalFont()->fontHeight() * (-lines), scrollRect);
 }
 
 void TerminalScrollBar::changeEvent(QEvent *e)

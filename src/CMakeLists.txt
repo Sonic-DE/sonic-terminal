@@ -229,6 +229,8 @@ set(konsoleprivate_SRCS ${windowadaptors_SRCS}
 
                         terminalDisplay/TerminalDisplay.cpp
                         terminalDisplay/TerminalPainter.cpp
+                        quick/TerminalView.cpp
+                        quick/TerminalViewRegistry.cpp
                         terminalDisplay/TerminalScrollBar.cpp
                         terminalDisplay/TerminalColor.cpp
                         terminalDisplay/TerminalFonts.cpp
@@ -304,6 +306,8 @@ endif()
 
 target_link_libraries(konsoleprivate
     PUBLIC
+    Qt::Quick
+    Qt::QuickWidgets
     konsoleprivate_core
     konsolecolorscheme
     keyboardtranslator
