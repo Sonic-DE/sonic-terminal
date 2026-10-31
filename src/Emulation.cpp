@@ -13,7 +13,6 @@
 #include <QKeyEvent>
 
 // Konsole
-#include "KonsoleSettings.h"
 #include "Screen.h"
 #include "ScreenWindow.h"
 #include "keyboardtranslator/KeyboardTranslator.h"
@@ -265,31 +264,8 @@ void Emulation::receiveData(const char* text, int length)
     // send characters to terminal emulator
     const QString readString = _decoder.decode(QByteArrayView(text, length));
     const QVector<uint> chars = readString.toUcs4();
+    // ZModem transfers are no longer supported: the start marker is output like any other.
     receiveChars(chars);
-
-    if (KonsoleSettings::listenForZModemTerminalCodes() == false) {
-        return;
-    }
-
-    // look for z-modem indicator
-    //-- someone who understands more about z-modems that I do may be able to move
-    // this check into the above for loop?
-    auto* found = static_cast<const char*>(memchr(text, '\030', length));
-    if (found) {
-        auto startPos = found - text;
-        if (startPos < 0) {
-            return;
-        }
-        for (int i = startPos; i < length - 4; i++) {
-            if (text[i] == '\030') {
-                if (qstrncmp(text + i + 1, "B00", 3) == 0) {
-                    Q_EMIT zmodemDownloadDetected();
-                } else if (qstrncmp(text + i + 1, "B01", 3) == 0) {
-                    Q_EMIT zmodemUploadDetected();
-                }
-            }
-        }
-    }
 }
 
 void Emulation::writeToStream(TerminalCharacterDecoder* decoder, int startLine, int endLine)

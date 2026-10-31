@@ -7,6 +7,7 @@ SonicDE's terminal app, with tabs, split views and profiles for working on the c
 - The terminal now records its logs through SonicDE's unified logging system.
 - The terminal window is now drawn with QML; it looks and works as before.
 - The tab bar's "Use user-defined stylesheet" option has been removed.
+- ZModem file transfers are no longer supported.
 
 ## 26.08.2 (2026-10-20)
 

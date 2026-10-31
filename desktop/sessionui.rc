@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <!DOCTYPE gui SYSTEM "kpartgui.dtd">
 
-<gui name="session" version="36">
+<gui name="session" version="37">
     <MenuBar>
         <Menu name="file">
             <Action name="file_save_as" group="session-operations"/>
@@ -23,7 +23,6 @@
             <Action name="copy-input-to" group="session-edit-operations"/>
             <Action name="send-signal" group="session-edit-operations"/>
             <Action name="rename-session" group="session-edit-operations"/>
-            <Action name="zmodem-upload" group="session-edit-operations"/>
             <Separator group="session-edit-operations"/>
             <Action name="edit_find" group="session-edit-operations"/>
             <Action name="edit_find_next" group="session-edit-operations"/>

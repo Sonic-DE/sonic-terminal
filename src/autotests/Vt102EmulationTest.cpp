@@ -7,8 +7,12 @@
 // Own
 #include "Vt102EmulationTest.h"
 
+#include "KonsoleSettings.h"
+#include "decoders/PlainTextDecoder.h"
+
 #include <QSignalSpy>
 #include <QTest>
+#include <QTextStream>
 
 // The below is to verify the old #defines match the new constexprs
 // Just copy/paste for now from Vt102Emulation.cpp
@@ -461,6 +465,31 @@ void Vt102EmulationTest::testBufferedUpdates()
     em.receiveChars({ESC, '[', '?', '2', '0', '2', '6', 'l'});
 
     QCOMPARE(outputChangedSpy.count(), 2);
+}
+
+void Vt102EmulationTest::testZModemMarkerIsOutput()
+{
+    // ZModem is dropped: even with the old setting on, its start markers are just output.
+    KonsoleSettings::setListenForZModemTerminalCodes(true);
+    TestEmulation em;
+    em.reset();
+    QSignalSpy download(&em, &Emulation::zmodemDownloadDetected);
+    QSignalSpy upload(&em, &Emulation::zmodemUploadDetected);
+
+    const QByteArray data = QByteArrayLiteral("rz\r**\030B00000000000000\r\n**\030B0100000023be50\r\n");
+    em.receiveData(data.constData(), data.size());
+
+    QCOMPARE(download.count(), 0);
+    QCOMPARE(upload.count(), 0);
+    QString text;
+    QTextStream stream(&text);
+    PlainTextDecoder decoder;
+    decoder.begin(&stream);
+    em.writeToStream(&decoder, 0, 2);
+    decoder.end();
+    QVERIFY2(text.contains(QLatin1String("B00000000000000")), qPrintable(text));
+    QVERIFY2(text.contains(QLatin1String("B0100000023be50")), qPrintable(text));
+    KonsoleSettings::setListenForZModemTerminalCodes(false);
 }
 
 void Vt102EmulationTest::testProfileChange_data()

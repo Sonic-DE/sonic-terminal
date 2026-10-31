@@ -38,6 +38,8 @@
 #include <KProcess>
 #include <KSelectAction>
 
+#include <Sonic/Logging/Log>
+
 #ifndef Q_OS_WIN
 #include <KPtyDevice>
 #endif
@@ -1680,32 +1682,12 @@ void Session::cancelZModem()
     _zmodemBusy = false;
 }
 
+// ZModem transfers are no longer supported; kept for the frozen API.
 void Session::startZModem(const QString& zmodem, const QString& dir, const QStringList& list)
 {
-    _zmodemBusy = true;
-    _zmodemProc = new KProcess();
-    _zmodemProc->setOutputChannelMode(KProcess::SeparateChannels);
-
-    *_zmodemProc << zmodem << QStringLiteral("-v") << QStringLiteral("-e") << list;
-
-    if (!dir.isEmpty()) {
-        _zmodemProc->setWorkingDirectory(dir);
-    }
-
-    connect(_zmodemProc, &KProcess::readyReadStandardOutput, this, &Konsole::Session::zmodemReadAndSendBlock);
-    connect(_zmodemProc, &KProcess::readyReadStandardError, this, &Konsole::Session::zmodemReadStatus);
-    connect(_zmodemProc, &KProcess::finished, this, &Konsole::Session::zmodemFinished);
-
-    _zmodemProc->start();
-
-    disconnect(_shellProcess, &Konsole::Pty::receivedData, this, &Konsole::Session::onReceiveBlock);
-    connect(_shellProcess, &Konsole::Pty::receivedData, this, &Konsole::Session::zmodemReceiveBlock);
-
-    _zmodemProgress = new ZModemDialog(CompatWindows::activeWindow(), false, i18n("ZModem Progress"));
-
-    connect(_zmodemProgress, &Konsole::ZModemDialog::zmodemCancel, this, &Konsole::Session::zmodemFinished);
-
-    _zmodemProgress->show();
+    Q_UNUSED(dir)
+    Q_UNUSED(list)
+    sonicWarning() << "ZModem transfer with" << zmodem << "requested; ZModem is no longer supported";
 }
 
 void Session::zmodemReadAndSendBlock()

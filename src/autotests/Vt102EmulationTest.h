@@ -34,6 +34,8 @@ private Q_SLOTS:
 
     void testBufferedUpdates();
 
+    void testZModemMarkerIsOutput();
+
     void testProfileChange_data();
     void testProfileChange();
 

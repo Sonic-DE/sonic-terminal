@@ -274,6 +274,8 @@ void QmlWindowDBusTest::testMainWindowObject()
     const QStringList qmlActions = QDBusReply<QStringList>(mainWindow.call(QStringLiteral("actions"))).value();
     const QStringList widgetActions = QDBusReply<QStringList>(widgetWindow.call(QStringLiteral("actions"))).value();
     QVERIFY(!widgetActions.isEmpty());
+    // ZModem is dropped.
+    QVERIFY(!qmlActions.contains(QStringLiteral("zmodem-upload")));
     for (const QString& action : widgetActions) {
         QVERIFY2(qmlActions.contains(action), qPrintable(action));
     }

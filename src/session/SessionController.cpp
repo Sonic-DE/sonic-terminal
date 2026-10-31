@@ -52,6 +52,8 @@
 
 #include <KFileItemListProperties>
 
+#include <Sonic/Logging/Log>
+
 // Konsole
 #include "CopyInputDialog.h"
 #include "Emulation.h"
@@ -202,10 +204,6 @@ SessionController::SessionController(Session *sessionParam, TerminalDisplay *vie
 
     // listen for output changes to set activity flag
     connect(session()->emulation(), &Konsole::Emulation::outputChanged, this, &Konsole::SessionController::fireActivity);
-
-    // listen for detection of ZModem transfer
-    connect(session(), &Konsole::Session::zmodemDownloadDetected, this, &Konsole::SessionController::zmodemDownload);
-    connect(session(), &Konsole::Session::zmodemUploadDetected, this, &Konsole::SessionController::zmodemUpload);
 
     // listen for flow control status changes
     connect(session(), &Konsole::Session::flowControlEnabledChanged, view(), &Konsole::TerminalDisplay::setFlowControlWarningEnabled);
@@ -899,11 +897,6 @@ void SessionController::setupExtraActions()
     copyInputActions->addAction(copyInputToNoneAction);
     connect(copyInputActions, &KSelectAction::actionTriggered, this, &Konsole::SessionController::copyInputActionsTriggered);
     _copyInputActions = copyInputActions;
-
-    action = collection->addAction(QStringLiteral("zmodem-upload"), this, &SessionController::zmodemUpload);
-    action->setText(i18n("&ZModem Upload..."));
-    action->setIcon(QIcon::fromTheme(QStringLiteral("document-open")));
-    collection->setDefaultShortcut(action, Qt::CTRL | Qt::ALT | Qt::Key_U);
 
     // Monitor
     KToggleAction *toggleAction = new KToggleAction(i18n("One-Shot Monitors"), this);
@@ -1990,7 +1983,6 @@ void SessionController::updateReadOnlyActionStates()
     updateActionState(QStringLiteral("switch-profile"));
     updateActionState(QStringLiteral("adjust-history"));
     updateActionState(QStringLiteral("send-signal"));
-    updateActionState(QStringLiteral("zmodem-upload"));
 
     _codecAction->setEnabled(!readonly);
 
@@ -2212,59 +2204,15 @@ void SessionController::sessionNotificationsChanged(Session::Notification notifi
     Q_EMIT notificationChanged(this, notification, enabled);
 }
 
+// ZModem transfers are no longer supported; kept for the frozen API.
 void SessionController::zmodemDownload()
 {
-    QString zmodem = QStandardPaths::findExecutable(QStringLiteral("rz"));
-    if (zmodem.isEmpty()) {
-        zmodem = QStandardPaths::findExecutable(QStringLiteral("lrzsz-rz"));
-    }
-    if (zmodem.isEmpty()) {
-        zmodem = QStandardPaths::findExecutable(QStringLiteral("lrz"));
-    }
-    if (!zmodem.isEmpty()) {
-        const QString path = QFileDialog::getExistingDirectory(view(),
-                                                               i18n("Save ZModem Download to..."),
-                                                               QDir::homePath(),
-                                                               QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
-
-        if (!path.isEmpty()) {
-            session()->startZModem(zmodem, path, QStringList());
-            return;
-        }
-    } else {
-        KMessageBox::error(view(),
-                           i18n("<p>A ZModem file transfer attempt has been detected, "
-                                "but no suitable ZModem software was found on this system.</p>"
-                                "<p>You may wish to install the 'rzsz' or 'lrzsz' package.</p>"));
-    }
-    session()->cancelZModem();
+    sonicWarning() << "ZModem download requested; ZModem is no longer supported";
 }
 
 void SessionController::zmodemUpload()
 {
-    if (session()->isZModemBusy()) {
-        KMessageBox::information(view(), i18n("<p>The current session already has a ZModem file transfer in progress.</p>"));
-        return;
-    }
-
-    QString zmodem = QStandardPaths::findExecutable(QStringLiteral("sz"));
-    if (zmodem.isEmpty()) {
-        zmodem = QStandardPaths::findExecutable(QStringLiteral("lrzsz-sz"));
-    }
-    if (zmodem.isEmpty()) {
-        zmodem = QStandardPaths::findExecutable(QStringLiteral("lsz"));
-    }
-    if (zmodem.isEmpty()) {
-        KMessageBox::error(view(),
-                           i18n("<p>No suitable ZModem software was found on this system.</p>"
-                                "<p>You may wish to install the 'rzsz' or 'lrzsz' package.</p>"));
-        return;
-    }
-
-    QStringList files = QFileDialog::getOpenFileNames(view(), i18n("Select Files for ZModem Upload"), QDir::homePath());
-    if (!files.isEmpty()) {
-        session()->startZModem(zmodem, QString(), files);
-    }
+    sonicWarning() << "ZModem upload requested; ZModem is no longer supported";
 }
 
 bool SessionController::isKonsolePart() const
