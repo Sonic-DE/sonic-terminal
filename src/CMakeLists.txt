@@ -70,9 +70,36 @@ if(HAVE_DBUS)
         Konsole::Session
     )
 
+    # The same objects also answer to the SonicDE interface names.
+    foreach(interface Window Session)
+        add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/org.sonicde.terminal.${interface}.xml
+            COMMAND ${CMAKE_COMMAND}
+                -DIN=${CMAKE_CURRENT_BINARY_DIR}/org.kde.konsole.${interface}.xml
+                -DOUT=${CMAKE_CURRENT_BINARY_DIR}/org.sonicde.terminal.${interface}.xml
+                -DFROM=org.kde.konsole.${interface}
+                -DTO=org.sonicde.terminal.${interface}
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/RenameDBusInterface.cmake
+            DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/org.kde.konsole.${interface}.xml ${CMAKE_CURRENT_SOURCE_DIR}/RenameDBusInterface.cmake
+            VERBATIM)
+    endforeach()
+    qt_add_dbus_adaptor(windowadaptors_SRCS
+                        ${CMAKE_CURRENT_BINARY_DIR}/org.sonicde.terminal.Window.xml
+                        ViewManager.h
+                        Konsole::ViewManager
+                        sonicwindowadaptor
+                        SonicWindowAdaptor)
+    qt_add_dbus_adaptor(sessionadaptors_SRCS
+                        ${CMAKE_CURRENT_BINARY_DIR}/org.sonicde.terminal.Session.xml
+                        session/Session.h
+                        Konsole::Session
+                        sonicsessionadaptor
+                        SonicSessionAdaptor)
+
     set(dbus_xml_srcs
         ${CMAKE_CURRENT_BINARY_DIR}/org.kde.konsole.Session.xml
         ${CMAKE_CURRENT_BINARY_DIR}/org.kde.konsole.Window.xml
+        ${CMAKE_CURRENT_BINARY_DIR}/org.sonicde.terminal.Session.xml
+        ${CMAKE_CURRENT_BINARY_DIR}/org.sonicde.terminal.Window.xml
     )
 endif()
 
@@ -401,6 +428,10 @@ qt_add_qml_module(konsoleapp
     IMPORTS
         org.sonicde.terminal
 )
+
+if(HAVE_DBUS)
+    target_sources(konsoleapp PRIVATE quick/MainWindowInterface.cpp)
+endif()
 
 target_compile_definitions(konsoleapp PRIVATE -DRELEASE_SERVICE_VERSION="${RELEASE_SERVICE_VERSION}")
 

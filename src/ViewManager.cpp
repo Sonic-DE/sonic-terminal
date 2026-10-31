@@ -35,6 +35,7 @@
 
 // Konsole
 #if HAVE_DBUS
+#include <sonicwindowadaptor.h>
 #include <windowadaptor.h>
 #endif
 
@@ -112,6 +113,7 @@ ViewManager::ViewManager(QObject *parent, KActionCollection *collection)
 #if HAVE_DBUS
     // prepare DBus communication
     new WindowAdaptor(this);
+    new SonicWindowAdaptor(this);
     QDBusConnection::sessionBus().registerObject(QLatin1String("/Windows/") + QString::number(_managerId), this);
 #endif
 }

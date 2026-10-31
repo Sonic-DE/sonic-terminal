@@ -5,11 +5,16 @@
 
 #include "WindowController.h"
 
+#include "config-konsole.h"
+
 #include "CompatWindows.h"
 #include "MainWindow.h"
 #include "TerminalView.h"
 #include "TerminalViewRegistry.h"
 #include "terminalDisplay/TerminalDisplay.h"
+#if HAVE_DBUS
+#include "MainWindowInterface.h"
+#endif
 
 #include <Sonic/Logging/Log>
 
@@ -227,6 +232,13 @@ WindowController::WindowController(MainWindow* window)
         return filter;
     }();
     Q_UNUSED(compatWindowsFilter)
+    // KMainWindow's constructor placed only the native window at the saved position
+    // (kmainwindow.cpp applyMainWindowSettings(), QTBUG-40584); the widget takes it, so the
+    // QML window does on its first show.
+    if (QWindow* handle = window->windowHandle(); handle && handle->position() != window->geometry().topLeft()) {
+        window->setGeometry(QRect(handle->position(), window->size()));
+        sonicDebug() << "saved position" << handle->position();
+    }
     // Laid out and isVisible(), but never mapped or painted.
     window->setAttribute(Qt::WA_DontShowOnScreen);
     window->setUpdatesEnabled(false);
@@ -341,6 +353,10 @@ void WindowController::createQmlWindow()
         CompatWindows::setActive(_window, _qmlWindow->isActive());
     });
     sonicDebug() << "window pair" << _window->objectName() << "QML window" << _qmlWindow;
+#if HAVE_DBUS
+    new MainWindowInterface(_window, _qmlWindow);
+    sonicDebug() << "org.kde.KMainWindow at" << _window->dbusName() << "answered for the QML window";
+#endif
 
     // Plugging a session's client (tab switches), plugins and Configure Shortcuts change
     // the actions.

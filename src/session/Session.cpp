@@ -27,6 +27,7 @@
 #include <QKeyEvent>
 #include <QRandomGenerator>
 #include <QThread>
+#include <QWindow>
 
 // KDE
 #include <KActionCollection>
@@ -45,6 +46,7 @@
 // Konsole
 #if HAVE_DBUS
 #include <sessionadaptor.h>
+#include <sonicsessionadaptor.h>
 #endif
 
 #include "KonsoleSettings.h"
@@ -112,6 +114,7 @@ Session::Session(QObject* parent)
 #if HAVE_DBUS
     // prepare DBus communication
     new SessionAdaptor(this);
+    new SonicSessionAdaptor(this);
     QDBusConnection::sessionBus().registerObject(QLatin1String("/Sessions/") + QString::number(_sessionId), this);
 #endif
 
@@ -227,6 +230,12 @@ WId Session::windowId() const
          */
         QWidget* widget = _views.first();
         Q_ASSERT(widget);
+        // A compat window is never mapped; its QML window is the one on screen.
+        if (CompatWindows::contains(widget->window())) {
+            if (QWindow* shown = CompatWindows::shownWindow(widget->window())) {
+                return shown->winId();
+            }
+        }
         return widget->effectiveWinId();
     }
 }
@@ -605,6 +614,8 @@ void Session::run()
 
     const QString dbusObject = QStringLiteral("/Sessions/%1").arg(QString::number(_sessionId));
     addEnvironmentEntry(QStringLiteral("KONSOLE_DBUS_SESSION=%1").arg(dbusObject));
+    addEnvironmentEntry(QStringLiteral("SONIC_TERMINAL_DBUS_SERVICE=%1").arg(dbusService));
+    addEnvironmentEntry(QStringLiteral("SONIC_TERMINAL_DBUS_SESSION=%1").arg(dbusObject));
 
     // secret cookie to trigger activationToken via dbus
     secretEnv << QStringLiteral("KONSOLE_DBUS_ACTIVATION_COOKIE=%1").arg(m_activationCookie);

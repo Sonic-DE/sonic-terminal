@@ -236,6 +236,12 @@ int main(int argc, char *argv[])
     KDBusService dbusService(startupOption | KDBusService::NoExitOnFailure);
 
     needToDeleteQApplication = false;
+
+    // The SonicDE name for the same objects.
+    const QString sonicService = QStringLiteral("org.sonicde.terminal-%1").arg(QCoreApplication::applicationPid());
+    if (!QDBusConnection::sessionBus().registerService(sonicService)) {
+        sonicWarning() << "couldn't register" << sonicService;
+    }
 #endif
 
     // If we reach this location, there was no existing copy of Konsole

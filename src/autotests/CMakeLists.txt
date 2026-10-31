@@ -86,6 +86,25 @@ if(HAVE_DBUS)
     target_link_libraries(DBusCodecTest Qt::Core Qt::DBus Qt::Test)
     add_dependencies(DBusCodecTest konsole)
     add_test(NAME DBusCodecTest COMMAND ${DBUS_RUN_SESSION_EXECUTABLE} $<TARGET_FILE:DBusCodecTest>)
+
+    find_program(XWININFO_EXECUTABLE xwininfo)
+    if(XWININFO_EXECUTABLE)
+        add_executable(SessionFileWriter SessionFileWriter.cpp)
+        target_link_libraries(SessionFileWriter ${KONSOLE_TEST_LIBS})
+        add_executable(QmlWindowDBusTest QmlWindowDBusTest.cpp)
+        target_compile_definitions(QmlWindowDBusTest PRIVATE
+            KONSOLE_EXECUTABLE="$<TARGET_FILE:konsole>"
+            SESSION_FILE_WRITER="$<TARGET_FILE:SessionFileWriter>"
+            XVFB_EXECUTABLE="${XVFB_EXECUTABLE}"
+            XWININFO_EXECUTABLE="${XWININFO_EXECUTABLE}"
+        )
+        target_link_libraries(QmlWindowDBusTest Qt::Core Qt::DBus Qt::Test)
+        add_dependencies(QmlWindowDBusTest konsole SessionFileWriter)
+        # No service activation: no notification or portal daemons on the private bus.
+        add_test(NAME QmlWindowDBusTest COMMAND ${DBUS_RUN_SESSION_EXECUTABLE}
+            --config-file=${CMAKE_SOURCE_DIR}/tools/parity/private-bus.conf -- $<TARGET_FILE:QmlWindowDBusTest>)
+        set_tests_properties(QmlWindowDBusTest PROPERTIES TIMEOUT 180)
+    endif()
 endif()
 
 # The parity comparison must reject each kind of broken run (tools/parity/README.md).

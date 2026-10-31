@@ -810,7 +810,7 @@ namespace {
                 QStringLiteral("WINDOWID"), QStringLiteral("FLATPAK_TTY_PROGRESS"), QStringLiteral("PS1"),
                 QStringLiteral("LANGUAGE")};
             static const QStringList masked = {QStringLiteral("SHELL_SESSION_ID"), QStringLiteral("WINDOWID"), QStringLiteral("KONSOLE_DBUS_SERVICE"),
-                QStringLiteral("KONSOLE_DBUS_ACTIVATION_COOKIE")};
+                QStringLiteral("KONSOLE_DBUS_ACTIVATION_COOKIE"), QStringLiteral("SONIC_TERMINAL_DBUS_SERVICE")};
             if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
                 return fail(QStringLiteral("env: cannot read ") + fileName);
             }
@@ -818,7 +818,7 @@ namespace {
             const QStringList all = QString::fromUtf8(file.readAll()).split(u'\n');
             for (const QString& line : all) {
                 const QString key = line.section(u'=', 0, 0);
-                if (!key.startsWith(QLatin1String("KONSOLE_")) && !kept.contains(key)) {
+                if (!key.startsWith(QLatin1String("KONSOLE_")) && !key.startsWith(QLatin1String("SONIC_TERMINAL_DBUS_")) && !kept.contains(key)) {
                     continue;
                 }
                 lines.append(masked.contains(key) ? key + (line.section(u'=', 1).isEmpty() ? QStringLiteral("=") : QStringLiteral("=<set>")) : line);
