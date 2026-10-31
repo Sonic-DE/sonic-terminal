@@ -25,11 +25,11 @@ D-Bus, `HOME` and XDG directories, no CUPS and no PulseAudio. It fails if `konso
 ```sh
 tools/parity/run-all.py --env <env> --prefix <builder>/build \
     --plugin-baseline <builder>/state/parity/plugin-baseline --output <dir> \
-    [--baseline <builder>/state/parity/baseline] [--only <scenario> ...] [--qml-window]
+    [--baseline <builder>/state/parity/baseline] [--only <scenario> ...]
 ```
 
-`--qml-window` runs every scenario in the QML window (`SONIC_TERMINAL_QML_WINDOW=1`) and
-compares it with the widget window's baseline by panes (below).
+The application window is the QML window; `run-all.py` compares it with the widget
+window's baseline by panes (`compare.py --qml-window`, below).
 
 Each scenario runs twice: normally and with a color scheme whose text colors equal
 their backgrounds; the pixels that differ form the text mask. `scenarios/list.txt`

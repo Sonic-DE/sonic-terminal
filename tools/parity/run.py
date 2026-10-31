@@ -205,7 +205,6 @@ def main():
     parser.add_argument("--timeout", type=int, default=120)
     parser.add_argument("--build", default="build",
                         help="build directory inside --env (build-phase0 for the phase 0 copy); HOME stays the same")
-    parser.add_argument("--qml-window", action="store_true", help="open the QML window (SONIC_TERMINAL_QML_WINDOW=1)")
     parser.add_argument("--child", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
     if args.child:
@@ -246,8 +245,6 @@ def main():
         DBUS_SYSTEM_BUS_ADDRESS="unix:path=/nonexistent/konsole-parity-system",
         CUPS_SERVER="/nonexistent/konsole-parity-cups.sock",
         PULSE_SERVER="unix:/nonexistent/konsole-parity")
-    if args.qml_window:
-        env["SONIC_TERMINAL_QML_WINDOW"] = "1"
     child = [sys.executable, "-I", str(Path(__file__).resolve()), "--child", "--scenario",
              str(Path(args.scenario).resolve()), "--output", str(output), "--env", str(environment),
              "--prefix", str(prefix), "--timeout", str(args.timeout), "--build", args.build,

@@ -34,7 +34,6 @@ def main():
     parser.add_argument("--plugin-baseline", required=True,
                         help="directory holding konsoleplugins/konsole_compatplugin.so from phase 0")
     parser.add_argument("--build", default="build", help="build directory inside --env (see run.py)")
-    parser.add_argument("--qml-window", action="store_true", help="run every scenario in the QML window")
     args = parser.parse_args()
     failures = []
     for name, script, extra in scenarios():
@@ -46,7 +45,7 @@ def main():
         for target, more in ((run, []), (hidden, ["--hide-text"])):
             code = subprocess.run([sys.executable, "-I", str(HERE / "run.py"), "--scenario", str(script), "--env",
                                    args.env, "--prefix", args.prefix, "--output", str(target), "--build", args.build,
-                                   *extra, *more, *(["--qml-window"] if args.qml_window else [])]).returncode
+                                   *extra, *more]).returncode
             if code != 0:
                 failures.append(f"{target.name}: run failed ({code})")
         texthidden = run / "texthidden"
@@ -54,8 +53,9 @@ def main():
         for image in hidden.glob("*.png"):
             shutil.copy(image, texthidden / image.name)
         if args.baseline:
-            compare = [sys.executable, "-I", str(HERE / "compare.py"), str(args.baseline / name), str(run)]
-            code = subprocess.run(compare + (["--qml-window"] if args.qml_window else [])).returncode
+            # The application window is the QML window; the baseline is the widget window's.
+            compare = [sys.executable, "-I", str(HERE / "compare.py"), str(args.baseline / name), str(run), "--qml-window"]
+            code = subprocess.run(compare).returncode
             if code != 0:
                 failures.append(f"{name}: differs from baseline")
         print(f"== {name} done", flush=True)

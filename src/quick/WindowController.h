@@ -42,8 +42,6 @@ public:
     QQuickWindow* qmlWindow() const;
     bool translucent() const;
     static WindowController* controllerOf(const QObject* compatWindow);
-    // Whether new windows get a QML window (SONIC_TERMINAL_QML_WINDOW=1 until the switch).
-    static bool enabled();
 
     // MainWindow's bodies that act on the visible window call these instead.
     void setBlur(bool blur);

@@ -5,8 +5,8 @@
 
 // Scripting and session restore of the QML window, against konsole processes on a private
 // X server and session bus: both D-Bus service names answer, /konsole/MainWindow_1 is the
-// widget window's object with the QML window's id, and a session the widget window saved
-// restores as in the widget window.
+// widget window's object (WidgetWindowHelper) with the QML window's id, and a session the
+// widget window saved restores as it was saved.
 
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
@@ -58,10 +58,12 @@ private:
     struct Konsole {
         std::unique_ptr<QProcess> process;
         QString service;
+        bool helper = false;
     };
 
-    // Quit at the test's cleanup unless before.
-    Konsole& start(bool qmlWindow, const QStringList& arguments = {});
+    // Both quit at the test's cleanup unless before.
+    Konsole& start(const QStringList& arguments = {});
+    Konsole& startWidgetWindow();
     void quit(Konsole& konsole);
     XWindow xwindow(qlonglong id);
     Restored restored(const Konsole& konsole);
@@ -135,15 +137,28 @@ void QmlWindowDBusTest::cleanup()
     _running.clear();
 }
 
-QmlWindowDBusTest::Konsole& QmlWindowDBusTest::start(bool qmlWindow, const QStringList& arguments)
+QmlWindowDBusTest::Konsole& QmlWindowDBusTest::startWidgetWindow()
+{
+    Konsole& konsole = *_running.emplace_back(std::make_unique<Konsole>());
+    konsole.helper = true;
+    konsole.process = std::make_unique<QProcess>();
+    konsole.process->setProcessEnvironment(_environment);
+    konsole.process->setProcessChannelMode(QProcess::ForwardedErrorChannel);
+    konsole.process->start(QStringLiteral(WIDGET_WINDOW_HELPER), {QStringLiteral("serve"), profileName + QStringLiteral(".profile"), _home.path()});
+    if (konsole.process->waitForReadyRead(20000)) {
+        const QString line = QString::fromLatin1(konsole.process->readLine()).trimmed();
+        if (line.startsWith(QLatin1String("ready "))) {
+            konsole.service = line.section(u' ', 1);
+        }
+    }
+    return konsole;
+}
+
+QmlWindowDBusTest::Konsole& QmlWindowDBusTest::start(const QStringList& arguments)
 {
     Konsole& konsole = *_running.emplace_back(std::make_unique<Konsole>());
     konsole.process = std::make_unique<QProcess>();
-    QProcessEnvironment environment = _environment;
-    if (qmlWindow) {
-        environment.insert(QStringLiteral("SONIC_TERMINAL_QML_WINDOW"), QStringLiteral("1"));
-    }
-    konsole.process->setProcessEnvironment(environment);
+    konsole.process->setProcessEnvironment(_environment);
     konsole.process->setProcessChannelMode(QProcess::ForwardedErrorChannel);
     konsole.process->start(QStringLiteral(KONSOLE_EXECUTABLE), QStringList{QStringLiteral("--separate")} + arguments);
     if (!konsole.process->waitForStarted()) {
@@ -166,7 +181,9 @@ QmlWindowDBusTest::Konsole& QmlWindowDBusTest::start(bool qmlWindow, const QStri
 
 void QmlWindowDBusTest::quit(Konsole& konsole)
 {
-    if (!konsole.service.isEmpty()) {
+    if (konsole.helper && konsole.process) {
+        konsole.process->terminate();
+    } else if (!konsole.service.isEmpty()) {
         QDBusInterface(konsole.service, QStringLiteral("/MainApplication"), QStringLiteral("org.qtproject.Qt.QCoreApplication")).asyncCall(QStringLiteral("quit"));
         konsole.service.clear();
     }
@@ -216,7 +233,7 @@ Restored QmlWindowDBusTest::restored(const Konsole& konsole)
 
 void QmlWindowDBusTest::testServiceNames()
 {
-    Konsole& konsole = start(true);
+    Konsole& konsole = start();
     QVERIFY(!konsole.service.isEmpty());
     const qint64 pid = konsole.process->processId();
     const QString owner = QDBusConnection::sessionBus().interface()->serviceOwner(konsole.service).value();
@@ -241,8 +258,8 @@ void QmlWindowDBusTest::testServiceNames()
 
 void QmlWindowDBusTest::testMainWindowObject()
 {
-    Konsole& widget = start(false);
-    Konsole& qml = start(true);
+    Konsole& widget = startWidgetWindow();
+    Konsole& qml = start();
     QVERIFY(!widget.service.isEmpty());
     QVERIFY(!qml.service.isEmpty());
 
@@ -250,33 +267,34 @@ void QmlWindowDBusTest::testMainWindowObject()
     const QString widgetXml = introspect(widget, path);
     QVERIFY(widgetXml.contains(QLatin1String("<interface name=\"org.kde.KMainWindow\">")));
     QCOMPARE(introspect(qml, path), widgetXml);
-
-    for (Konsole* konsole : {&widget, &qml}) {
-        QDBusInterface mainWindow(konsole->service, path, QStringLiteral("org.kde.KMainWindow"));
-        const QDBusReply<qlonglong> winId = mainWindow.call(QStringLiteral("winId"));
-        QVERIFY2(winId.isValid(), qPrintable(winId.error().message()));
-        // The window on screen, which the shell gets as WINDOWID.
-        QTRY_VERIFY(xwindow(winId.value()).viewable);
-        QDBusInterface session(konsole->service, QStringLiteral("/Sessions/1"), QStringLiteral("org.kde.konsole.Session"));
-        const QStringList environment = QDBusReply<QStringList>(session.call(QStringLiteral("environment"))).value();
-        QVERIFY2(environment.contains(QStringLiteral("WINDOWID=%1").arg(winId.value())), qPrintable(environment.join(u' ')));
-
-        QDBusInterface window(konsole->service, QStringLiteral("/Windows/1"), QStringLiteral("org.kde.konsole.Window"));
-        const int sessions = QDBusReply<int>(window.call(QStringLiteral("sessionCount"))).value();
-        QVERIFY(QDBusReply<QStringList>(mainWindow.call(QStringLiteral("actions"))).value().contains(QStringLiteral("new-tab")));
-        QVERIFY(QDBusReply<bool>(mainWindow.call(QStringLiteral("actionIsEnabled"), QStringLiteral("new-tab"))).value());
-        QVERIFY(QDBusReply<bool>(mainWindow.call(QStringLiteral("activateAction"), QStringLiteral("new-tab"))).value());
-        QTRY_COMPARE(QDBusReply<int>(window.call(QStringLiteral("sessionCount"))).value(), sessions + 1);
-    }
     QDBusInterface widgetWindow(widget.service, path, QStringLiteral("org.kde.KMainWindow"));
-    QDBusInterface qmlWindow(qml.service, path, QStringLiteral("org.kde.KMainWindow"));
-    QCOMPARE(QDBusReply<QStringList>(qmlWindow.call(QStringLiteral("actions"))).value(),
-        QDBusReply<QStringList>(widgetWindow.call(QStringLiteral("actions"))).value());
+    QDBusInterface mainWindow(qml.service, path, QStringLiteral("org.kde.KMainWindow"));
+    // konsole's KAboutData also gives the help menu "Report Bug" and "Donate", which the
+    // helper (no KAboutData) lacks.
+    const QStringList qmlActions = QDBusReply<QStringList>(mainWindow.call(QStringLiteral("actions"))).value();
+    const QStringList widgetActions = QDBusReply<QStringList>(widgetWindow.call(QStringLiteral("actions"))).value();
+    QVERIFY(!widgetActions.isEmpty());
+    for (const QString& action : widgetActions) {
+        QVERIFY2(qmlActions.contains(action), qPrintable(action));
+    }
+
+    const QDBusReply<qlonglong> winId = mainWindow.call(QStringLiteral("winId"));
+    QVERIFY2(winId.isValid(), qPrintable(winId.error().message()));
+    // The window on screen, which the shell gets as WINDOWID.
+    QTRY_VERIFY(xwindow(winId.value()).viewable);
+    QDBusInterface session(qml.service, QStringLiteral("/Sessions/1"), QStringLiteral("org.kde.konsole.Session"));
+    const QStringList environment = QDBusReply<QStringList>(session.call(QStringLiteral("environment"))).value();
+    QVERIFY2(environment.contains(QStringLiteral("WINDOWID=%1").arg(winId.value())), qPrintable(environment.join(u' ')));
+
+    QDBusInterface window(qml.service, QStringLiteral("/Windows/1"), QStringLiteral("org.kde.konsole.Window"));
+    const int sessions = QDBusReply<int>(window.call(QStringLiteral("sessionCount"))).value();
+    QVERIFY(QDBusReply<bool>(mainWindow.call(QStringLiteral("actionIsEnabled"), QStringLiteral("new-tab"))).value());
+    QVERIFY(QDBusReply<bool>(mainWindow.call(QStringLiteral("activateAction"), QStringLiteral("new-tab"))).value());
+    QTRY_COMPARE(QDBusReply<int>(window.call(QStringLiteral("sessionCount"))).value(), sessions + 1);
 }
 
 void QmlWindowDBusTest::testSessionRestore()
 {
-    const QString home = _home.path();
     QVERIFY(_directories.isValid());
     const QStringList directories{_directories.filePath(QStringLiteral("tab-one")), _directories.filePath(QStringLiteral("tab-two"))};
     for (const QString& directory : directories) {
@@ -285,11 +303,12 @@ void QmlWindowDBusTest::testSessionRestore()
     QProcess writer;
     writer.setProcessEnvironment(_environment);
     writer.setProcessChannelMode(QProcess::ForwardedErrorChannel);
-    writer.start(QStringLiteral(SESSION_FILE_WRITER),
-        QStringList{QStringLiteral("restoretest"), QStringLiteral("1"), profileName + QStringLiteral(".profile")} + directories);
+    writer.start(QStringLiteral(WIDGET_WINDOW_HELPER),
+        QStringList{QStringLiteral("save"), QStringLiteral("restoretest"), QStringLiteral("1"), profileName + QStringLiteral(".profile")} + directories);
     QVERIFY(writer.waitForFinished(30000));
     QCOMPARE(writer.exitCode(), 0);
     QStringList savedDirectories;
+    QStringList savedHierarchy;
     QRect savedGeometry;
     const QStringList lines = QString::fromLocal8Bit(writer.readAllStandardOutput()).split(u'\n', Qt::SkipEmptyParts);
     for (const QString& line : lines) {
@@ -297,6 +316,8 @@ void QmlWindowDBusTest::testSessionRestore()
         const QStringList words = line.split(u' ');
         if (words.constFirst() == QLatin1String("directory")) {
             savedDirectories.append(line.section(u' ', 1));
+        } else if (words.constFirst() == QLatin1String("hierarchy")) {
+            savedHierarchy.append(line.section(u' ', 1));
         } else if (words.constFirst() == QLatin1String("window") && words.size() == 5) {
             savedGeometry = QRect(words.at(1).toInt(), words.at(2).toInt(), words.at(3).toInt(), words.at(4).toInt());
         }
@@ -307,39 +328,17 @@ void QmlWindowDBusTest::testSessionRestore()
     QVERIFY(savedDirectories.contains(directories.at(1)));
     QCOMPARE(savedGeometry, QRect(120, 90, 700, 500));
 
-    // Restoring takes the saved position away from the next window (KMainWindow's
-    // RestorePositionForNextInstance), so each one starts from the saved state.
-    const QString state = home + QStringLiteral("/.local/state/konsolestaterc");
-    QFile saved(state);
-    QVERIFY(saved.open(QIODevice::ReadOnly));
-    const QByteArray savedState = saved.readAll();
-    saved.close();
-
-    QList<Restored> results;
-    for (bool qmlWindow : {false, true}) {
-        QFile file(state);
-        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
-        file.write(savedState);
-        file.close();
-        Konsole& konsole = start(qmlWindow, {QStringLiteral("-session"), QStringLiteral("restoretest_1")});
-        QVERIFY(!konsole.service.isEmpty());
-        // Titles follow the shells' directories once they run.
-        QTRY_VERIFY_WITH_TIMEOUT(restored(konsole).titles.filter(QStringLiteral("tab-")).size() == 3, 10000);
-        QTRY_VERIFY(!restored(konsole).geometry.isEmpty());
-        results.append(restored(konsole));
-        quit(konsole);
-    }
-    const Restored& widget = results.at(0);
-    const Restored& qml = results.at(1);
-    qInfo() << "widget window:" << widget.sessions << widget.hierarchy << widget.titles << widget.geometry;
+    Konsole& konsole = start({QStringLiteral("-session"), QStringLiteral("restoretest_1")});
+    QVERIFY(!konsole.service.isEmpty());
+    // Titles follow the shells' directories once they run.
+    QTRY_VERIFY_WITH_TIMEOUT(restored(konsole).titles.filter(QStringLiteral("tab-")).size() == 3, 10000);
+    QTRY_VERIFY(!restored(konsole).geometry.isEmpty());
+    const Restored qml = restored(konsole);
     // What was saved: two tabs, the second split, in those directories, at that place and size.
-    QCOMPARE(widget.sessions, 3);
-    QCOMPARE(widget.titles, savedDirectories);
-    QCOMPARE(widget.geometry, savedGeometry);
-    QCOMPARE(qml.sessions, widget.sessions);
-    QCOMPARE(qml.hierarchy, widget.hierarchy);
-    QCOMPARE(qml.titles, widget.titles);
-    QCOMPARE(qml.geometry, widget.geometry);
+    QCOMPARE(qml.sessions, 3);
+    QCOMPARE(qml.hierarchy, savedHierarchy);
+    QCOMPARE(qml.titles, savedDirectories);
+    QCOMPARE(qml.geometry, savedGeometry);
 }
 
 QTEST_GUILESS_MAIN(QmlWindowDBusTest)

@@ -89,17 +89,17 @@ if(HAVE_DBUS)
 
     find_program(XWININFO_EXECUTABLE xwininfo)
     if(XWININFO_EXECUTABLE)
-        add_executable(SessionFileWriter SessionFileWriter.cpp)
-        target_link_libraries(SessionFileWriter ${KONSOLE_TEST_LIBS})
+        add_executable(WidgetWindowHelper WidgetWindowHelper.cpp)
+        target_link_libraries(WidgetWindowHelper ${KONSOLE_TEST_LIBS})
         add_executable(QmlWindowDBusTest QmlWindowDBusTest.cpp)
         target_compile_definitions(QmlWindowDBusTest PRIVATE
             KONSOLE_EXECUTABLE="$<TARGET_FILE:konsole>"
-            SESSION_FILE_WRITER="$<TARGET_FILE:SessionFileWriter>"
+            WIDGET_WINDOW_HELPER="$<TARGET_FILE:WidgetWindowHelper>"
             XVFB_EXECUTABLE="${XVFB_EXECUTABLE}"
             XWININFO_EXECUTABLE="${XWININFO_EXECUTABLE}"
         )
         target_link_libraries(QmlWindowDBusTest Qt::Core Qt::DBus Qt::Test)
-        add_dependencies(QmlWindowDBusTest konsole SessionFileWriter)
+        add_dependencies(QmlWindowDBusTest konsole WidgetWindowHelper)
         # No service activation: no notification or portal daemons on the private bus.
         add_test(NAME QmlWindowDBusTest COMMAND ${DBUS_RUN_SESSION_EXECUTABLE}
             --config-file=${CMAKE_SOURCE_DIR}/tools/parity/private-bus.conf -- $<TARGET_FILE:QmlWindowDBusTest>)

@@ -5,8 +5,8 @@ SonicDE's terminal app, with tabs, split views and profiles for working on the c
 ## Unreleased
 
 - The terminal now records its logs through SonicDE's unified logging system.
-- Behind the scenes: new automated checks that compare the terminal's look and behaviour, and its compatibility with other applications and plugins, against a reference.
-- Behind the scenes: the terminal's text area is now drawn by a Qt Quick component, the first step of moving the terminal to QML; it looks and behaves exactly as before.
+- The terminal window is now drawn with QML; it looks and works as before.
+- The tab bar's "Use user-defined stylesheet" option has been removed.
 
 ## 26.08.2 (2026-10-20)
 

@@ -256,12 +256,6 @@ WindowController::~WindowController()
     delete _qmlWindow;
 }
 
-bool WindowController::enabled()
-{
-    static const bool on = qEnvironmentVariableIntValue("SONIC_TERMINAL_QML_WINDOW") == 1;
-    return on;
-}
-
 WindowController* WindowController::controllerOf(const QObject* compatWindow)
 {
     return controllers().value(compatWindow);
