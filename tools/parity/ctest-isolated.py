@@ -52,7 +52,8 @@ def main():
         home = Path(temporary)
         runtime = home / "runtime"
         runtime.mkdir(mode=0o700)
-        env = {key: os.environ[key] for key in ("LANG", "PATH") if key in os.environ}
+        # QT_MESSAGE_PATTERN and QT_LOGGING_RULES only for debugging (e.g. %{backtrace} on an assert).
+        env = {key: os.environ[key] for key in ("LANG", "PATH", "QT_MESSAGE_PATTERN", "QT_LOGGING_RULES") if key in os.environ}
         # No LD_LIBRARY_PATH: it would override the tests' RUNPATH into the build tree and load the
         # prefix's installed konsole libraries, which can be older than the build.
         env.update(QT_PLUGIN_PATH=f"{Path(args.build).resolve()}/bin:{prefix}/lib64/plugins",

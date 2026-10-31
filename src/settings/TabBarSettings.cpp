@@ -14,19 +14,10 @@ TabBarSettings::TabBarSettings(QWidget *parent)
 {
     setupUi(this);
 
-    kcfg_TabBarUserStyleSheetFile->setMimeTypeFilters({QStringLiteral("text/css")});
-
     // For some reason these layouts have invalid sizes when
     // sizeHint() is read before the widget is shown.
     appearanceTabLayout->activate();
     behaviorTabLayout->activate();
-
-    // Enable CSS file selector only when tabbar is visible and custom css is active
-    const auto updateStyleSheetFileEnable = [this](bool) {
-        kcfg_TabBarUserStyleSheetFile->setEnabled(kcfg_TabBarUseUserStyleSheet->isChecked() && !AlwaysHideTabBar->isChecked());
-    };
-    connect(kcfg_TabBarUseUserStyleSheet, &QAbstractButton::toggled, this, updateStyleSheetFileEnable);
-    connect(AlwaysHideTabBar, &QAbstractButton::toggled, this, updateStyleSheetFileEnable);
 }
 
 TabBarSettings::~TabBarSettings() = default;

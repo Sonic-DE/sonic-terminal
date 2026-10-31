@@ -23,6 +23,7 @@
 #include "filterHotSpots/HotSpot.h"
 #include "filterHotSpots/TerminalImageFilterChain.h"
 
+#include "../quick/TerminalViewAccessible.h"
 #include "../widgets/KonsolePrintManager.h"
 #include "../widgets/TerminalDisplayAccessible.h"
 #include "quick/TerminalView.h"
@@ -71,6 +72,10 @@ QAccessibleInterface *accessibleInterfaceFactory(const QString &key, QObject *ob
     Q_UNUSED(key)
     if (auto *display = qobject_cast<TerminalDisplay *>(object)) {
         return new TerminalDisplayAccessible(display);
+    }
+    // Asked before Qt Quick's factory, which answers for the class name "QQuickItem".
+    if (auto* view = qobject_cast<TerminalView*>(object); view && view->sceneMode()) {
+        return new TerminalViewAccessible(view);
     }
     return nullptr;
 }
@@ -243,7 +248,8 @@ void TerminalDisplay::showNotification(QString text)
 void TerminalDisplay::paintEvent(QPaintEvent *pe)
 {
     auto* view = viewOf(this);
-    if (!view) {
+    // In a QML scene the item draws everything; the facade's window is never on screen.
+    if (!view || view->sceneMode()) {
         return;
     }
     // The scroll bar's column is drawn here, under the scroll bar, with the view's paint code;

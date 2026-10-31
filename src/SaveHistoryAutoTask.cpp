@@ -20,6 +20,7 @@
 #include <KSharedConfig>
 
 #include "Emulation.h"
+#include "quick/CompatWindows.h"
 #include "session/SessionManager.h"
 
 namespace Konsole
@@ -38,7 +39,7 @@ SaveHistoryAutoTask::~SaveHistoryAutoTask() = default;
 
 bool SaveHistoryAutoTask::execute()
 {
-    QFileDialog *dialog = new QFileDialog(QApplication::activeWindow());
+    QFileDialog* dialog = new QFileDialog(CompatWindows::activeWindow());
     dialog->setAcceptMode(QFileDialog::AcceptSave);
 
     QStringList mimeTypes{QStringLiteral("text/plain")};

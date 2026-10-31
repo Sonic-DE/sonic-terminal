@@ -59,6 +59,9 @@ protected:
     void paintEvent(QPaintEvent *event) override;
 
 private:
+    // The QML tab bar reads tab options and acts through the handlers (a friend keeps the layout).
+    friend class TabBarAdapter;
+
     void setDetachableTabData(int idx, const DetachableTabData &data);
 
     DragType dragType;

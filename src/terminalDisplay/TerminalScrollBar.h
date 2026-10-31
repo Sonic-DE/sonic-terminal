@@ -98,6 +98,10 @@ public:
 
     void updatePalette(const QPalette &pal);
 
+Q_SIGNALS:
+    /** Search lines or markers changed (update() reaches nobody while the widget is hidden). */
+    void overlaysChanged();
+
 public Q_SLOTS:
 
     void scrollBarPositionChanged(int value);
@@ -118,6 +122,9 @@ public Q_SLOTS:
     void mouseMoveEvent(QMouseEvent *event) override;
 
 private:
+    // The QML scroll bar reads the overlays and adds markers (a friend keeps the layout).
+    friend class ScrollBarAdapter;
+
     class Marker
     {
     public:

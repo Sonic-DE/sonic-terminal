@@ -25,8 +25,11 @@ D-Bus, `HOME` and XDG directories, no CUPS and no PulseAudio. It fails if `konso
 ```sh
 tools/parity/run-all.py --env <env> --prefix <builder>/build \
     --plugin-baseline <builder>/state/parity/plugin-baseline --output <dir> \
-    [--baseline <builder>/state/parity/baseline] [--only <scenario> ...]
+    [--baseline <builder>/state/parity/baseline] [--only <scenario> ...] [--qml-window]
 ```
+
+`--qml-window` runs every scenario in the QML window (`SONIC_TERMINAL_QML_WINDOW=1`) and
+compares it with the widget window's baseline by panes (below).
 
 Each scenario runs twice: normally and with a color scheme whose text colors equal
 their backgrounds; the pixels that differ form the text mask. `scenarios/list.txt`
@@ -50,15 +53,38 @@ Other checks:
   `accessible-*.txt`, `describe-*.txt`, `stdout.txt`, plugin logs) must match exactly.
   `xprop-*.txt` is compared as a sorted set of properties: the X server lists them in
   the order they were last changed, which depends on timing.
-- Outside the text mask, images must be identical.
+- Outside the text mask and the overlay mask, images must be identical.
 - Inside the text mask, at most 10 % of the mask's pixels may differ (anti-aliasing and
   DPI handling). Symbolic icons take the text color, so they're part of the mask.
+- The overlay mask is the union of both sides' `<capture>.png.overlays` rectangles: the
+  scroll bars, find bars, messages and labels drawn over the terminals, minus what menus
+  and dialogs cover. At most 10 % of its pixels may differ: the QML build blends them
+  over the terminal once more than the widget build did.
+- With `--qml-window`, a capture whose `<capture>.png.panes` (the terminals' rectangles,
+  and on screen the menus and dialogs covering them) lists as many terminals on both
+  sides is compared pane by pane, each at its own position, over the size both share,
+  without the covered parts: the QML chrome follows Kirigami's metrics (its toolbar is
+  2 px taller, so terminals sit lower) and `QmlWindowTest` checks it instead. `xprop`'s
+  `_NET_WM_ICON_NAME` isn't compared (a widget window has it empty, a `QWindow` none).
+- A file present on one side only (`*.txt`, `*.png`, `*.png.overlays`, `*.png.panes`), a page or saved
+  capture named in a trace but missing, and a capture of a single colour all fail.
+  `selftest.py` (ctest `ParityCompareSelfTest`) checks each of these rules.
 - Differences are drawn into `<run>/report/diff-*.png` (red: differing pixels, blue
-  tint: text mask).
+  tint: text mask, green tint: overlays).
+- The hook stops a run with exit status 3 on the first failure: a capture or file it
+  can't write, a step that finds nothing to act on, an unknown op, action, page or
+  button. File names keep `[A-Za-z0-9._-]` and turn everything else into `_`.
+
+The phase 0 copy (`<builder>/state/parity/phase0-src`, the widget build the baseline
+comes from) is built and run in the same environment, so the private `HOME` path matches:
+`setup-env.py --build build-phase0` (run from the copy) and `run-all.py --build
+build-phase0`.
 
 ## Scenario format
 
-One JSON object per line; lines starting with `#` are comments.
+One JSON object per line; lines starting with `#` are comments. Any step that acts on
+a dialog takes `"in": "<window title>"` to name it when several are open; otherwise the
+active dialog, then the active modal dialog, is used.
 
 | op | fields | does |
 | --- | --- | --- |
@@ -77,7 +103,16 @@ One JSON object per line; lines starting with `#` are comments.
 | `menu` | `name` | opens a menu by its KXmlGui container or action name, captures it |
 | `popup` | `name` | captures the popup menu that is open |
 | `contextMenu` | `name`, `column`, `line` | opens the terminal's context menu at a cell and captures it |
-| `dialog` | `name`, `close`, `sortColumn` | captures the visible dialog, every page of a page dialog |
+| `dialog` | `name`, `close`, `sortColumn`, `image` (`false`: opening only), `timeout` | captures the visible dialog, every page of a page dialog |
+| `click` | `object` or `text` | clicks a button in the dialog |
+| `button` | `role` (`ok`, `cancel`, `apply`) | clicks a button of the dialog's button box |
+| `page` | `name` | selects a page of a page dialog |
+| `select` | `object`, `row` (negative counts from the end) or `text` | selects a row of a list or combo box |
+| `setText` | `object`, `text` | sets a line edit's text |
+| `clickItem` | `object`, `row`, `column` | clicks a cell of a list or table |
+| `clipboard` | `text`, `repeat` | puts text on the clipboard |
+| `chmod` | `path` (in the private HOME), `mode` (octal) | changes permissions |
+| `loadLayout` | `file` (in the private HOME) | loads a tab layout file |
 | `capture` | `name` | the window (`.client.png`) and the composited screen (`.screen.png`) |
 | `introspect` | `paths` | the application's D-Bus names and objects |
 | `xprop` | `name` | the main window's X11 properties, per-run values masked |

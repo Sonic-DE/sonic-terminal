@@ -10,36 +10,64 @@
 #include "terminalDisplay/TerminalDisplay.h"
 #include "terminalDisplay/TerminalFonts.h"
 
+#include <KAcceleratorManager>
 #include <KActionCollection>
 #include <KPageDialog>
 #include <KPageView>
 #include <KXMLGUIFactory>
 
+#include <QAbstractButton>
 #include <QAbstractItemView>
 #include <QAccessible>
 #include <QApplication>
+#include <QClipboard>
+#include <QComboBox>
 #include <QContextMenuEvent>
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
 #include <QDBusMessage>
 #include <QDialog>
+#include <QDialogButtonBox>
 #include <QDir>
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QKeyEvent>
+#include <QLineEdit>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPointer>
 #include <QProcess>
+#include <QPushButton>
 #include <QRegularExpression>
 #include <QScreen>
+#include <QStyleHints>
 #include <QTest>
 #include <QTimer>
+#include <QWindow>
 
 #include <Sonic/Logging/Log>
+
+#ifdef KONSOLE_PARITY_QML
+#include "ParityHookQml.h"
+#else
+namespace Konsole::ParityHook {
+static QWindow* qmlWindow(const MainWindow*)
+{
+    return nullptr;
+}
+static bool popupQmlMenu(const MainWindow*, const QMenu*)
+{
+    return false;
+}
+static QPixmap grabQmlWindow(const MainWindow*)
+{
+    return QPixmap();
+}
+}
+#endif
 
 namespace Konsole::ParityHook {
 namespace {
@@ -139,25 +167,166 @@ namespace {
             return nullptr;
         }
 
+        // compare.py builds the same names (safe_name); keep both in step.
+        static QString safeName(const QString& name)
+        {
+            QString result = name;
+            for (QChar& character : result) {
+                const bool allowed = (character >= u'a' && character <= u'z') || (character >= u'A' && character <= u'Z')
+                    || (character >= u'0' && character <= u'9') || character == u'.' || character == u'_' || character == u'-';
+                if (!allowed) {
+                    character = u'_';
+                }
+            }
+            return result;
+        }
+
         void trace(const QString& line)
         {
             QFile file(QDir(_output).filePath(QStringLiteral("trace.txt")));
-            if (file.open(QIODevice::Append | QIODevice::Text)) {
-                file.write(line.toUtf8() + '\n');
+            if (!file.open(QIODevice::Append | QIODevice::Text) || file.write(line.toUtf8() + '\n') < 0) {
+                fail(QStringLiteral("cannot write trace.txt"));
             }
         }
 
-        void save(const QPixmap& pixmap, const QString& name)
+        bool save(const QPixmap& pixmap, const QString& name)
         {
-            const QString path = QDir(_output).filePath(name + QStringLiteral(".png"));
-            if (!pixmap.toImage().convertToFormat(QImage::Format_ARGB32).save(path)) {
-                sonicWarning() << "parity: cannot save" << path;
+            const QString file = safeName(name) + QStringLiteral(".png");
+            if (!pixmap.toImage().convertToFormat(QImage::Format_ARGB32).save(QDir(_output).filePath(file))) {
+                fail(QStringLiteral("cannot save ") + file);
+                return false;
+            }
+            trace(QStringLiteral("  saved ") + file);
+            return true;
+        }
+
+        // The overlays (scroll bars, find bars, messages, labels) drawn over the terminals,
+        // relative to `origin` (a window) or in screen coordinates; compare.py tolerates
+        // anti-aliasing differences inside them.
+        QList<QRect> overlays(const QWidget* origin)
+        {
+            window();
+            QList<QRect> result;
+            for (const QPointer<MainWindow>& mainWindow : std::as_const(_windows)) {
+                if (!mainWindow || !mainWindow->isVisible() || (origin && mainWindow != origin)) {
+                    continue;
+                }
+                const auto displays = mainWindow->findChildren<TerminalDisplay*>();
+                for (TerminalDisplay* display : displays) {
+                    QList<QWidget*> widgets = display->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly);
+                    widgets.removeIf([display](QWidget* widget) {
+                        return widget == static_cast<QWidget*>(display->headerBar()) || widget->inherits("QQuickWidget") || !widget->isVisible();
+                    });
+                    for (QWidget* widget : std::as_const(widgets)) {
+                        const QRect rect(widget->mapToGlobal(QPoint(0, 0)), widget->size());
+                        result.append(origin ? rect.translated(-origin->mapToGlobal(QPoint(0, 0))) : rect);
+                    }
+                }
+            }
+            if (!origin) {
+                // Menus and dialogs cover the windows behind them.
+                QRegion covered;
+                for (QWidget* widget : QApplication::topLevelWidgets()) {
+                    if (widget->isVisible() && !qobject_cast<MainWindow*>(widget) && !_backdrops.contains(widget)) {
+                        covered += widget->frameGeometry();
+                    }
+                }
+                QList<QRect> visible;
+                for (const QRect& rect : std::as_const(result)) {
+                    for (const QRect& part : QRegion(rect) - covered) {
+                        visible.append(part);
+                    }
+                }
+                result = visible;
+            }
+            return result;
+        }
+
+        void saveOverlays(const QString& name, const QList<QRect>& rects)
+        {
+            QStringList lines;
+            for (const QRect& rect : rects) {
+                lines.append(QStringLiteral("%1 %2 %3 %4").arg(rect.x()).arg(rect.y()).arg(rect.width()).arg(rect.height()));
+            }
+            QFile file(QDir(_output).filePath(safeName(name) + QStringLiteral(".png.overlays")));
+            if (!file.open(QIODevice::WriteOnly | QIODevice::Text) || file.write((lines.join(u'\n') + u'\n').toUtf8()) < 0) {
+                fail(QStringLiteral("cannot write overlays of ") + name);
+            }
+        }
+
+        // The terminals' rectangles (a QML window's chrome differs from the widget window's,
+        // so compare.py compares panes at their own positions), relative to `origin` or on
+        // screen, ordered top to bottom, left to right; on screen also the menus and dialogs
+        // covering them.
+        void savePanes(const QString& name, const QWidget* origin)
+        {
+            window();
+            QStringList lines;
+            for (const QPointer<MainWindow>& mainWindow : std::as_const(_windows)) {
+                if (!mainWindow || !mainWindow->isVisible() || (origin && mainWindow != origin)) {
+                    continue;
+                }
+                QList<QRect> rects;
+                const auto displays = mainWindow->findChildren<TerminalDisplay*>();
+                for (TerminalDisplay* display : displays) {
+                    if (display->isVisible()) {
+                        const QPoint topLeft = origin ? display->mapTo(mainWindow, QPoint(0, 0)) : display->mapToGlobal(QPoint(0, 0));
+                        rects.append(QRect(topLeft, display->size()));
+                    }
+                }
+                std::sort(rects.begin(), rects.end(), [](const QRect& a, const QRect& b) {
+                    return a.y() != b.y() ? a.y() < b.y() : a.x() < b.x();
+                });
+                for (const QRect& rect : std::as_const(rects)) {
+                    lines.append(QStringLiteral("pane %1 %2 %3 %4").arg(rect.x()).arg(rect.y()).arg(rect.width()).arg(rect.height()));
+                }
+            }
+            if (!origin) {
+                // The windows' shadows (as below), which can fall on another window's terminals;
+                // the ring outside each frame, so its own terminals stay compared.
+                for (const QPointer<MainWindow>& mainWindow : std::as_const(_windows)) {
+                    if (!mainWindow || !mainWindow->isVisible()) {
+                        continue;
+                    }
+                    QWindow* qml = qmlWindow(mainWindow);
+                    const QRect frame = qml ? qml->frameGeometry() : mainWindow->frameGeometry();
+                    const QRect shadow = frame.adjusted(-80, -80, 80, 80);
+                    const QList<QRect> ring = {QRect(shadow.left(), shadow.top(), shadow.width(), frame.top() - shadow.top()),
+                        QRect(shadow.left(), frame.bottom() + 1, shadow.width(), shadow.bottom() - frame.bottom()),
+                        QRect(shadow.left(), frame.top(), frame.left() - shadow.left(), frame.height()),
+                        QRect(frame.right() + 1, frame.top(), shadow.right() - frame.right(), frame.height())};
+                    for (const QRect& rect : ring) {
+                        lines.append(QStringLiteral("covered %1 %2 %3 %4").arg(rect.x()).arg(rect.y()).arg(rect.width()).arg(rect.height()));
+                    }
+                }
+                for (QWidget* widget : QApplication::topLevelWidgets()) {
+                    // Not the windows, the backdrops, or widgets embedded in a QML window (plugin docks).
+                    const bool embedded = widget->windowHandle() && widget->windowHandle()->parent();
+                    if (widget->isVisible() && !qobject_cast<MainWindow*>(widget) && !_backdrops.contains(widget) && !embedded) {
+                        // Its frame (its geometry while the window manager hasn't framed it yet)
+                        // and its shadow: Silver's largest reaches 80 px (64 blur, 16 offset).
+                        QRect rect = widget->frameGeometry();
+                        if (rect.width() <= 1 || rect.height() <= 1) {
+                            rect = widget->geometry();
+                        }
+                        rect.adjust(-80, -80, 80, 80);
+                        lines.append(QStringLiteral("covered %1 %2 %3 %4").arg(rect.x()).arg(rect.y()).arg(rect.width()).arg(rect.height()));
+                    }
+                }
+            }
+            QFile file(QDir(_output).filePath(safeName(name) + QStringLiteral(".png.panes")));
+            if (!file.open(QIODevice::WriteOnly | QIODevice::Text) || file.write((lines.join(u'\n') + u'\n').toUtf8()) < 0) {
+                fail(QStringLiteral("cannot write panes of ") + name);
             }
         }
 
         void saveScreen(const QString& name)
         {
-            save(QGuiApplication::primaryScreen()->grabWindow(0), name + QStringLiteral(".screen"));
+            const QString screenName = name + QStringLiteral(".screen");
+            if (save(QGuiApplication::primaryScreen()->grabWindow(0), screenName)) {
+                saveOverlays(screenName, overlays(nullptr));
+                savePanes(screenName, nullptr);
+            }
         }
 
         void dumpMenu(const QMenu* menu, const QString& indent)
@@ -237,6 +406,40 @@ namespace {
                 {QStringLiteral("double"), QEvent::MouseButtonDblClick}};
             const QEvent::Type type = types.value(step.value(QStringLiteral("event")).toString(), QEvent::None);
             const QPoint local = cellCenter(display, step.value(QStringLiteral("column")).toInt(), step.value(QStringLiteral("line")).toInt());
+            if (QWindow* qml = qmlWindow(qobject_cast<MainWindow*>(display->window()))) {
+                // To the window, which delivers them to its items as Qt Quick gets a double click:
+                // the second press, then the double click. Sent, like the widget path's, so no
+                // button counts as held (a drag of the selection ends at once).
+                const QPointF pos = display->mapTo(display->window(), local);
+                const auto send = [qml, pos, &step](QEvent::Type eventType, Qt::MouseButton button, Qt::MouseButtons buttons, ulong timestamp) {
+                    QMouseEvent event(eventType, pos, pos, qml->mapToGlobal(pos), button, buttons, modifiers(step));
+                    event.setTimestamp(timestamp);
+                    QCoreApplication::sendEvent(qml, &event);
+                };
+                const int interval = QGuiApplication::styleHints()->mouseDoubleClickInterval();
+                switch (type) {
+                case QEvent::MouseButtonPress:
+                    _mouseTime += interval + 1;
+                    send(QEvent::MouseButtonPress, Qt::LeftButton, Qt::LeftButton, _mouseTime);
+                    break;
+                case QEvent::MouseButtonDblClick:
+                    _mouseTime += 10;
+                    send(QEvent::MouseButtonPress, Qt::LeftButton, Qt::LeftButton, _mouseTime);
+                    send(QEvent::MouseButtonDblClick, Qt::LeftButton, Qt::LeftButton, _mouseTime);
+                    break;
+                case QEvent::MouseMove:
+                    _mouseTime += 10;
+                    send(QEvent::MouseMove, Qt::NoButton, Qt::LeftButton, _mouseTime);
+                    break;
+                case QEvent::MouseButtonRelease:
+                    _mouseTime += 10;
+                    send(QEvent::MouseButtonRelease, Qt::LeftButton, Qt::NoButton, _mouseTime);
+                    break;
+                default:
+                    return fail(QStringLiteral("mouse: bad event"));
+                }
+                return next(step.value(QStringLiteral("delay")).toInt(50));
+            }
             const Qt::MouseButton button = type == QEvent::MouseMove ? Qt::NoButton : Qt::LeftButton;
             const Qt::MouseButtons buttons = type == QEvent::MouseButtonRelease ? Qt::NoButton : Qt::LeftButton;
             QMouseEvent event(type, local, display->mapToGlobal(local), button, buttons, modifiers(step));
@@ -246,7 +449,11 @@ namespace {
 
         void sendText(const QString& text, bool toFocus)
         {
-            QWidget* target = toFocus ? QApplication::focusWidget() : view();
+            QObject* target = toFocus ? QApplication::focusWidget() : view();
+            if (toFocus && !target) {
+                // A QML window delivers it to its focus item (the find bar's field).
+                target = QGuiApplication::focusWindow();
+            }
             if (!target) {
                 return fail(QStringLiteral("type: no target"));
             }
@@ -268,11 +475,38 @@ namespace {
                 return fail(QStringLiteral("bad key sequence ") + sequence);
             }
             QWidget* target = QApplication::focusWidget() ? QApplication::focusWidget() : window();
-            if (!target || !target->window()->windowHandle()) {
+            QWindow* handle = target ? target->window()->windowHandle() : nullptr;
+            if (QWindow* qml = target ? qmlWindow(qobject_cast<MainWindow*>(target->window())) : nullptr) {
+                handle = qml;
+            }
+            if (!handle) {
                 return fail(QStringLiteral("key: no window"));
             }
             // QTest's window path goes through the window system, where shortcuts are matched.
-            QTest::keyClick(target->window()->windowHandle(), keys[0].key(), keys[0].keyboardModifiers());
+            QTest::keyClick(handle, keys[0].key(), keys[0].keyboardModifiers());
+            next(300);
+        }
+
+        // KAcceleratorManager gives the window's menus their accelerators only when a tab
+        // page is shown while a window is active, which depends on activation timing.
+        // Applying it once the window is active makes menu dumps the same on every run.
+        void waitActive(QPointer<MainWindow> mainWindow, int remainingMs)
+        {
+            if (!mainWindow) {
+                return fail(QStringLiteral("waitWindow: window closed"));
+            }
+            QWindow* qml = qmlWindow(mainWindow);
+            const bool active = qml ? qml->isActive() : mainWindow->isActiveWindow();
+            if (!active && remainingMs > 0) {
+                QTimer::singleShot(50, this, [this, mainWindow, remainingMs] {
+                    waitActive(mainWindow, remainingMs - 50);
+                });
+                return;
+            }
+            if (active) {
+                KAcceleratorManager::manage(mainWindow);
+            }
+            trace(QStringLiteral("window %1").arg(active ? QStringLiteral("active") : QStringLiteral("inactive")));
             next(300);
         }
 
@@ -293,6 +527,19 @@ namespace {
 
         QDialog* visibleDialog() const
         {
+            // A step's "in" names its dialog by window title, where several are open.
+            if (!_targetTitle.isEmpty()) {
+                for (QWidget* widget : QApplication::topLevelWidgets()) {
+                    if (auto* dialog = qobject_cast<QDialog*>(widget); dialog && dialog->isVisible() && dialog->windowTitle() == _targetTitle) {
+                        return dialog;
+                    }
+                }
+                return nullptr;
+            }
+            // Sub-dialogs such as the color scheme editor aren't modal; the one in front is active.
+            if (auto* active = qobject_cast<QDialog*>(QApplication::activeWindow()); active && active->isVisible()) {
+                return active;
+            }
             if (auto* modal = qobject_cast<QDialog*>(QApplication::activeModalWidget())) {
                 return modal;
             }
@@ -304,19 +551,111 @@ namespace {
             return nullptr;
         }
 
-        void captureDialog(const QString& name, bool close, int remainingMs)
+        template <typename T>
+        T* dialogChild(const QString& object, const QString& text = QString())
+        {
+            QDialog* dialog = visibleDialog();
+            if (!dialog) {
+                return nullptr;
+            }
+            if (!object.isEmpty()) {
+                return dialog->findChild<T*>(object);
+            }
+            const auto children = dialog->findChildren<T*>();
+            for (T* child : children) {
+                if constexpr (std::is_base_of_v<QAbstractButton, T>) {
+                    if (child->isVisible() && child->text().remove(u'&') == text) {
+                        return child;
+                    }
+                }
+            }
+            return nullptr;
+        }
+
+        // Clicks are deferred: a button may open a modal dialog that doesn't return until closed.
+        void click(QAbstractButton* button, const QString& what, int delayMs)
+        {
+            if (!button) {
+                QDialog* dialog = visibleDialog();
+                return fail(QStringLiteral("no button %1 in %2").arg(what, dialog ? dialog->windowTitle() : QStringLiteral("<no dialog>")));
+            }
+            if (!button->isEnabled()) {
+                return fail(QStringLiteral("button disabled: ") + what);
+            }
+            QTimer::singleShot(0, button, &QAbstractButton::click);
+            next(delayMs);
+        }
+
+        void selectPage(const QString& title)
+        {
+            QDialog* dialog = visibleDialog();
+            KPageView* view = dialog ? dialog->findChild<KPageView*>() : nullptr;
+            if (!view) {
+                return fail(QStringLiteral("page: no page dialog"));
+            }
+            QList<QModelIndex> pending = {QModelIndex()};
+            while (!pending.isEmpty()) {
+                const QModelIndex parent = pending.takeFirst();
+                for (int row = 0; row < view->model()->rowCount(parent); ++row) {
+                    const QModelIndex index = view->model()->index(row, 0, parent);
+                    if (index.data(Qt::DisplayRole).toString().remove(u'&') == title) {
+                        view->setCurrentPage(index);
+                        return next(300);
+                    }
+                    pending.append(index);
+                }
+            }
+            fail(QStringLiteral("no page ") + title);
+        }
+
+        void selectRow(const QString& object, int row, const QString& text)
+        {
+            if (auto* combo = dialogChild<QComboBox>(object)) {
+                if (row < 0) {
+                    row += combo->count();
+                }
+                if (row < 0 || row >= combo->count()) {
+                    return fail(QStringLiteral("select: no row %1 in %2").arg(row).arg(object));
+                }
+                combo->setCurrentIndex(row);
+                return next(300);
+            }
+            if (auto* itemView = dialogChild<QAbstractItemView>(object)) {
+                QModelIndex index = itemView->model()->index(row, 0, itemView->rootIndex());
+                if (!text.isEmpty()) {
+                    const QModelIndexList found = itemView->model()->match(itemView->model()->index(0, 0, itemView->rootIndex()), Qt::DisplayRole, text, 1,
+                        Qt::MatchStartsWith);
+                    index = found.value(0);
+                }
+                if (!index.isValid()) {
+                    return fail(QStringLiteral("select: no row %1 in %2").arg(row).arg(object));
+                }
+                itemView->setCurrentIndex(index);
+                return next(300);
+            }
+            fail(QStringLiteral("select: no list ") + object);
+        }
+
+        void captureDialog(const QString& name, bool close, int remainingMs, bool image = true)
         {
             QDialog* dialog = visibleDialog();
             if (!dialog) {
                 if (remainingMs <= 0) {
                     return fail(QStringLiteral("no dialog visible for ") + name);
                 }
-                QTimer::singleShot(100, this, [this, name, close, remainingMs] {
-                    captureDialog(name, close, remainingMs - 100);
+                QTimer::singleShot(100, this, [this, name, close, remainingMs, image] {
+                    captureDialog(name, close, remainingMs - 100, image);
                 });
                 return;
             }
             trace(QStringLiteral("dialog ") + name + QStringLiteral(" ") + dialog->windowTitle());
+            if (!image) {
+                // Contents depend on the outside world (KNewStuff's network); only the dialog's opening is checked.
+                if (close) {
+                    dialog->reject();
+                }
+                return next(300);
+            }
             QList<QModelIndex> pages;
             if (auto* view = dialog->findChild<KPageView*>()) {
                 QList<QModelIndex> pending = {QModelIndex()};
@@ -342,7 +681,7 @@ namespace {
                 if (auto* view = dialog->findChild<KPageView*>(); view && !pages.isEmpty()) {
                     const QModelIndex page = pages.takeFirst();
                     view->setCurrentPage(page);
-                    suffix = QStringLiteral("-") + page.data(Qt::DisplayRole).toString().remove(u'&').replace(u' ', u'_');
+                    suffix = QStringLiteral("-") + page.data(Qt::DisplayRole).toString().remove(u'&');
                     trace(QStringLiteral("  page ") + page.data(Qt::DisplayRole).toString());
                     QTimer::singleShot(300, this, [this, dialog, name, pages, close, suffix] {
                         if (!dialog) {
@@ -371,11 +710,12 @@ namespace {
 
         void writeFile(const QString& name, const QString& text)
         {
-            QFile file(QDir(_output).filePath(name));
-            if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-                file.write(text.toUtf8());
+            const QString safe = safeName(name);
+            QFile file(QDir(_output).filePath(safe));
+            if (!file.open(QIODevice::WriteOnly | QIODevice::Text) || file.write(text.toUtf8()) < 0) {
+                return fail(QStringLiteral("cannot write ") + safe);
             }
-            trace(QStringLiteral("wrote ") + name);
+            trace(QStringLiteral("wrote ") + safe);
         }
 
         void introspect(const QStringList& paths)
@@ -412,7 +752,8 @@ namespace {
                 QStringLiteral("WM_CLIENT_MACHINE"), QStringLiteral("_NET_WM_USER_TIME_WINDOW"),
                 QStringLiteral("_NET_WM_ICON"), QStringLiteral("WM_COMMAND")};
             QProcess process;
-            process.start(QStringLiteral("xprop"), {QStringLiteral("-id"), QString::number(mainWindow->winId())});
+            QWindow* qml = qmlWindow(mainWindow);
+            process.start(QStringLiteral("xprop"), {QStringLiteral("-id"), QString::number(qml ? qml->winId() : mainWindow->winId())});
             process.waitForFinished(5000);
             QStringList lines;
             const QStringList output = QString::fromUtf8(process.readAllStandardOutput()).split(u'\n');
@@ -470,7 +811,9 @@ namespace {
                 QStringLiteral("LANGUAGE")};
             static const QStringList masked = {QStringLiteral("SHELL_SESSION_ID"), QStringLiteral("WINDOWID"), QStringLiteral("KONSOLE_DBUS_SERVICE"),
                 QStringLiteral("KONSOLE_DBUS_ACTIVATION_COOKIE")};
-            file.open(QIODevice::ReadOnly | QIODevice::Text);
+            if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                return fail(QStringLiteral("env: cannot read ") + fileName);
+            }
             QStringList lines;
             const QStringList all = QString::fromUtf8(file.readAll()).split(u'\n');
             for (const QString& line : all) {
@@ -511,12 +854,21 @@ namespace {
         void fail(const QString& message)
         {
             sonicCritical() << "parity:" << message;
-            trace(QStringLiteral("FAIL ") + message);
+            if (!_failed) {
+                _failed = true;
+                QFile file(QDir(_output).filePath(QStringLiteral("trace.txt")));
+                if (file.open(QIODevice::Append | QIODevice::Text)) {
+                    file.write((QStringLiteral("FAIL ") + message).toUtf8() + '\n');
+                }
+            }
             QCoreApplication::exit(3);
         }
 
         void run()
         {
+            if (_failed) {
+                return;
+            }
             if (_index >= _steps.size()) {
                 sonicInfo() << "parity: script finished";
                 QCoreApplication::exit(0);
@@ -524,6 +876,7 @@ namespace {
             }
             const QJsonObject step = _steps.at(_index++);
             const QString op = step.value(QStringLiteral("op")).toString();
+            _targetTitle = step.value(QStringLiteral("in")).toString();
             sonicDebug() << "parity: step" << _index << op;
 
             if (op == QLatin1String("output")) {
@@ -537,12 +890,16 @@ namespace {
                     --_index;
                     return next(100);
                 }
-                return next(300);
+                return waitActive(window(index), 5000);
             }
             if (op == QLatin1String("useWindow")) {
                 _currentWindow = step.value(QStringLiteral("window")).toInt();
                 if (MainWindow* mainWindow = window()) {
-                    mainWindow->activateWindow();
+                    if (QWindow* qml = qmlWindow(mainWindow)) {
+                        qml->requestActivate();
+                    } else {
+                        mainWindow->activateWindow();
+                    }
                 }
                 return next(300);
             }
@@ -551,15 +908,27 @@ namespace {
             }
             if (op == QLatin1String("geometry")) {
                 if (MainWindow* mainWindow = window()) {
-                    mainWindow->move(step.value(QStringLiteral("x")).toInt(), step.value(QStringLiteral("y")).toInt());
-                    mainWindow->resize(step.value(QStringLiteral("width")).toInt(), step.value(QStringLiteral("height")).toInt());
+                    const QPoint position(step.value(QStringLiteral("x")).toInt(), step.value(QStringLiteral("y")).toInt());
+                    const QSize size(step.value(QStringLiteral("width")).toInt(), step.value(QStringLiteral("height")).toInt());
+                    // As QWidget::move(): the frame's position.
+                    if (QWindow* qml = qmlWindow(mainWindow)) {
+                        const QMargins frame = qml->frameMargins();
+                        qml->setGeometry(QRect(position + QPoint(frame.left(), frame.top()), size));
+                    } else {
+                        mainWindow->move(position);
+                        mainWindow->resize(size);
+                    }
                 }
                 return next(300);
             }
             if (op == QLatin1String("windowState")) {
                 if (MainWindow* mainWindow = window()) {
-                    mainWindow->setWindowState(step.value(QStringLiteral("state")).toString() == QLatin1String("maximized") ? Qt::WindowMaximized
-                                                                                                                            : Qt::WindowNoState);
+                    const Qt::WindowState state = step.value(QStringLiteral("state")).toString() == QLatin1String("maximized") ? Qt::WindowMaximized : Qt::WindowNoState;
+                    if (QWindow* qml = qmlWindow(mainWindow)) {
+                        qml->setWindowState(state);
+                    } else {
+                        mainWindow->setWindowState(state);
+                    }
                 }
                 return next(800);
             }
@@ -640,7 +1009,11 @@ namespace {
             if (op == QLatin1String("capture")) {
                 const QString name = step.value(QStringLiteral("name")).toString();
                 if (MainWindow* mainWindow = window()) {
-                    save(mainWindow->grab(), name + QStringLiteral(".client"));
+                    const QPixmap qml = grabQmlWindow(mainWindow);
+                    if (save(qml.isNull() ? mainWindow->grab() : qml, name + QStringLiteral(".client"))) {
+                        saveOverlays(name + QStringLiteral(".client"), overlays(mainWindow));
+                        savePanes(name + QStringLiteral(".client"), mainWindow);
+                    }
                 }
                 saveScreen(name);
                 trace(QStringLiteral("capture ") + name);
@@ -658,8 +1031,10 @@ namespace {
                 if (!menu) {
                     return fail(QStringLiteral("no menu ") + name);
                 }
-                const QRect item = mainWindow->menuBar()->actionGeometry(menu->menuAction());
-                menu->popup(mainWindow->menuBar()->isVisible() ? mainWindow->menuBar()->mapToGlobal(item.bottomLeft()) : mainWindow->mapToGlobal(QPoint(0, 0)));
+                if (!mainWindow->menuBar()->isVisible() || !popupQmlMenu(mainWindow, menu)) {
+                    const QRect item = mainWindow->menuBar()->actionGeometry(menu->menuAction());
+                    menu->popup(mainWindow->menuBar()->isVisible() ? mainWindow->menuBar()->mapToGlobal(item.bottomLeft()) : mainWindow->mapToGlobal(QPoint(0, 0)));
+                }
                 return capturePopup(name, 2000);
             }
             if (op == QLatin1String("popup")) {
@@ -685,7 +1060,93 @@ namespace {
                         }
                     }
                 }
-                return captureDialog(step.value(QStringLiteral("name")).toString(), step.value(QStringLiteral("close")).toBool(true), 3000);
+                return captureDialog(step.value(QStringLiteral("name")).toString(), step.value(QStringLiteral("close")).toBool(true),
+                    step.value(QStringLiteral("timeout")).toInt(3000), step.value(QStringLiteral("image")).toBool(true));
+            }
+            if (op == QLatin1String("click")) {
+                const QString object = step.value(QStringLiteral("object")).toString();
+                const QString text = step.value(QStringLiteral("text")).toString();
+                return click(dialogChild<QAbstractButton>(object, text), object.isEmpty() ? text : object, step.value(QStringLiteral("delay")).toInt(800));
+            }
+            if (op == QLatin1String("button")) {
+                static const QHash<QString, QDialogButtonBox::StandardButton> roles = {{QStringLiteral("ok"), QDialogButtonBox::Ok},
+                    {QStringLiteral("cancel"), QDialogButtonBox::Cancel},
+                    {QStringLiteral("apply"), QDialogButtonBox::Apply}};
+                const QString role = step.value(QStringLiteral("role")).toString();
+                auto* box = dialogChild<QDialogButtonBox>(QString());
+                if (!box) {
+                    if (QDialog* dialog = visibleDialog()) {
+                        box = dialog->findChild<QDialogButtonBox*>();
+                    }
+                }
+                return click(box ? box->button(roles.value(role, QDialogButtonBox::NoButton)) : nullptr, role, step.value(QStringLiteral("delay")).toInt(800));
+            }
+            if (op == QLatin1String("page")) {
+                return selectPage(step.value(QStringLiteral("name")).toString());
+            }
+            if (op == QLatin1String("select")) {
+                return selectRow(step.value(QStringLiteral("object")).toString(), step.value(QStringLiteral("row")).toInt(),
+                    step.value(QStringLiteral("text")).toString());
+            }
+            if (op == QLatin1String("clickItem")) {
+                const QString object = step.value(QStringLiteral("object")).toString();
+                auto* itemView = dialogChild<QAbstractItemView>(object);
+                const QModelIndex index = itemView ? itemView->model()->index(step.value(QStringLiteral("row")).toInt(), step.value(QStringLiteral("column")).toInt())
+                                                   : QModelIndex();
+                if (!index.isValid()) {
+                    return fail(QStringLiteral("clickItem: no item in ") + object);
+                }
+                // Deferred, like click(): the item may open a modal dialog.
+                QTimer::singleShot(0, itemView, [viewport = QPointer<QWidget>(itemView->viewport()), point = itemView->visualRect(index).center()] {
+                    if (viewport) {
+                        QTest::mouseClick(viewport, Qt::LeftButton, Qt::NoModifier, point);
+                    }
+                });
+                return next(step.value(QStringLiteral("delay")).toInt(800));
+            }
+            if (op == QLatin1String("setText")) {
+                auto* edit = dialogChild<QLineEdit>(step.value(QStringLiteral("object")).toString());
+                if (!edit) {
+                    return fail(QStringLiteral("setText: no line edit ") + step.value(QStringLiteral("object")).toString());
+                }
+                edit->setText(step.value(QStringLiteral("text")).toString());
+                return next(300);
+            }
+            if (op == QLatin1String("clipboard")) {
+                QGuiApplication::clipboard()->setText(step.value(QStringLiteral("text")).toString().repeated(step.value(QStringLiteral("repeat")).toInt(1)));
+                return next(200);
+            }
+            if (op == QLatin1String("chmod")) {
+                const QString path = QDir::home().filePath(step.value(QStringLiteral("path")).toString());
+                bool ok = false;
+                const uint mode = step.value(QStringLiteral("mode")).toString().toUInt(&ok, 8);
+                QFileDevice::Permissions permissions;
+                const QFileDevice::Permission bits[] = {QFileDevice::ExeOther, QFileDevice::WriteOther, QFileDevice::ReadOther,
+                    QFileDevice::ExeGroup, QFileDevice::WriteGroup, QFileDevice::ReadGroup,
+                    QFileDevice::ExeOwner, QFileDevice::WriteOwner, QFileDevice::ReadOwner};
+                for (int bit = 0; bit < 9; ++bit) {
+                    if (mode & (1u << bit)) {
+                        permissions |= bits[bit];
+                    }
+                }
+                if (!ok || !QFile::setPermissions(path, permissions)) {
+                    return fail(QStringLiteral("chmod failed: ") + path);
+                }
+                return next();
+            }
+            if (op == QLatin1String("loadLayout")) {
+                MainWindow* mainWindow = window();
+                if (!mainWindow) {
+                    return fail(QStringLiteral("loadLayout: no window"));
+                }
+                const QString path = QDir::home().filePath(step.value(QStringLiteral("file")).toString());
+                // Deferred: an unreadable layout opens a modal message box.
+                QTimer::singleShot(0, mainWindow->viewManager(), [manager = QPointer<ViewManager>(mainWindow->viewManager()), path] {
+                    if (manager) {
+                        manager->loadLayout(path);
+                    }
+                });
+                return next(800);
             }
             if (op == QLatin1String("quit")) {
                 sonicInfo() << "parity: quit";
@@ -699,8 +1160,12 @@ namespace {
         QList<QJsonObject> _steps;
         QList<QPointer<MainWindow>> _windows;
         QList<Backdrop*> _backdrops;
+        bool _failed = false;
+        QString _targetTitle;
         int _index = 0;
         int _currentWindow = 0;
+        // The QML window's mouse event timestamps.
+        ulong _mouseTime = 0;
         QString _output = QDir::currentPath();
     };
 }

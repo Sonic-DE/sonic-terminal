@@ -23,6 +23,7 @@ class QMenu;
 
 namespace Konsole
 {
+class PaneModel;
 class ViewProperties;
 class ViewManager;
 class TabbedViewContainer;
@@ -172,7 +173,13 @@ public:
 
     QSize sizeHint() const override;
 
+    /** The model whose tabs this container shows (non-virtual, so the layout stays). */
+    PaneModel* paneModel() const;
+
 Q_SIGNALS:
+    /** A tab's text, tooltip, icon or text colour changed (for the QML tab bar). */
+    void tabsChanged();
+
     /** Emitted when the container has no more children */
     void empty(TabbedViewContainer *container);
 

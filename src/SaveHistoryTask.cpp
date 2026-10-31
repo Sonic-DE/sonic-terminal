@@ -19,6 +19,7 @@
 #include <KSharedConfig>
 
 #include "Emulation.h"
+#include "quick/CompatWindows.h"
 #include "session/SessionManager.h"
 
 #include "../decoders/HTMLDecoder.h"
@@ -43,7 +44,7 @@ bool SaveHistoryTask::execute()
     //        three then providing a URL for each one will be tedious
 
     // TODO - show a warning ( preferably passive ) if saving the history output fails
-    QFileDialog *dialog = new QFileDialog(QApplication::activeWindow());
+    QFileDialog* dialog = new QFileDialog(CompatWindows::activeWindow());
     dialog->setAcceptMode(QFileDialog::AcceptSave);
 
     QStringList mimeTypes{QStringLiteral("text/plain"), QStringLiteral("text/html")};

@@ -9,6 +9,7 @@
 #include "SessionController.h"
 
 #include "profile/ProfileManager.h"
+#include "quick/CompatWindows.h"
 #include "src/SearchHistoryTask.h"
 #include "terminalDisplay/TerminalColor.h"
 #include "terminalDisplay/TerminalFonts.h"
@@ -576,7 +577,7 @@ void SessionController::handleWebShortcutAction(QAction *action)
         const QUrl url = filterData.uri();
 
         auto *job = new KIO::OpenUrlJob(url);
-        job->setUiDelegate(KIO::createDefaultJobUiDelegate(KJobUiDelegate::AutoHandlingEnabled, QApplication::activeWindow()));
+        job->setUiDelegate(KIO::createDefaultJobUiDelegate(KJobUiDelegate::AutoHandlingEnabled, CompatWindows::activeWindow()));
         job->start();
     }
 }
@@ -1040,7 +1041,7 @@ void SessionController::changeCodec(const QByteArray &codec)
 
 void SessionController::editCurrentProfile()
 {
-    auto *dialog = new EditProfileDialog(QApplication::activeWindow());
+    auto* dialog = new EditProfileDialog(CompatWindows::activeWindow());
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     dialog->setModal(true);
 
@@ -1088,7 +1089,7 @@ void SessionController::renameSession()
     const QColor sessionTabColor = session()->color();
     const QColor sessionActivityTabColor = session()->activityColor();
 
-    auto *dialog = new RenameTabDialog(QApplication::activeWindow());
+    auto* dialog = new RenameTabDialog(CompatWindows::activeWindow());
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     dialog->setModal(true);
     dialog->setTabTitleText(sessionLocalTabTitleFormat);
@@ -1255,7 +1256,7 @@ void SessionController::openBrowser()
     } else {
         const QUrl currentUrl = url().isLocalFile() ? url() : QUrl::fromLocalFile(QDir::homePath());
         auto *job = new KIO::OpenUrlJob(currentUrl);
-        job->setUiDelegate(KIO::createDefaultJobUiDelegate(KJobUiDelegate::AutoHandlingEnabled, QApplication::activeWindow()));
+        job->setUiDelegate(KIO::createDefaultJobUiDelegate(KJobUiDelegate::AutoHandlingEnabled, CompatWindows::activeWindow()));
         job->start();
     }
 }
@@ -1803,7 +1804,7 @@ void SessionController::changeSearchMatch()
 }
 void SessionController::showHistoryOptions()
 {
-    auto *dialog = new HistorySizeDialog(QApplication::activeWindow());
+    auto* dialog = new HistorySizeDialog(CompatWindows::activeWindow());
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     dialog->setModal(true);
 

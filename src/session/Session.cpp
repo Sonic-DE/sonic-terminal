@@ -64,6 +64,7 @@
 #include "konsoledebug.h"
 #include "profile/Profile.h"
 #include "profile/ProfileManager.h"
+#include "quick/CompatWindows.h"
 
 #include "terminalDisplay/TerminalDisplay.h"
 #include "terminalDisplay/TerminalScrollBar.h"
@@ -1143,8 +1144,8 @@ void Session::done(int exitCode, QProcess::ExitStatus exitStatus)
 
         // FIXME: See comments in Session::silenceTimerDone()
         KNotification* notification = new KNotification(QStringLiteral("Finished"), KNotification::CloseWhenWindowActivated);
-        if (QApplication::activeWindow()) {
-            notification->setWindow(QApplication::activeWindow()->windowHandle());
+        if (QWidget* window = CompatWindows::activeWindow()) {
+            notification->setWindow(CompatWindows::shownWindow(window));
         }
         notification->setText(message);
         notification->sendEvent();
@@ -1689,7 +1690,7 @@ void Session::startZModem(const QString& zmodem, const QString& dir, const QStri
     disconnect(_shellProcess, &Konsole::Pty::receivedData, this, &Konsole::Session::onReceiveBlock);
     connect(_shellProcess, &Konsole::Pty::receivedData, this, &Konsole::Session::zmodemReceiveBlock);
 
-    _zmodemProgress = new ZModemDialog(QApplication::activeWindow(), false, i18n("ZModem Progress"));
+    _zmodemProgress = new ZModemDialog(CompatWindows::activeWindow(), false, i18n("ZModem Progress"));
 
     connect(_zmodemProgress, &Konsole::ZModemDialog::zmodemCancel, this, &Konsole::Session::zmodemFinished);
 

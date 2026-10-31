@@ -1,0 +1,80 @@
+# Sub-dialogs, menus inside dialogs and message boxes that dialogs.jsonl doesn't reach.
+# "in" names the dialog a step acts on (by window title) where several are open.
+{"op": "waitWindow"}
+{"op": "geometry", "x": 100, "y": 80, "width": 900, "height": 560}
+{"op": "waitText", "text": "$"}
+# Edit Profile's sub-dialogs.
+{"op": "action", "id": "edit-current-profile"}
+{"op": "dialog", "name": "edit-profile-open", "image": false, "close": false}
+{"op": "page", "name": "Appearance", "in": "Edit Profile \"Parity\""}
+{"op": "click", "object": "editColorSchemeButton", "in": "Edit Profile \"Parity\""}
+{"op": "dialog", "name": "color-scheme-editor", "close": false, "in": "Edit Color Scheme"}
+{"op": "clickItem", "object": "colorTable", "row": 0, "column": 1, "in": "Edit Color Scheme"}
+{"op": "dialog", "name": "color-picker", "in": "Select Color"}
+{"op": "button", "role": "cancel", "in": "Edit Color Scheme"}
+{"op": "click", "object": "chooseFontButton", "in": "Edit Profile \"Parity\""}
+{"op": "dialog", "name": "font-chooser"}
+{"op": "click", "text": "Get New...", "in": "Edit Profile \"Parity\""}
+{"op": "dialog", "name": "get-new-color-schemes", "image": false, "timeout": 10000}
+{"op": "page", "name": "Keyboard", "in": "Edit Profile \"Parity\""}
+{"op": "click", "object": "editKeyBindingsButton", "in": "Edit Profile \"Parity\""}
+{"op": "dialog", "name": "key-binding-editor", "close": false}
+{"op": "setText", "object": "descriptionEdit", "text": ""}
+{"op": "button", "role": "ok"}
+{"op": "dialog", "name": "message-key-binding-error"}
+{"op": "button", "role": "cancel"}
+{"op": "page", "name": "General", "in": "Edit Profile \"Parity\""}
+{"op": "click", "object": "environmentEditButton", "in": "Edit Profile \"Parity\""}
+{"op": "dialog", "name": "environment-editor"}
+{"op": "page", "name": "Mouse", "in": "Edit Profile \"Parity\""}
+{"op": "select", "object": "textEditorCombo", "row": 6, "in": "Edit Profile \"Parity\""}
+{"op": "click", "object": "textEditorCustomBtn", "in": "Edit Profile \"Parity\""}
+{"op": "dialog", "name": "custom-text-editor"}
+{"op": "button", "role": "cancel", "in": "Edit Profile \"Parity\""}
+# Rename Tab's title format menus.
+{"op": "action", "id": "rename-session"}
+{"op": "dialog", "name": "rename-tab-open", "image": false, "close": false}
+{"op": "click", "object": "tabTitleFormatButton", "delay": 100}
+{"op": "popup", "name": "tab-title-format"}
+{"op": "click", "object": "remoteTabTitleFormatButton", "delay": 100}
+{"op": "popup", "name": "remote-tab-title-format"}
+{"op": "button", "role": "cancel"}
+# The profile list's New and Edit buttons (Delete opens no dialog).
+{"op": "action", "id": "options_configure"}
+{"op": "dialog", "name": "configure-open", "image": false, "close": false}
+{"op": "page", "name": "Profiles"}
+{"op": "select", "object": "profileListView", "text": "Parity"}
+{"op": "click", "object": "newProfileButton"}
+{"op": "dialog", "name": "new-profile"}
+{"op": "click", "object": "editProfileButton"}
+{"op": "dialog", "name": "edit-profile-from-settings"}
+{"op": "button", "role": "cancel"}
+{"op": "action", "id": "help_report_bug"}
+{"op": "dialog", "name": "report-bug"}
+# Message boxes.
+{"op": "clipboard", "text": "a", "repeat": 9000}
+{"op": "action", "id": "edit_paste"}
+{"op": "dialog", "name": "message-paste-large"}
+{"op": "clipboard", "text": "echo \u001b[31m"}
+{"op": "action", "id": "edit_paste"}
+{"op": "dialog", "name": "message-paste-control"}
+{"op": "loadLayout", "file": "missing-layout.json"}
+{"op": "dialog", "name": "message-layout-load"}
+{"op": "chmod", "path": ".local/share/konsole/Parity.profile", "mode": "444"}
+{"op": "chmod", "path": ".local/share/konsole", "mode": "555"}
+{"op": "action", "id": "edit-current-profile"}
+{"op": "dialog", "name": "edit-profile-save", "image": false, "close": false}
+{"op": "page", "name": "General"}
+{"op": "setText", "object": "commandEdit", "text": "/bin/bash --norc --noprofile -i"}
+{"op": "button", "role": "ok"}
+{"op": "dialog", "name": "message-profile-save"}
+{"op": "chmod", "path": ".local/share/konsole", "mode": "755"}
+{"op": "chmod", "path": ".local/share/konsole/Parity.profile", "mode": "644"}
+{"op": "type", "text": "sleep 100\r"}
+{"op": "action", "id": "close-session"}
+{"op": "dialog", "name": "message-close-running"}
+{"op": "action", "id": "new-tab"}
+{"op": "waitText", "text": "$"}
+{"op": "action", "id": "close-window"}
+{"op": "dialog", "name": "message-close-window"}
+{"op": "quit"}

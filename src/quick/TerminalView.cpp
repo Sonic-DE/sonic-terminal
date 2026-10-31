@@ -42,6 +42,8 @@
 #include <KMessageBox>
 #include <KMessageWidget>
 #include <KShell>
+#include <QStyleHints>
+#include <Sonic/Logging/Log>
 
 #include "filterHotSpots/HotSpot.h"
 #include "filterHotSpots/TerminalImageFilterChain.h"
@@ -74,9 +76,25 @@
 
 using namespace Konsole;
 
+namespace {
+bool createInScene = false;
+}
+
+TerminalView::SceneModeGuard::SceneModeGuard()
+    : _previous(createInScene)
+{
+    createInScene = true;
+}
+
+TerminalView::SceneModeGuard::~SceneModeGuard()
+{
+    createInScene = _previous;
+}
+
 TerminalView::TerminalView(TerminalDisplay* display, QQuickItem* parent)
     : QQuickPaintedItem(parent)
     , _display(display)
+    , _sceneMode(createInScene)
     , _lines(display->_lines)
     , _columns(display->_columns)
     , _usedLines(display->_usedLines)
@@ -151,6 +169,255 @@ TerminalView::TerminalView(TerminalDisplay* display, QQuickItem* parent)
         currentCursorRect.moveTo(newX, newY);
         update();
     });
+
+    if (_sceneMode) {
+        setAcceptedMouseButtons(Qt::AllButtons);
+        setAcceptHoverEvents(true);
+        setFlag(ItemAcceptsInputMethod, true);
+        setFlag(ItemAcceptsDrops, true);
+        setActiveFocusOnTab(true);
+
+        _autoHideTimer = new QTimer(this);
+        _autoHideTimer->setSingleShot(true);
+        connect(_autoHideTimer, &QTimer::timeout, this, [this] {
+            if (viewHasFocus() && !_cursorHidden) {
+                _cursorShapeBeforeHiding = cursor().shape();
+                _cursorHidden = true;
+                QQuickItem::setCursor(QCursor(Qt::BlankCursor));
+            }
+        });
+
+        _autoScrollTimer = new QTimer(this);
+        _autoScrollTimer->setInterval(100);
+        connect(_autoScrollTimer, &QTimer::timeout, this, [this] {
+            // A move to where the pointer is now, as AutoScrollHandler sent to the facade.
+            const QPoint local = viewMapFromGlobal(QCursor::pos());
+            QMouseEvent move(QEvent::MouseMove,
+                local,
+                QPointF(QCursor::pos()),
+                Qt::NoButton,
+                Qt::LeftButton,
+                usesMouseTracking() ? Qt::ShiftModifier : Qt::NoModifier);
+            mouseMoveEvent(&move);
+        });
+        sonicDebug() << "terminal view in a QML scene for display" << display->id();
+    }
+}
+
+bool TerminalView::sceneMode() const
+{
+    return _sceneMode;
+}
+
+bool TerminalView::viewHasFocus() const
+{
+    if (!_sceneMode) {
+        return _display->hasFocus();
+    }
+    if (hasActiveFocus()) {
+        return true;
+    }
+    // As QWidget::hasFocus() while one of the window's own menus has the input (a popup leaves
+    // QApplication's focus widget alone; a dialog doesn't): the QML window takes its items'
+    // active focus away then (QQuickWindow::focusOutEvent) and gives it back along the focus
+    // scopes' chain, which still leads here.
+    const QWindow* focusWindow = QGuiApplication::focusWindow();
+    if (!window() || !window()->isActive() || !focusWindow || focusWindow->type() != Qt::Popup) {
+        return false;
+    }
+    const QQuickItem* item = window()->contentItem();
+    while (item && item != this && item->isFocusScope()) {
+        item = item->scopedFocusItem();
+    }
+    return item == this;
+}
+
+bool TerminalView::terminalHasFocus() const
+{
+    return viewHasFocus();
+}
+
+void TerminalView::viewSetFocus(Qt::FocusReason reason)
+{
+    if (_sceneMode) {
+        forceActiveFocus(reason);
+    } else {
+        _display->setFocus(reason);
+    }
+}
+
+QPoint TerminalView::viewMapFromGlobal(const QPoint& global) const
+{
+    return _sceneMode ? mapFromGlobal(QPointF(global)).toPoint() : _display->mapFromGlobal(global);
+}
+
+bool TerminalView::translucent() const
+{
+    if (_sceneMode) {
+        return window() && window()->format().hasAlpha();
+    }
+    return _display->window() && _display->window()->testAttribute(Qt::WA_TranslucentBackground);
+}
+
+void TerminalView::setViewCursor(Qt::CursorShape shape)
+{
+    if (!_sceneMode) {
+        _display->setCursor(shape);
+        return;
+    }
+    if (_cursorHidden) {
+        _cursorShapeBeforeHiding = shape;
+        return;
+    }
+    QQuickItem::setCursor(QCursor(shape));
+}
+
+void TerminalView::setCompositeFocus(bool focused)
+{
+    // What CompositeWidgetFocusWatcher reported for the widget facade.
+    if (_hasCompositeFocus == focused) {
+        return;
+    }
+    _hasCompositeFocus = focused;
+    Q_EMIT _display->compositeFocusChanged(focused);
+    _headerBar->setFocusIndicatorState(focused);
+}
+
+void TerminalView::takeFacadeFocus()
+{
+    if (window()) {
+        forceActiveFocus(Qt::OtherFocusReason);
+        return;
+    }
+    setCompositeFocus(true);
+    if (_focusWhenInScene) {
+        return;
+    }
+    _focusWhenInScene = true;
+    auto connection = std::make_shared<QMetaObject::Connection>();
+    *connection = connect(this, &QQuickItem::windowChanged, this, [this, connection](QQuickWindow* window) {
+        if (!_focusWhenInScene) {
+            disconnect(*connection);
+        } else if (window) {
+            disconnect(*connection);
+            _focusWhenInScene = false;
+            forceActiveFocus(Qt::OtherFocusReason);
+        }
+    });
+}
+
+void TerminalView::dropFacadeFocus()
+{
+    if (_focusWhenInScene) {
+        _focusWhenInScene = false;
+        setCompositeFocus(viewHasFocus() || _partHasFocus);
+    }
+}
+
+void TerminalView::autoHideCursorEvent(QEvent* event)
+{
+    const auto show = [this] {
+        if (_cursorHidden) {
+            _cursorHidden = false;
+            QQuickItem::setCursor(QCursor(_cursorShapeBeforeHiding));
+        }
+    };
+    switch (event->type()) {
+    case QEvent::KeyPress:
+    case QEvent::ShortcutOverride:
+        if (!_cursorHidden && viewHasFocus()) {
+            _cursorShapeBeforeHiding = cursor().shape();
+            _cursorHidden = true;
+            QQuickItem::setCursor(QCursor(Qt::BlankCursor));
+        }
+        break;
+    case QEvent::FocusOut:
+    case QEvent::HoverLeave:
+    case QEvent::WindowDeactivate:
+        _autoHideTimer->stop();
+        show();
+        break;
+    case QEvent::FocusIn:
+    case QEvent::HoverEnter:
+    case QEvent::HoverMove:
+    case QEvent::MouseButtonPress:
+    case QEvent::MouseButtonRelease:
+    case QEvent::MouseButtonDblClick:
+    case QEvent::MouseMove:
+    case QEvent::Wheel:
+        show();
+        if (viewHasFocus()) {
+            _autoHideTimer->start(KCursor::hideCursorDelay());
+        }
+        break;
+    default:
+        break;
+    }
+}
+
+void TerminalView::hoverEnterEvent(QHoverEvent* event)
+{
+    event->ignore();
+}
+
+// Widgets with mouse tracking get moves without buttons as mouse moves; items get hovers.
+void TerminalView::hoverMoveEvent(QHoverEvent* event)
+{
+    // Qt Quick hovers the item under a still pointer again when the scene changes; a widget
+    // gets mouse moves only when the pointer moves.
+    if (event->globalPosition() == _lastHoverPosition) {
+        return;
+    }
+    _lastHoverPosition = event->globalPosition();
+    QMouseEvent move(QEvent::MouseMove,
+        event->position(),
+        event->scenePosition(),
+        event->globalPosition(),
+        Qt::NoButton,
+        Qt::NoButton,
+        event->modifiers());
+    mouseMoveEvent(&move);
+}
+
+void TerminalView::hoverLeaveEvent(QHoverEvent* event)
+{
+    leave(event);
+}
+
+void TerminalView::geometryChange(const QRectF& newGeometry, const QRectF& oldGeometry)
+{
+    QQuickPaintedItem::geometryChange(newGeometry, oldGeometry);
+    // A resized item gets a new texture, of which the scene graph paints only the dirty rect.
+    if (newGeometry.size() != oldGeometry.size()) {
+        QQuickPaintedItem::update(boundingRect().toAlignedRect());
+    }
+    if (!_sceneMode || _followsFacade || !_display || newGeometry.size() == oldGeometry.size()) {
+        return;
+    }
+    // The facade keeps the item's size, so its layout (header bar, scroll bar, search bar)
+    // and every size callers read stay true. A shown facade gets the resize event itself.
+    _display->resize(newGeometry.size().toSize());
+    sonicDebug() << "terminal view" << _display->id() << "facade size" << _display->size();
+    if (!_display->isVisible()) {
+        widgetResized();
+    }
+}
+
+void TerminalView::itemChange(ItemChange change, const ItemChangeData& value)
+{
+    QQuickPaintedItem::itemChange(change, value);
+    if (_sceneMode && !_followsFacade && _display && change == ItemVisibleHasChanged) {
+        _display->setVisible(value.boolValue);
+    }
+}
+
+void TerminalView::autoScrollMove(QMouseEvent* event)
+{
+    if (boundingRect().contains(event->position())) {
+        _autoScrollTimer->stop();
+    } else if (!_autoScrollTimer->isActive() && selectionState() != 0 && (event->buttons() & Qt::LeftButton) != 0U) {
+        _autoScrollTimer->start();
+    }
 }
 
 TerminalView::~TerminalView()
@@ -162,8 +429,38 @@ TerminalView::~TerminalView()
     ubidi_close(ubidi);
 }
 
+QScrollerProperties TerminalView::kineticScrollerProperties()
+{
+    QScrollerProperties prop;
+    prop.setScrollMetric(QScrollerProperties::DecelerationFactor, 0.3);
+    prop.setScrollMetric(QScrollerProperties::MaximumVelocity, 1);
+    // Workaround for QTBUG-88249 (non-flick gestures recognized as accelerating flick)
+    prop.setScrollMetric(QScrollerProperties::AcceleratingFlickMaximumTime, 0.2);
+    prop.setScrollMetric(QScrollerProperties::HorizontalOvershootPolicy, QScrollerProperties::OvershootAlwaysOn);
+    prop.setScrollMetric(QScrollerProperties::VerticalOvershootPolicy, QScrollerProperties::OvershootAlwaysOff);
+    prop.setScrollMetric(QScrollerProperties::DragStartDistance, 0.0);
+    return prop;
+}
+
+QObject* TerminalView::scrollerTarget()
+{
+    return _sceneMode ? static_cast<QObject*>(this) : static_cast<QObject*>(_display);
+}
+
 void TerminalView::finishSetup()
 {
+    if (_sceneMode) {
+        // The QML pane parents and sizes this item; the facade follows it (geometryChange).
+        // No KCursor on the facade: it never gets input here. The same QScroller works on
+        // the item, fed from touchEvent() (QScroller::handleInput()).
+        QScroller::scroller(this)->setScrollerProperties(kineticScrollerProperties());
+        setAcceptTouchEvents(true);
+        connect(_scrollBar, &QScrollBar::sliderMoved, this, &TerminalView::viewScrolledByUser);
+        setUsesMouseTracking(false);
+        setBracketedPasteMode(false);
+        return;
+    }
+
     _hostWidget = new QQuickWidget(_display);
     QSurfaceFormat format = _hostWidget->format();
     format.setAlphaBufferSize(8);
@@ -187,15 +484,7 @@ void TerminalView::finishSetup()
     // hide mouse cursor on keystroke or idle
     KCursor::setAutoHideCursor(_display, true);
 
-    QScrollerProperties prop;
-    prop.setScrollMetric(QScrollerProperties::DecelerationFactor, 0.3);
-    prop.setScrollMetric(QScrollerProperties::MaximumVelocity, 1);
-    // Workaround for QTBUG-88249 (non-flick gestures recognized as accelerating flick)
-    prop.setScrollMetric(QScrollerProperties::AcceleratingFlickMaximumTime, 0.2);
-    prop.setScrollMetric(QScrollerProperties::HorizontalOvershootPolicy, QScrollerProperties::OvershootAlwaysOn);
-    prop.setScrollMetric(QScrollerProperties::VerticalOvershootPolicy, QScrollerProperties::OvershootAlwaysOff);
-    prop.setScrollMetric(QScrollerProperties::DragStartDistance, 0.0);
-    QScroller::scroller(_display)->setScrollerProperties(prop);
+    QScroller::scroller(_display)->setScrollerProperties(kineticScrollerProperties());
     QScroller::scroller(_display)->grabGesture(_display);
 
     connect(_scrollBar, &QScrollBar::sliderMoved, this, &TerminalView::viewScrolledByUser);
@@ -247,6 +536,10 @@ QRect TerminalView::hostRect() const
         return {};
     }
     QRect rect = _display->rect();
+    // In a QML scene the item draws the whole facade area; QML shows the scroll bar over it.
+    if (_sceneMode) {
+        return rect;
+    }
     if (_scrollBar && !_scrollBar->isHidden()) {
         switch (_scrollBar->scrollBarPosition()) {
         case Enum::ScrollBarLeft:
@@ -264,7 +557,7 @@ QRect TerminalView::hostRect() const
 
 void TerminalView::updateHostGeometry()
 {
-    if (!_hostWidget) {
+    if (_sceneMode || !_hostWidget) {
         return;
     }
     const QRect host = hostRect();
@@ -282,9 +575,9 @@ void TerminalView::updatePolish()
 
     // Translucent windows get an alpha channel, opaque ones don't, as the widget backing store did,
     // so text antialiasing matches.
-    const bool translucent = _display->window() && _display->window()->testAttribute(Qt::WA_TranslucentBackground);
+    const bool translucent = this->translucent();
     const QImage::Format format = translucent ? QImage::Format_ARGB32_Premultiplied : QImage::Format_RGB32;
-    const qreal dpr = _display->devicePixelRatio();
+    const qreal dpr = _sceneMode ? (window() ? window()->effectiveDevicePixelRatio() : 1.0) : _display->devicePixelRatio();
     const QSize pixelSize = (QSizeF(_display->size()) * dpr).toSize();
     // Fonts resolve against the paint device's logical DPI, so the image takes the widget's.
     const int dotsPerMeterX = qRound(_display->logicalDpiX() / 0.0254);
@@ -380,6 +673,16 @@ void TerminalView::setScreenWindow(ScreenWindow* window)
 
     if (!_screenWindow.isNull()) {
         connect(_screenWindow.data(), &Konsole::ScreenWindow::outputChanged, this, &TerminalView::updateImage);
+        // The old and the new result line's highlight span the line, not only changed text.
+        connect(_screenWindow.data(), &Konsole::ScreenWindow::currentResultLineChanged, this, [this]() {
+            update(_searchResultRect);
+            if (_screenWindow && _screenWindow->currentResultLine() != -1) {
+                update(highdpi_adjust_rect(QRect(0,
+                    _contentRect.top() + (_screenWindow->currentResultLine() - _screenWindow->currentLine()) * _terminalFont->fontHeight(),
+                    _columns * _terminalFont->fontWidth(),
+                    _terminalFont->fontHeight())));
+            }
+        });
         connect(_screenWindow.data(), &Konsole::ScreenWindow::currentResultLineChanged, this, &TerminalView::updateImage);
         connect(_screenWindow.data(), &Konsole::ScreenWindow::outputChanged, this, [this]() {
             _filterUpdateRequired = true;
@@ -816,6 +1119,7 @@ void TerminalView::showNotification(QString text)
         _resizeWidget->move((_display->width() - _resizeWidget->width()) / 2, (_display->height() - _resizeWidget->height()) / 2 + 20);
         _resizeWidget->show();
         _resizeTimer->start();
+        Q_EMIT labelsChanged();
     }
 }
 
@@ -837,7 +1141,7 @@ void TerminalView::paintRegion(QPainter& paint, const QRegion& paintRegion)
         // We can use the opacity settings only if we are in a top level window which actually supports opacity.
         // Many apps that use a konsole part such as kate or dolphin don't for performance reasons.
         // This can cause repaint glitches on backends that require explicit damage information.
-        const bool useOpacity = _display->window() && _display->window()->testAttribute(Qt::WA_TranslucentBackground);
+        const bool useOpacity = translucent();
         _terminalPainter->drawBackground(paint, rect, _terminalColor->backgroundColor(), useOpacity);
     }
 
@@ -873,7 +1177,7 @@ void TerminalView::paintRegion(QPainter& paint, const QRegion& paintRegion)
     _terminalPainter->drawInputMethodPreeditString(paint, preeditRect(), _inputMethodData, _image);
     paintFilters(paint);
 
-    const bool drawBorder = _borderWhenActive && _display->hasFocus();
+    const bool drawBorder = _borderWhenActive && viewHasFocus();
     if (drawBorder) {
         paint.setPen(_focusBorderColor);
         const auto x = _scrollBar->scrollBarPosition() == Enum::ScrollBarLeft ? _scrollBar->width() : 0;
@@ -882,7 +1186,7 @@ void TerminalView::paintRegion(QPainter& paint, const QRegion& paintRegion)
         paint.drawRect(x, y, width - sb - 1, height - y - 1);
     }
 
-    const bool drawDimmed = _dimWhenInactive && !_display->hasFocus();
+    const bool drawDimmed = _dimWhenInactive && !viewHasFocus();
     if (drawDimmed) {
         const QColor dimColor(0, 0, 0, _dimValue);
         for (const QRect& rect : region) {
@@ -923,6 +1227,7 @@ void TerminalView::setHoverLinkIndicator(QString text)
     _hoverLinkIndicator->setVisible(!text.isEmpty());
     _hoverLinkIndicator->setText(text);
     _hoverLinkIndicator->adjustSize();
+    Q_EMIT labelsChanged();
 }
 
 bool TerminalView::isCursorOnDisplay() const
@@ -1039,10 +1344,60 @@ void TerminalView::focusOutEvent(QFocusEvent*)
 
     // If waiting for a triple click - losing focus cancels that (do the pending copy)
     copyToX11Selection(true);
+
+    if (_sceneMode) {
+        // Focus moving into the pane's find bar or header bar arrives after this event.
+        QTimer::singleShot(0, this, [this] {
+            setCompositeFocus(viewHasFocus() || _partHasFocus);
+        });
+    }
+}
+
+bool TerminalView::followsFacade() const
+{
+    return _followsFacade;
+}
+
+void TerminalView::setFollowsFacade(bool follows)
+{
+    if (_followsFacade != follows) {
+        _followsFacade = follows;
+        Q_EMIT followsFacadeChanged();
+    }
+}
+
+QLabel* TerminalView::hoverLinkLabel() const
+{
+    return _hoverLinkIndicator;
+}
+
+QLabel* TerminalView::resizeLabel() const
+{
+    return _resizeWidget;
+}
+
+bool TerminalView::partHasFocus() const
+{
+    return _partHasFocus;
+}
+
+void TerminalView::setPartHasFocus(bool focused)
+{
+    if (_partHasFocus == focused) {
+        return;
+    }
+    _partHasFocus = focused;
+    if (_sceneMode) {
+        setCompositeFocus(viewHasFocus() || _partHasFocus);
+    }
+    Q_EMIT partHasFocusChanged();
 }
 
 void TerminalView::focusInEvent(QFocusEvent*)
 {
+    if (_sceneMode) {
+        setCompositeFocus(true);
+    }
     if (_allowBlinkingCursor) {
         _blinkCursorTimer->start();
     }
@@ -1300,6 +1655,24 @@ static int mouseButton(int button, Qt::KeyboardModifiers modifiers)
 
 void TerminalView::mousePressEvent(QMouseEvent* ev)
 {
+    if (_sceneMode) {
+        // Qt Quick passes on the second press of a double click as well; widgets get only
+        // the double click, so that press is dropped (the double click event follows).
+        const QPointF distance = ev->globalPosition() - _lastPressPosition;
+        const int maxDistance = QGuiApplication::styleHints()->mouseDoubleClickDistance();
+        const bool secondPress = ev->button() == _lastPressButton
+            && ev->timestamp() - _lastPressTimestamp < ulong(QGuiApplication::styleHints()->mouseDoubleClickInterval())
+            && qAbs(distance.x()) <= maxDistance && qAbs(distance.y()) <= maxDistance;
+        _lastPressTimestamp = ev->timestamp();
+        _lastPressPosition = ev->globalPosition();
+        _lastPressButton = ev->button();
+        if (secondPress) {
+            // A third press starts over, as Qt's own double click detection does.
+            _lastPressButton = Qt::NoButton;
+            ev->accept();
+            return;
+        }
+    }
     if (!_display->contentsRect().contains(ev->pos())) {
         return;
     }
@@ -1339,7 +1712,7 @@ void TerminalView::mousePressEvent(QMouseEvent* ev)
         // request the software keyboard, if any
         if (qApp->autoSipEnabled()) {
             auto behavior = QStyle::RequestSoftwareInputPanel(_display->style()->styleHint(QStyle::SH_RequestSoftwareInputPanel));
-            if (_display->hasFocus() || behavior == QStyle::RSIP_OnMouseClick) {
+            if (viewHasFocus() || behavior == QStyle::RSIP_OnMouseClick) {
                 QEvent event(QEvent::RequestSoftwareInputPanel);
                 QApplication::sendEvent(_display, &event);
             }
@@ -1404,13 +1777,15 @@ QSharedPointer<HotSpot> TerminalView::filterActions(const QPoint& position)
 
 void TerminalView::mouseMoveEvent(QMouseEvent* ev)
 {
-    if (QScroller::scroller(_display)->state() != QScroller::Inactive) {
+    if (_sceneMode) {
+        autoScrollMove(ev);
+    } else if (QScroller::scroller(_display)->state() != QScroller::Inactive) {
         // Touchscreen is handled by scrollEvent()
         return;
     }
 
-    if (!_display->hasFocus() && KonsoleSettings::focusFollowsMouse()) {
-        _display->setFocus();
+    if (!viewHasFocus() && KonsoleSettings::focusFollowsMouse()) {
+        viewSetFocus(Qt::OtherFocusReason);
     }
 
     if (_possibleTripleClick && (ev->pos() - _tripleClickPos).manhattanLength() > 20) {
@@ -1665,6 +2040,10 @@ void TerminalView::extendSelection(const QPoint& position)
 
 void TerminalView::mouseReleaseEvent(QMouseEvent* ev)
 {
+    // AutoScrollHandler stopped only when another button was still held.
+    if (_sceneMode && _autoScrollTimer->isActive() && (ev->buttons() & ~Qt::LeftButton) != 0U) {
+        _autoScrollTimer->stop();
+    }
     if (_screenWindow.isNull()) {
         return;
     }
@@ -2306,12 +2685,12 @@ bool TerminalView::allowsMouseTracking() const
 // The pointer shape stays on the facade; the host widget inherits it.
 void TerminalView::resetCursor()
 {
-    _display->setCursor(usesMouseTracking() ? Qt::ArrowCursor : Qt::IBeamCursor);
+    setViewCursor(usesMouseTracking() ? Qt::ArrowCursor : Qt::IBeamCursor);
 }
 
 void TerminalView::setPointerShape(Qt::CursorShape shape)
 {
-    _display->setCursor(shape);
+    setViewCursor(shape);
 }
 
 bool TerminalView::usesMouseTracking() const
@@ -2359,10 +2738,52 @@ void TerminalView::scrollPrepareEvent(QScrollPrepareEvent* event)
 
     // Abandon the scroller if it's still pressed and not being dragged after 500ms
     QTimer::singleShot(500, this, [this]() {
-        if (QScroller::scroller(_display)->state() == QScroller::Pressed) {
-            QScroller::scroller(_display)->stop();
+        if (QScroller::scroller(scrollerTarget())->state() == QScroller::Pressed) {
+            QScroller::scroller(scrollerTarget())->stop();
         }
     });
+}
+
+void TerminalView::touchEvent(QTouchEvent* event)
+{
+    // What QScroller::grabGesture(TouchGesture) did for the facade: one point on a touch
+    // screen drives the scroller; a tap that never dragged is a click, as Qt's touch-to-mouse
+    // synthesis gave the widget.
+    if (!_sceneMode || event->device()->type() != QInputDevice::DeviceType::TouchScreen || event->pointCount() != 1) {
+        QQuickPaintedItem::touchEvent(event);
+        return;
+    }
+    QScroller* scroller = QScroller::scroller(this);
+    const QEventPoint& point = event->point(0);
+    switch (event->type()) {
+    case QEvent::TouchBegin:
+        _touchDragged = false;
+        _touchPressPosition = point.position();
+        scroller->handleInput(QScroller::InputPress, point.position(), event->timestamp());
+        break;
+    case QEvent::TouchUpdate:
+        scroller->handleInput(QScroller::InputMove, point.position(), event->timestamp());
+        _touchDragged = _touchDragged || scroller->state() == QScroller::Dragging || scroller->state() == QScroller::Scrolling;
+        break;
+    case QEvent::TouchEnd: {
+        scroller->handleInput(QScroller::InputRelease, point.position(), event->timestamp());
+        if (!_touchDragged) {
+            const QPointF scene = mapToScene(_touchPressPosition);
+            const QPointF global = mapToGlobal(_touchPressPosition);
+            QMouseEvent press(QEvent::MouseButtonPress, _touchPressPosition, scene, global, Qt::LeftButton, Qt::LeftButton, event->modifiers(), event->pointingDevice());
+            mousePressEvent(&press);
+            QMouseEvent release(QEvent::MouseButtonRelease, _touchPressPosition, scene, global, Qt::LeftButton, Qt::NoButton, event->modifiers(), event->pointingDevice());
+            mouseReleaseEvent(&release);
+        }
+        break;
+    }
+    case QEvent::TouchCancel:
+        scroller->stop();
+        break;
+    default:
+        break;
+    }
+    event->accept();
 }
 
 void TerminalView::scrollEvent(QScrollEvent* event)
@@ -2928,7 +3349,7 @@ void TerminalView::keyPressEvent(QKeyEvent* event)
         return;
     }
     {
-        auto [charLine, charColumn] = getCharacterPosition(_display->mapFromGlobal(QCursor::pos()), !usesMouseTracking());
+        auto [charLine, charColumn] = getCharacterPosition(viewMapFromGlobal(QCursor::pos()), !usesMouseTracking());
 
         // Don't process it if the filterchain handled it for us
         if (_filterChain->keyPressEvent(_display, event, charLine, charColumn)) {
@@ -2984,7 +3405,7 @@ void TerminalView::keyReleaseEvent(QKeyEvent* event)
     }
 
     {
-        auto [charLine, charColumn] = getCharacterPosition(_display->mapFromGlobal(QCursor::pos()), !usesMouseTracking());
+        auto [charLine, charColumn] = getCharacterPosition(viewMapFromGlobal(QCursor::pos()), !usesMouseTracking());
         _filterChain->keyReleaseEvent(_display, event, charLine, charColumn);
     }
 
@@ -3051,6 +3472,24 @@ bool TerminalView::handleShortcutOverrideEvent(QKeyEvent* keyEvent)
 
 bool TerminalView::event(QEvent* event)
 {
+    if (_sceneMode) {
+        autoHideCursorEvent(event);
+        // QQuickItem::contextMenuEvent() is virtual only from Qt 7; 6.x delivers it here.
+        if (event->type() == QEvent::ContextMenu) {
+            contextMenu(static_cast<QContextMenuEvent*>(event));
+            event->accept();
+            return true;
+        }
+        // The item's QScroller (TerminalDisplay::event() routes these for the facade).
+        if (event->type() == QEvent::ScrollPrepare) {
+            scrollPrepareEvent(static_cast<QScrollPrepareEvent*>(event));
+            return true;
+        }
+        if (event->type() == QEvent::Scroll) {
+            scrollEvent(static_cast<QScrollEvent*>(event));
+            return true;
+        }
+    }
     switch (event->type()) {
     case QEvent::ShortcutOverride:
         if (handleShortcutOverrideEvent(static_cast<QKeyEvent*>(event))) {
@@ -3088,7 +3527,7 @@ void TerminalView::contextMenu(QContextMenuEvent* event)
     if (!usesMouseTracking() || event->modifiers().testFlag(Qt::ShiftModifier)) {
         Q_EMIT _display->configureRequest(event->pos());
     } else if (event->reason() != QContextMenuEvent::Mouse) {
-        Q_EMIT _display->configureRequest(_display->mapFromGlobal(QCursor::pos()));
+        Q_EMIT _display->configureRequest(viewMapFromGlobal(QCursor::pos()));
     }
 }
 
@@ -3100,7 +3539,7 @@ void TerminalView::contextMenu(QContextMenuEvent* event)
 
 void TerminalView::bell(const QString& message)
 {
-    _bell.bell(_display, message, _display->hasFocus());
+    _bell.bell(_display, message, viewHasFocus());
 }
 
 /* --------------------------------------------------------------------- */
@@ -3223,7 +3662,7 @@ void TerminalView::dropEvent(QDropEvent* event)
         doPaste(dropText, false);
     }
 
-    _display->setFocus(Qt::MouseFocusReason);
+    viewSetFocus(Qt::MouseFocusReason);
 }
 
 void TerminalView::doDrag()

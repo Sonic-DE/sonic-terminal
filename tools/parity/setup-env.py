@@ -73,20 +73,23 @@ def main():
     parser.add_argument("--env", required=True, type=Path, help="environment directory (e.g. <builder>/state/parity/env)")
     parser.add_argument("--prefix", required=True, type=Path, help="builder prefix, read only (<builder>/build)")
     parser.add_argument("--jobs", default=str(os.cpu_count()))
+    parser.add_argument("--build", default="build",
+                        help="build directory name inside --env; a second tree (the phase 0 copy) uses build-phase0")
     args = parser.parse_args()
     env, prefix = args.env.resolve(), args.prefix.resolve()
-    for part in ("stage", "qt", "builder-plugins", "bin", "xdg"):
-        shutil.rmtree(env / part, ignore_errors=True)
+    stage = env / ("stage" if args.build == "build" else f"stage-{args.build}")
+    for part in (stage, env / "qt", env / "builder-plugins", env / "bin", env / "xdg"):
+        shutil.rmtree(part, ignore_errors=True)
     env.mkdir(parents=True, exist_ok=True)
 
-    build = env / "build"
+    build = env / args.build
     subprocess.run(["cmake", "-G", "Ninja", "-S", str(SOURCE), "-B", str(build), "-DCMAKE_BUILD_TYPE=Debug",
                     f"-DCMAKE_PREFIX_PATH={prefix}", f"-DCMAKE_INSTALL_PREFIX={env / 'prefix'}",
                     "-DKDE_INSTALL_USE_QT_SYS_PATHS=OFF", "-DBUILD_TESTING=OFF", "-DKONSOLE_PARITY_HOOKS=ON"],
                    check=True, stdout=subprocess.DEVNULL)
     subprocess.run(["cmake", "--build", str(build), "--parallel", args.jobs], check=True)
     subprocess.run(["cmake", "--build", str(build), "--target", "konsole_compatplugin", "--parallel", args.jobs], check=True)
-    subprocess.run(["cmake", "--install", str(build)], env={**os.environ, "DESTDIR": str(env / "stage")}, check=True,
+    subprocess.run(["cmake", "--install", str(build)], env={**os.environ, "DESTDIR": str(stage)}, check=True,
                    stdout=subprocess.DEVNULL)
 
     paths = qt_paths()

@@ -149,6 +149,8 @@ private Q_SLOTS:
 
 private:
     Q_DISABLE_COPY(IncrementalSearchBar)
+    // The QML find bar reads the children and acts through them (a friend keeps the layout).
+    friend class FindBarAdapter;
 
     QLineEdit *_searchEdit;
     QAction *_regExpression;

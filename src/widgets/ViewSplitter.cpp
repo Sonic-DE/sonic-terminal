@@ -18,9 +18,11 @@
 #include <memory>
 
 // Konsole
+#include "model/PaneModel.h"
 #include "terminalDisplay/TerminalDisplay.h"
 #include "terminalDisplay/TerminalFonts.h"
 #include "terminalDisplay/TerminalScrollBar.h"
+#include "widgets/PaneWidgetView.h"
 #include "widgets/ViewContainer.h"
 
 using Konsole::TerminalDisplay;
@@ -34,6 +36,13 @@ int ViewSplitter::lastSplitterId = -1;
 
 namespace
 {
+// A display removal a managed splitter is passing to QSplitter (see childEvent).
+struct PendingRemoval {
+    Konsole::ViewSplitter* splitter = nullptr;
+    Konsole::TerminalDisplay* display = nullptr;
+};
+PendingRemoval pendingRemoval;
+
 int calculateHandleWidth(int settingsEnum)
 {
     switch (settingsEnum) {
@@ -49,9 +58,15 @@ int calculateHandleWidth(int settingsEnum)
 }
 }
 
-ViewSplitter::ViewSplitter(QWidget *parent)
+// Splitters made outside a PaneModel still take unique ids from the model's counter.
+ViewSplitter::ViewSplitter(QWidget* parent)
+    : ViewSplitter(PaneModel::takeSplitId(), parent)
+{
+}
+
+ViewSplitter::ViewSplitter(int id, QWidget* parent)
     : QSplitter(parent)
-    , _id(++lastSplitterId)
+    , _id(id)
 {
     setAcceptDrops(true);
     setHandleWidth(calculateHandleWidth(KonsoleSettings::self()->splitDragHandleSize()));
@@ -63,6 +78,9 @@ ViewSplitter::ViewSplitter(QWidget *parent)
 /* This function is called on the toplevel splitter, we need to look at the actual ViewSplitter inside it */
 void ViewSplitter::adjustActiveTerminalDisplaySize(int percentage)
 {
+    if (PaneNode* node = PaneWidgetView::nodeOf(this)) {
+        return node->adjustActiveDisplaySize(percentage);
+    }
     auto focusedTerminalDisplay = activeTerminalDisplay();
     Q_ASSERT(focusedTerminalDisplay);
 
@@ -87,6 +105,10 @@ void ViewSplitter::adjustActiveTerminalDisplaySize(int percentage)
 // Get the first splitter that's a parent of the current focused widget.
 ViewSplitter *ViewSplitter::activeSplitter()
 {
+    if (PaneNode* node = PaneWidgetView::nodeOf(this)) {
+        ViewSplitter* active = PaneWidgetView::splitterOf(node->activeSplit());
+        return active ? active : this;
+    }
     QWidget *widget = focusWidget() != nullptr ? focusWidget() : this;
 
     ViewSplitter *splitter = nullptr;
@@ -108,6 +130,11 @@ void ViewSplitter::updateSizes()
 
 void ViewSplitter::addTerminalDisplay(TerminalDisplay *terminalDisplay, Qt::Orientation containerOrientation, AddBehavior behavior)
 {
+    if (PaneNode* node = PaneWidgetView::nodeOf(this)) {
+        return node->addDisplay(terminalDisplay,
+            containerOrientation,
+            behavior == AddBehavior::AddBefore ? PaneNode::AddBehavior::AddBefore : PaneNode::AddBehavior::AddAfter);
+    }
     ViewSplitter *splitter = activeSplitter();
     const int currentIndex = splitter->activeTerminalDisplay() == nullptr ? splitter->count() : splitter->indexOf(splitter->activeTerminalDisplay());
 
@@ -137,6 +164,9 @@ void ViewSplitter::addTerminalDisplay(TerminalDisplay *terminalDisplay, Qt::Orie
 
 void ViewSplitter::addTerminalDisplay(TerminalDisplay *terminalDisplay, int index)
 {
+    if (PaneNode* node = PaneWidgetView::nodeOf(this)) {
+        return node->addDisplay(terminalDisplay, index);
+    }
     auto toplevelSplitter = getToplevelSplitter();
 
     if (index == -1)
@@ -163,6 +193,11 @@ void ViewSplitter::addTerminalDisplay(TerminalDisplay *terminalDisplay, int inde
 
 void ViewSplitter::addSplitter(ViewSplitter *splitter, int index)
 {
+    if (PaneNode* node = PaneWidgetView::nodeOf(this)) {
+        if (PaneNode* child = PaneWidgetView::nodeOf(splitter)) {
+            return node->addSplit(child, index);
+        }
+    }
     if (index == -1)
         index = count();
 
@@ -188,6 +223,40 @@ void ViewSplitter::addSplitter(ViewSplitter *splitter, int index)
 
 void ViewSplitter::childEvent(QChildEvent *event)
 {
+    // Managed splitters follow their model node; it applies the rules below itself.
+    if (PaneNode* node = PaneWidgetView::nodeOf(this)) {
+        if (!event->removed()) {
+            QSplitter::childEvent(event);
+            return;
+        }
+        // Looked up by address only: a display being destroyed is no longer a
+        // TerminalDisplay here, so qobject_cast would miss it (QObject is its first base).
+        auto* display = reinterpret_cast<TerminalDisplay*>(event->child());
+        PaneNode* leaf = node->model()->leafIfAny(display);
+        if (leaf && leaf->parentNode() == node) {
+            // QSplitter deletes the child's handle inside this call, which sent the old
+            // rules a nested childEvent before the splitter's recalc; the model runs them
+            // at that point too.
+            const PendingRemoval outer = pendingRemoval;
+            pendingRemoval = {this, display};
+            QSplitter::childEvent(event);
+            if (pendingRemoval.splitter == this) {
+                pendingRemoval = outer;
+                node->model()->displayRemoved(display);
+            } else {
+                pendingRemoval = outer;
+            }
+            return;
+        }
+        QSplitter::childEvent(event);
+        if (pendingRemoval.splitter == this) {
+            TerminalDisplay* removed = pendingRemoval.display;
+            pendingRemoval = {};
+            node->model()->displayRemoved(removed);
+        }
+        return;
+    }
+
     QSplitter::childEvent(event);
 
     if (event->removed()) {
@@ -231,6 +300,12 @@ void ViewSplitter::childEvent(QChildEvent *event)
 
 void ViewSplitter::handleFocusDirection(Qt::Orientation orientation, int direction)
 {
+    if (PaneNode* node = PaneWidgetView::nodeOf(this)) {
+        if (orientation == Qt::Vertical) {
+            return direction < 0 ? node->focusUp() : node->focusDown();
+        }
+        return direction < 0 ? node->focusLeft() : node->focusRight();
+    }
     auto terminalDisplay = activeTerminalDisplay();
     if (terminalDisplay == nullptr) {
         return;
@@ -310,6 +385,9 @@ void ViewSplitter::focusRight()
 
 void ViewSplitter::focusNext(int dir)
 {
+    if (PaneNode* node = PaneWidgetView::nodeOf(this)) {
+        return node->focusNext(dir);
+    }
     auto terminalDisplay = activeTerminalDisplay();
     auto parentSplitter = qobject_cast<ViewSplitter *>(terminalDisplay->parentWidget());
     auto topSplitter = parentSplitter->getToplevelSplitter();
@@ -334,6 +412,9 @@ void ViewSplitter::focusPrev()
 
 TerminalDisplay *ViewSplitter::activeTerminalDisplay() const
 {
+    if (PaneNode* node = PaneWidgetView::nodeOf(this)) {
+        return node->activeDisplay();
+    }
     auto focusedWidget = focusWidget();
     auto focusedTerminalDisplay = qobject_cast<TerminalDisplay *>(focusedWidget);
 
@@ -348,12 +429,23 @@ TerminalDisplay *ViewSplitter::activeTerminalDisplay() const
 
 void ViewSplitter::toggleMaximizeCurrentTerminal()
 {
+    // The inline terminalMaximized() reads m_terminalMaximized, so it follows the node.
+    if (PaneNode* node = PaneWidgetView::nodeOf(this)) {
+        node->toggleMaximizeCurrentDisplay();
+        m_terminalMaximized = node->terminalMaximized();
+        return;
+    }
     m_terminalMaximized = !m_terminalMaximized;
     handleMinimizeMaximize(m_terminalMaximized, false);
 }
 
 void ViewSplitter::toggleZoomMaximizeCurrentTerminal()
 {
+    if (PaneNode* node = PaneWidgetView::nodeOf(this)) {
+        node->toggleZoomMaximizeCurrentDisplay();
+        m_terminalMaximized = node->terminalMaximized();
+        return;
+    }
     m_terminalMaximized = !m_terminalMaximized;
     handleMinimizeMaximize(m_terminalMaximized, true);
 }
@@ -457,6 +549,13 @@ void ViewSplitter::handleMinimizeMaximize(bool maximize, bool zoom)
 
 void ViewSplitter::clearMaximized()
 {
+    if (PaneNode* node = PaneWidgetView::nodeOf(this)) {
+        node->clearMaximized();
+        if (ViewSplitter* top = PaneWidgetView::splitterOf(node->toplevel())) {
+            top->m_terminalMaximized = node->toplevel()->terminalMaximized();
+        }
+        return;
+    }
     ViewSplitter *top = getToplevelSplitter();
     Q_ASSERT(top);
     if (top->terminalMaximized()) {
@@ -560,11 +659,17 @@ void Konsole::ViewSplitter::dropEvent(QDropEvent *ev)
             return;
         }
         if (currentDragTarget != nullptr) {
+            PaneNode* node = PaneWidgetView::nodeOf(this);
             m_blockPropagatedDeletion = true;
+            if (node) {
+                node->setBlockPropagatedDeletion(true);
+            }
 
             currentDragTarget->hideDragTarget();
             auto source = qobject_cast<TerminalDisplay *>(ev->source());
             source->setVisible(false);
+            // The model that holds the source (maybe another window's) hears of it from
+            // the old splitter's childEvent.
             source->setParent(nullptr);
 
             currentDragTarget->setFocus(Qt::OtherFocusReason);
@@ -584,6 +689,9 @@ void Konsole::ViewSplitter::dropEvent(QDropEvent *ev)
             currentDragTarget = nullptr;
 
             m_blockPropagatedDeletion = false;
+            if (node) {
+                node->setBlockPropagatedDeletion(false);
+            }
         }
     }
 }

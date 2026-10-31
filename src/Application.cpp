@@ -23,6 +23,8 @@
 #endif
 #include <KLocalizedString>
 
+#include <Sonic/Logging/Log>
+
 // Konsole
 #include "KonsoleSettings.h"
 #include "MainWindow.h"
@@ -31,6 +33,7 @@
 #include "WindowSystemInfo.h"
 #include "profile/ProfileCommandParser.h"
 #include "profile/ProfileManager.h"
+#include "quick/WindowController.h"
 #include "session/Session.h"
 #include "session/SessionManager.h"
 #include "widgets/ViewContainer.h"
@@ -127,6 +130,11 @@ MainWindow *Application::newMainWindow()
     WindowSystemInfo::HAVE_TRANSPARENCY = !m_parser->isSet(QStringLiteral("notransparency"));
 
     auto window = new MainWindow();
+    if (WindowController::enabled()) {
+        // Until the switch (2e) the QML window is opt-in.
+        sonicDebug() << "new window with a QML window";
+        new WindowController(window);
+    }
 
     connect(window, &Konsole::MainWindow::newWindowRequest, this, &Konsole::Application::createWindow);
 

@@ -231,6 +231,25 @@ set(konsoleprivate_SRCS ${windowadaptors_SRCS}
                         terminalDisplay/TerminalPainter.cpp
                         quick/TerminalView.cpp
                         quick/TerminalViewRegistry.cpp
+                        quick/TerminalViewAccessible.cpp
+                        quick/ChromeAdapter.cpp
+                        quick/CompatWindows.cpp
+                        quick/DockAdapter.cpp
+                        quick/FindBarAdapter.cpp
+                        quick/HeaderBarAdapter.cpp
+                        quick/LabelAdapter.cpp
+                        quick/MessageFrameItem.cpp
+                        quick/MessagesAdapter.cpp
+                        quick/PaneTreeAdapter.cpp
+                        quick/TabBarAdapter.cpp
+                        quick/ToolButtonsAdapter.cpp
+                        quick/PixmapItem.cpp
+                        quick/ScrollBarAdapter.cpp
+                        quick/SearchTabsAdapter.cpp
+                        quick/StyleElement.cpp
+                        quick/WidgetMirror.cpp
+                        model/PaneModel.cpp
+                        SonicLoggingCore.cpp
                         terminalDisplay/TerminalScrollBar.cpp
                         terminalDisplay/TerminalColor.cpp
                         terminalDisplay/TerminalFonts.cpp
@@ -260,6 +279,7 @@ set(konsoleprivate_SRCS ${windowadaptors_SRCS}
                         widgets/TerminalHeaderBar.cpp
                         widgets/ViewContainer.cpp
                         widgets/ViewSplitter.cpp
+                        widgets/PaneWidgetView.cpp
                         widgets/KonsolePrintManager.cpp
 
                         ${dbus_xml_srcs}
@@ -298,6 +318,23 @@ ki18n_wrap_ui(konsoleprivate_SRCS
 add_library(konsoleprivate ${konsoleprivate_SRCS})
 generate_export_header(konsoleprivate BASE_NAME konsoleprivate)
 
+# The QML terminal: loaded from resources until phase 5 installs the module.
+qt_add_qml_module(konsoleprivate
+    URI org.sonicde.terminal
+    VERSION 1.0
+    OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/qml/org/sonicde/terminal
+    QML_FILES
+        qml/ActionToolButton.qml
+        qml/DockPanels.qml
+        qml/PaneTree.qml
+        qml/SearchTabs.qml
+        qml/TabBar.qml
+        qml/TerminalPane.qml
+        qml/ToolBarLine.qml
+)
+# The generated type registrations include QML_ELEMENT headers by file name.
+target_include_directories(konsoleprivate PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/quick)
+
 if(KONSOLE_HAVE_XKBCOMMON)
     target_compile_definitions(konsoleprivate PUBLIC HAVE_XKBCOMMON)
     target_include_directories(konsoleprivate PUBLIC ${XKBCOMMON_INCLUDE_DIRS})
@@ -324,6 +361,7 @@ target_link_libraries(konsoleprivate
 
 target_link_libraries(konsoleprivate
     PRIVATE
+    Sonic::Logging
     KF6::IconWidgets
     KF6::BookmarksWidgets
 )
@@ -348,9 +386,21 @@ add_library(konsoleapp SHARED Application.cpp
     pluginsystem/PluginManager.cpp
     delegates/ProfileShortcutDelegate.cpp
     SonicLoggingApp.cpp
+    quick/WindowController.cpp
 )
 
 generate_export_header(konsoleapp BASE_NAME konsoleapp)
+
+# The QML window; loaded from resources until phase 5 installs the module.
+qt_add_qml_module(konsoleapp
+    URI org.sonicde.terminal.app
+    VERSION 1.0
+    OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/qml/org/sonicde/terminal/app
+    QML_FILES
+        qml/Main.qml
+    IMPORTS
+        org.sonicde.terminal
+)
 
 target_compile_definitions(konsoleapp PRIVATE -DRELEASE_SERVICE_VERSION="${RELEASE_SERVICE_VERSION}")
 
@@ -358,13 +408,21 @@ if(KONSOLE_PARITY_HOOKS)
     find_package(Qt6Test ${QT_MIN_VERSION} CONFIG REQUIRED)
     target_sources(konsoleapp PRIVATE parity/ParityHook.cpp)
     target_compile_definitions(konsoleapp PUBLIC KONSOLE_PARITY_HOOKS=1)
-    target_link_libraries(konsoleapp Qt::Test)
+    # The phase 0 copy has no QML window.
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/quick/WindowController.h)
+        target_sources(konsoleapp PRIVATE parity/ParityHookQml.cpp)
+        target_compile_definitions(konsoleapp PRIVATE KONSOLE_PARITY_QML=1)
+    endif()
+    target_link_libraries(konsoleapp PUBLIC Qt::Test)
     add_subdirectory(parity/compatplugin)
 endif()
 
-target_link_libraries(konsoleapp
+target_link_libraries(konsoleapp PUBLIC
   konsoleprivate
   Sonic::Logging
+  Qt::Qml
+  Qt::Quick
+  Qt::QuickControls2
   KF6::XmlGui
   KF6::WindowSystem
   KF6::Bookmarks

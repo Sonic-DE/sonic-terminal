@@ -822,6 +822,7 @@ private:
     QRect _searchResultRect;
     friend class TerminalDisplayAccessible;
     friend class TerminalView;
+    friend class TerminalViewAccessible;
 
     bool _drawOverlay = false;
     Qt::Edge _overlayEdge;

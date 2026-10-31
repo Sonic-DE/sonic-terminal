@@ -72,6 +72,10 @@
 
 #include "pluginsystem/IKonsolePlugin.h"
 
+#include "quick/WindowController.h"
+
+#include <QQuickWindow>
+
 #include <konsoledebug.h>
 
 using namespace Konsole;
@@ -174,7 +178,8 @@ void MainWindow::activationRequest(const QString &xdgActivationToken)
 {
     Q_UNUSED(xdgActivationToken)
 #if WITH_X11
-    KX11Extras::forceActiveWindow(winId());
+    const WindowController* controller = WindowController::controllerOf(this);
+    KX11Extras::forceActiveWindow(controller ? controller->qmlWindow()->winId() : winId());
 #endif
 }
 
@@ -1083,6 +1088,12 @@ void MainWindow::activateMenuBar()
         _toggleMenuBarAction->setChecked(true);
     }
 
+    // The QML window's menu bar opens the menu.
+    if (WindowController* controller = WindowController::controllerOf(this)) {
+        controller->activateMenuBar();
+        return;
+    }
+
     // First menu action should be 'File'
     QAction *menuAction = menuActions.first();
 
@@ -1108,6 +1119,12 @@ void MainWindow::setBlur(bool blur)
     _blurEnabled = blur;
 
     if (!_pluggedController->isKonsolePart()) {
+        // The visible window is the QML one.
+        if (WindowController* controller = WindowController::controllerOf(this)) {
+            controller->setBlur(blur);
+            return;
+        }
+
         // Set a property so Silver's kstyle knows not to overwrite our
         // full-window blur with a scoped tools-area-only blur region.
         setProperty("_silver_skip_tools_blur", blur);
@@ -1133,6 +1150,12 @@ void MainWindow::setToolBarsInitialVisibility(bool showToolbars)
 void MainWindow::setRemoveWindowTitleBarAndFrame(bool frameless)
 {
     Qt::WindowFlags newFlags = frameless ? Qt::FramelessWindowHint : Qt::Window;
+
+    // The visible window is the QML one; changing its flags doesn't hide it.
+    if (WindowController* controller = WindowController::controllerOf(this)) {
+        controller->setFrameless(frameless);
+        return;
+    }
 
     // The window is not yet visible
     if (!isVisible()) {
@@ -1224,7 +1247,7 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event)
 {
     if (obj == this && event->type() == QEvent::WinIdChange) {
         // A new native window (e.g. when the first QQuickWidget arrives) starts without blur.
-        if (_blurEnabled && !_pluggedController.isNull() && !_pluggedController->isKonsolePart()) {
+        if (_blurEnabled && !_pluggedController.isNull() && !_pluggedController->isKonsolePart() && !WindowController::controllerOf(this)) {
             if (QWindow* window = windowHandle()) {
                 KWindowEffects::enableBlurBehind(window, true);
             }

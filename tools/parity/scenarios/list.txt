@@ -4,6 +4,7 @@ menus | menus.jsonl |
 tabs-splits | tabs-splits.jsonl |
 find-selection | find-selection.jsonl |
 dialogs | dialogs.jsonl |
+dialogs-extra | dialogs-extra.jsonl |
 opaque | transparency.jsonl |
 translucent-80 | transparency.jsonl | --scheme-set Opacity=0.8
 translucent-50 | transparency.jsonl | --scheme-set Opacity=0.5

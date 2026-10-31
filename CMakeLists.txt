@@ -13,7 +13,8 @@ set(RELEASE_SERVICE_VERSION "${RELEASE_SERVICE_VERSION_MAJOR}.${RELEASE_SERVICE_
 # See comments in https://invent.kde.org/utilities/konsole/-/commit/9d8e47298c81fc1e47c998eda1b6e980589274eb
 cmake_minimum_required(VERSION 3.16 FATAL_ERROR)
 
-set(QT_MIN_VERSION "6.5.0")
+# 6.8 for QtQuick's WindowContainer (plugin docks in the QML window).
+set(QT_MIN_VERSION "6.8.0")
 set(KF6_DEP_VERSION "6.0.0")
 
 # Release script will create bugzilla versions
@@ -45,10 +46,19 @@ find_package(Qt6 ${QT_MIN_VERSION} CONFIG REQUIRED
     Core
     Multimedia
     PrintSupport
+    Qml
     Quick
+    QuickControls2
     QuickWidgets
     Widgets
 )
+# QML modules load from qrc:/qt/qml (QQmlEngine's default import path).
+qt_policy(SET QTP0001 NEW)
+
+# Run-time QML imports of the terminal pane.
+include(ECMFindQmlModule)
+ecm_find_qmlmodule(org.kde.kirigami REQUIRED)
+ecm_find_qmlmodule(org.kde.qqc2desktopstyle.private REQUIRED)
 
 find_package(SonicLogging 6.31.0 REQUIRED)
 

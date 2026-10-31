@@ -52,6 +52,9 @@ Q_SIGNALS:
     void requestMoveToNewTab();
 
 private:
+    // The QML header bar reads the children and acts through them (a friend keeps the layout).
+    friend class HeaderBarAdapter;
+
     QBoxLayout *m_boxLayout;
     QLabel *m_terminalTitle;
     QLabel *m_terminalIcon;

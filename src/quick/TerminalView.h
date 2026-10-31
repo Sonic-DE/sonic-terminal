@@ -14,6 +14,8 @@
 #include <QPointer>
 #include <QQuickPaintedItem>
 #include <QRegion>
+#include <QScrollerProperties>
+#include <QtQml/qqmlregistration.h>
 
 #include <memory>
 
@@ -50,12 +52,40 @@ class TerminalScrollBar;
 // and plugins call; the members its inline accessors read live in the facade and are shared.
 class KONSOLEPRIVATE_EXPORT TerminalView : public QQuickPaintedItem {
     Q_OBJECT
+    QML_ELEMENT
+    QML_UNCREATABLE("created with its session")
+    // Active focus in the pane's find bar or header bar, which count as the terminal's.
+    Q_PROPERTY(bool partHasFocus READ partHasFocus WRITE setPartHasFocus NOTIFY partHasFocusChanged)
+    // In a QML window the facade's splitters and tabs own its size and visibility and the
+    // item follows them; otherwise (a bare pane) the facade follows the item.
+    Q_PROPERTY(bool followsFacade READ followsFacade WRITE setFollowsFacade NOTIFY followsFacadeChanged)
 
 public:
+    // Views created while one is alive go into a QML scene (the QML window) instead of
+    // a QQuickWidget inside their facade (widget window, KPart).
+    class KONSOLEPRIVATE_EXPORT SceneModeGuard {
+    public:
+        SceneModeGuard();
+        ~SceneModeGuard();
+        SceneModeGuard(const SceneModeGuard&) = delete;
+        SceneModeGuard& operator=(const SceneModeGuard&) = delete;
+
+    private:
+        bool _previous;
+    };
+
     explicit TerminalView(TerminalDisplay* display, QQuickItem* parent = nullptr);
     ~TerminalView() override;
 
     TerminalDisplay* display() const;
+    bool sceneMode() const;
+    bool partHasFocus() const;
+    void setPartHasFocus(bool focused);
+    bool followsFacade() const;
+    void setFollowsFacade(bool follows);
+    // The facade's labels (the resize label exists after the first size notification).
+    QLabel* hoverLinkLabel() const;
+    QLabel* resizeLabel() const;
     // Hosts this item inside the widget facade until the widget window and the KPart go.
     QQuickWidget* hostWidget() const;
 
@@ -134,6 +164,15 @@ public:
     // Moves already drawn text, like QWidget::scroll() did for the widget.
     void scrollSnapshot(int dy, const QRect& area);
 
+    // The facade focus bridge (setFocus() on the facade). A view not in a scene yet has the
+    // focus at once, as a widget's focus-in, and takes active focus once it is in one;
+    // dropFacadeFocus() withdraws that when another view takes the focus first.
+    void takeFacadeFocus();
+    void dropFacadeFocus();
+    // Whether the terminal has the focus, as QWidget::hasFocus() answered for the widget (the
+    // cursor is drawn filled then).
+    bool terminalHasFocus() const;
+
     // Repaints that region of the text area; hides QQuickItem::update().
     void update();
     void update(const QRegion& region);
@@ -157,9 +196,38 @@ protected:
     void dropEvent(QDropEvent* event) override;
     void inputMethodEvent(QInputMethodEvent* event) override;
     QVariant inputMethodQuery(Qt::InputMethodQuery query) const override;
+    void hoverEnterEvent(QHoverEvent* event) override;
+    void hoverMoveEvent(QHoverEvent* event) override;
+    void hoverLeaveEvent(QHoverEvent* event) override;
+    void geometryChange(const QRectF& newGeometry, const QRectF& oldGeometry) override;
+    void itemChange(ItemChange change, const ItemChangeData& value) override;
+    void touchEvent(QTouchEvent* event) override;
+
+Q_SIGNALS:
+    void partHasFocusChanged();
+    void followsFacadeChanged();
+    // The hover-link or resize label's text changed (QLabel tells nobody).
+    void labelsChanged();
 
 private:
     friend class TerminalDisplay;
+
+    // What the facade widget answered in the widget window; the item in a QML scene.
+    bool viewHasFocus() const;
+    void viewSetFocus(Qt::FocusReason reason);
+    QPoint viewMapFromGlobal(const QPoint& global) const;
+    bool translucent() const;
+    void setViewCursor(Qt::CursorShape shape);
+    void setCompositeFocus(bool focused);
+    // KCursor's auto-hide rule, for the item (kcursor.cpp: hide on keys, show on mouse).
+    void autoHideCursorEvent(QEvent* event);
+    // AutoScrollHandler's rule: keep extending a selection dragged past the edge.
+    void autoScrollMove(QMouseEvent* event);
+
+    // The kinetic scrolling the widget always had; the scroller works on the facade in a
+    // widget, on the item in a QML scene.
+    static QScrollerProperties kineticScrollerProperties();
+    QObject* scrollerTarget();
 
     // Called by the facade once its scroll bar, colours and painter exist.
     void finishSetup();
@@ -210,7 +278,23 @@ private:
     void sendMouseSignal(int button, QPoint pos, int eventType, bool sendInexact);
 
     QPointer<TerminalDisplay> _display;
+    const bool _sceneMode;
     QQuickWidget* _hostWidget = nullptr;
+    bool _partHasFocus = false;
+    bool _focusWhenInScene = false;
+    QPointF _lastHoverPosition;
+    bool _followsFacade = false;
+    // Scene mode: the current touch (touchEvent()).
+    bool _touchDragged = false;
+    QPointF _touchPressPosition;
+    // Scene mode: Qt Quick delivers the second press of a double click too, widgets don't.
+    ulong _lastPressTimestamp = 0;
+    QPointF _lastPressPosition;
+    Qt::MouseButton _lastPressButton = Qt::NoButton;
+    QTimer* _autoHideTimer = nullptr;
+    bool _cursorHidden = false;
+    Qt::CursorShape _cursorShapeBeforeHiding = Qt::IBeamCursor;
+    QTimer* _autoScrollTimer = nullptr;
     QImage _snapshot;
     QRegion _pendingRegion;
 

@@ -26,12 +26,15 @@
 #include "KonsoleSettings.h"
 #include "ViewProperties.h"
 #include "containers/ContainerList.h"
+#include "model/PaneModel.h"
 #include "profile/ProfileList.h"
+#include "quick/CompatWindows.h"
 #include "searchtabs/SearchTabs.h"
 #include "session/SessionController.h"
 #include "session/SessionManager.h"
 #include "terminalDisplay/TerminalDisplay.h"
 #include "widgets/IncrementalSearchBar.h"
+#include "widgets/PaneWidgetView.h"
 #include "widgets/ViewSplitter.h"
 
 // TODO Perhaps move everything which is Konsole-specific into different files
@@ -145,6 +148,19 @@ TabbedViewContainer::TabbedViewContainer(ViewManager *connectedViewManager, QWid
 
     konsoleConfigChanged();
     connect(KonsoleSettings::self(), &KonsoleSettings::configChanged, this, &TabbedViewContainer::konsoleConfigChanged);
+
+    // The tabs and splits live in the ViewManager's PaneModel; this widget shows them.
+    PaneModel* model = PaneModelRegistry::model(connectedViewManager);
+    if (!model) {
+        model = new PaneModel(this);
+    }
+    new PaneWidgetView(model, this);
+}
+
+PaneModel* TabbedViewContainer::paneModel() const
+{
+    PaneWidgetView* view = PaneWidgetView::forContainer(this);
+    return view ? view->model() : nullptr;
 }
 
 TabbedViewContainer::~TabbedViewContainer()
@@ -364,7 +380,15 @@ QSize TabbedViewContainer::sizeHint() const
 
 void TabbedViewContainer::addSplitter(ViewSplitter *viewSplitter, int index)
 {
-    index = insertTab(index, viewSplitter, QString());
+    PaneModel* model = paneModel();
+    PaneNode* node = PaneWidgetView::nodeOf(viewSplitter);
+    if (model && node) {
+        // A tab coming from another window brings its tree into this window's model.
+        model->adopt(node);
+        index = model->insertTab(index, node);
+    } else {
+        index = insertTab(index, viewSplitter, QString());
+    }
     connect(viewSplitter, &ViewSplitter::destroyed, this, &TabbedViewContainer::viewDestroyed);
 
     disconnect(viewSplitter, &ViewSplitter::terminalDisplayDropped, nullptr, nullptr);
@@ -383,11 +407,16 @@ void TabbedViewContainer::addSplitter(ViewSplitter *viewSplitter, int index)
 
 void TabbedViewContainer::addView(TerminalDisplay *view)
 {
-    auto viewSplitter = new ViewSplitter();
-    viewSplitter->addTerminalDisplay(view, Qt::Horizontal);
+    PaneModel* model = paneModel();
+    PaneNode* split = model->createSplit();
+    auto viewSplitter = PaneWidgetView::splitterOf(split);
+    split->addDisplay(view, Qt::Horizontal);
     auto item = view->sessionController();
     int index = _newTabBehavior == PutNewTabAfterCurrentTab ? currentIndex() + 1 : -1;
-    index = insertTab(index, viewSplitter, item->icon(), item->title());
+    index = model->insertTab(index, split);
+    setTabIcon(index, item->icon());
+    setTabText(index, item->title());
+    Q_EMIT tabsChanged();
 
     connectTerminalDisplay(view);
     connect(viewSplitter, &ViewSplitter::destroyed, this, &TabbedViewContainer::viewDestroyed);
@@ -521,6 +550,12 @@ void TabbedViewContainer::renameTab(int index)
 
 void TabbedViewContainer::searchTabs()
 {
+    // An off-screen compat window's QML window shows the search.
+    if (CompatWindows::contains(window())) {
+        Q_EMIT CompatWindowsNotifier::instance()->searchTabsRequested(window());
+        return;
+    }
+
     /**
      * show tab search and pass focus to it
      */
@@ -595,6 +630,7 @@ void TabbedViewContainer::setTabActivity(int index, bool activity)
 
     if (color != tabBar()->tabTextColor(index)) {
         tabBar()->setTabTextColor(index, color);
+        Q_EMIT tabsChanged();
     }
 }
 
@@ -613,6 +649,7 @@ void TabbedViewContainer::updateTitle(ViewProperties *item)
     // To avoid having & replaced with _ (shortcut indicator)
     tabText.replace(QLatin1Char('&'), QLatin1String("&&"));
     setTabText(index, tabText);
+    Q_EMIT tabsChanged();
 }
 
 void TabbedViewContainer::updateColor(ViewProperties *item)
@@ -678,6 +715,7 @@ void TabbedViewContainer::updateIcon(ViewProperties *item)
 
     if (tabIcon(index).name() != icon.name()) {
         setTabIcon(index, icon);
+        Q_EMIT tabsChanged();
     }
 }
 

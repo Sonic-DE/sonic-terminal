@@ -17,6 +17,8 @@
 #include "TerminalColor.h"
 #include "TerminalFonts.h"
 #include "TerminalScrollBar.h"
+#include "quick/TerminalView.h"
+#include "quick/TerminalViewRegistry.h"
 
 // Qt
 #include <QChar>
@@ -40,6 +42,13 @@ const QChar LTR_OVERRIDE_CHAR(0x202D);
 
 namespace Konsole
 {
+// Whether the terminal has the focus: its view's (in a QML scene the facade widget never has it).
+static bool terminalHasFocus(const TerminalDisplay* display)
+{
+    const TerminalView* view = TerminalViewRegistry::view(display);
+    return view ? view->terminalHasFocus() : display->hasFocus();
+}
+
 QVariant interpolatePolygonF(const QPolygonF &start, const QPolygonF &end, qreal progress)
 {
     if (start.size() != end.size()) {
@@ -639,7 +648,7 @@ void TerminalPainter::drawBackground(QPainter &painter, const QRect &rect, const
 void TerminalPainter::updateCursorTextColor(const QColor &backgroundColor, QColor &characterColor)
 {
     if (m_parentDisplay->cursorShape() == Enum::BlockCursor) {
-        if (m_parentDisplay->hasFocus()) {
+        if (terminalHasFocus(m_parentDisplay)) {
             // invert the color used to draw the text to ensure that the character at
             // the cursor position is readable
             QColor cursorTextColor = m_parentDisplay->terminalColor()->cursorTextColor();
@@ -687,7 +696,7 @@ void TerminalPainter::drawCursor(QPainter &painter, const QRectF &cursorRect, co
     pen.setJoinStyle(Qt::MiterJoin);
     painter.setPen(pen);
     if (m_parentDisplay->cursorShape() == Enum::BlockCursor) {
-        if (m_parentDisplay->hasFocus()) {
+        if (terminalHasFocus(m_parentDisplay)) {
             painter.fillRect(cursorRect, cursorColor);
 
             updateCursorTextColor(backgroundColor, characterColor);

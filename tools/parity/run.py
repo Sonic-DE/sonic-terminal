@@ -15,11 +15,17 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 DBUS_CONFIG = HERE / "private-bus.conf"
+
+
+def stage_name(build):
+    """The DESTDIR staging directory that holds a build's data files (setup-env.py)."""
+    return "stage" if build == "build" else f"stage-{build}"
 
 
 def write_ini(path, sections):
@@ -149,7 +155,7 @@ def run_child(args):
             return 2
         script = output / "script.jsonl"
         script.write_text('{"op": "output", "dir": "%s"}\n' % output + Path(args.scenario).read_text())
-        command = [str(Path(args.env) / "build/bin/konsole"), "--separate", "--nofork"]
+        command = [str(Path(args.env) / args.build / "bin/konsole"), "--separate", "--nofork"]
         # Before the scenario's own arguments: -e takes everything after it as the command.
         if not args.no_script:
             command += ["--parity-script", str(script)]
@@ -197,6 +203,9 @@ def main():
     parser.add_argument("--plugin-path", default="", help="extra plugin directory (holding konsoleplugins/)")
     parser.add_argument("--no-script", action="store_true", help="run konsole without a script (options that just print)")
     parser.add_argument("--timeout", type=int, default=120)
+    parser.add_argument("--build", default="build",
+                        help="build directory inside --env (build-phase0 for the phase 0 copy); HOME stays the same")
+    parser.add_argument("--qml-window", action="store_true", help="open the QML window (SONIC_TERMINAL_QML_WINDOW=1)")
     parser.add_argument("--child", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
     if args.child:
@@ -204,24 +213,28 @@ def main():
 
     prefix = Path(args.prefix).resolve()
     environment = Path(args.env).resolve()
-    stage_share = environment / "stage" / str(environment / "prefix").lstrip("/") / "share"
+    stage_share = environment / stage_name(args.build) / str(environment / "prefix").lstrip("/") / "share"
     output = Path(args.output).resolve()
     if output.exists():
         shutil.rmtree(output)
     output.mkdir(parents=True)
     # A fixed HOME path: it shows up in dialogs (initial directory, print-to-file path).
     home = environment / "home"
+    # A scenario may make directories read-only (chmod op) and fail before restoring them.
+    for directory, _, _ in os.walk(home):
+        os.chmod(directory, 0o755)
     shutil.rmtree(home, ignore_errors=True)
     home.mkdir()
-    runtime = home / "runtime"
-    runtime.mkdir(mode=0o700)
+    # Short: KIO's worker sockets live here and must fit the Unix socket path limit.
+    runtime = Path(tempfile.mkdtemp(prefix="konsole-parity-", dir="/tmp"))
+    runtime.chmod(0o700)
     prepare_home(home, prefix, args.hide_text, args.scheme_set)
     # No LD_LIBRARY_PATH: it would override the binaries' RUNPATH into the parity build.
     env = {key: os.environ[key] for key in ("LANG",) if key in os.environ}
     env.update(
         PATH=f"{environment}/bin:/usr/bin:/bin",
         QT_PLUGIN_PATH=":".join(filter(None, [args.plugin_path and str(Path(args.plugin_path).resolve()),
-                                              str(environment / "build/bin"), str(environment / "builder-plugins")])),
+                                              str(environment / args.build / "bin"), str(environment / "builder-plugins")])),
         QML_IMPORT_PATH=f"{prefix}/lib64/qml",
         XDG_DATA_DIRS=f"{stage_share}:{prefix}/share:{environment}/xdg", XDG_CONFIG_DIRS="/etc/xdg",
         HOME=str(home), XDG_CONFIG_HOME=str(home / ".config"), XDG_DATA_HOME=str(home / ".local/share"),
@@ -233,12 +246,16 @@ def main():
         DBUS_SYSTEM_BUS_ADDRESS="unix:path=/nonexistent/konsole-parity-system",
         CUPS_SERVER="/nonexistent/konsole-parity-cups.sock",
         PULSE_SERVER="unix:/nonexistent/konsole-parity")
+    if args.qml_window:
+        env["SONIC_TERMINAL_QML_WINDOW"] = "1"
     child = [sys.executable, "-I", str(Path(__file__).resolve()), "--child", "--scenario",
              str(Path(args.scenario).resolve()), "--output", str(output), "--env", str(environment),
-             "--prefix", str(prefix), "--timeout", str(args.timeout), f"--konsole-args={args.konsole_args}",
+             "--prefix", str(prefix), "--timeout", str(args.timeout), "--build", args.build,
+             f"--konsole-args={args.konsole_args}",
              *(["--no-script"] if args.no_script else [])]
     result = subprocess.run(["dbus-run-session", f"--config-file={DBUS_CONFIG}", "--", *child], env=env,
                             timeout=args.timeout + 60)
+    shutil.rmtree(runtime, ignore_errors=True)
     state = home / ".local/state"
     if state.exists():
         shutil.copytree(state, output / "logs/state", dirs_exist_ok=True)

@@ -64,8 +64,16 @@ ecm_add_tests(
     TerminalTest.cpp
     ViewManagerTest.cpp
     BlurTest.cpp
+    PaneModelTest.cpp
+    TerminalViewTest.cpp
+    QmlWindowTest.cpp
     LINK_LIBRARIES ${KONSOLE_TEST_LIBS} KF6::Parts
 )
+set_tests_properties(QmlWindowTest PROPERTIES ENVIRONMENT
+    "QT_QPA_PLATFORMTHEME=kde;QT_STYLE_OVERRIDE=Silver;QT_QUICK_CONTROLS_STYLE=org.kde.desktop")
+# As the parity runs: widgets and the desktop style's QML items read one colour scheme.
+set_tests_properties(TerminalViewTest PROPERTIES ENVIRONMENT
+    "QT_QPA_PLATFORMTHEME=kde;QT_STYLE_OVERRIDE=Silver;QT_QUICK_CONTROLS_STYLE=org.kde.desktop")
 
 if(HAVE_DBUS)
     find_program(DBUS_RUN_SESSION_EXECUTABLE dbus-run-session REQUIRED)
@@ -78,4 +86,10 @@ if(HAVE_DBUS)
     target_link_libraries(DBusCodecTest Qt::Core Qt::DBus Qt::Test)
     add_dependencies(DBusCodecTest konsole)
     add_test(NAME DBusCodecTest COMMAND ${DBUS_RUN_SESSION_EXECUTABLE} $<TARGET_FILE:DBusCodecTest>)
+endif()
+
+# The parity comparison must reject each kind of broken run (tools/parity/README.md).
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+    add_test(NAME ParityCompareSelfTest COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_SOURCE_DIR}/tools/parity/selftest.py)
 endif()

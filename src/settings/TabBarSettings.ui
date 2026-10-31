@@ -295,39 +295,6 @@
            </property>
           </widget>
          </item>
-         <item row="18" column="1" colspan="2">
-          <widget class="QCheckBox" name="kcfg_TabBarUseUserStyleSheet">
-           <property name="text">
-            <string>Use user-defined stylesheet:</string>
-           </property>
-          </widget>
-         </item>
-         <item row="19" column="1">
-          <spacer>
-           <property name="orientation">
-            <enum>Qt::Orientation::Horizontal</enum>
-           </property>
-           <property name="sizeType">
-            <enum>QSizePolicy::Policy::Fixed</enum>
-           </property>
-           <property name="sizeHint" stdset="0">
-            <size>
-             <width>16</width>
-             <height>20</height>
-            </size>
-           </property>
-          </spacer>
-         </item>
-         <item row="19" column="2">
-          <widget class="KUrlRequester" name="kcfg_TabBarUserStyleSheetFile">
-           <property name="enabled">
-            <bool>false</bool>
-           </property>
-           <property name="placeholderText">
-            <string comment="@item:intext Optional file path is empty">(none)</string>
-           </property>
-          </widget>
-         </item>
         </layout>
        </item>
        <item>
@@ -555,14 +522,6 @@
    </item>
   </layout>
  </widget>
- <customwidgets>
-  <customwidget>
-   <class>KUrlRequester</class>
-   <extends>QWidget</extends>
-   <header>kurlrequester.h</header>
-   <container>1</container>
-  </customwidget>
- </customwidgets>
  <tabstops>
   <tabstop>tabs</tabstop>
   <tabstop>ShowTabBarWhenNeeded</tabstop>
@@ -579,8 +538,6 @@
   <tabstop>HideSearchTabsButton</tabstop>
   <tabstop>kcfg_NewTabButton</tabstop>
   <tabstop>kcfg_ExpandTabWidth</tabstop>
-  <tabstop>kcfg_TabBarUseUserStyleSheet</tabstop>
-  <tabstop>kcfg_TabBarUserStyleSheetFile</tabstop>
   <tabstop>kcfg_CloseTabOnMiddleMouseButton</tabstop>
   <tabstop>PutNewTabAtTheEnd</tabstop>
   <tabstop>PutNewTabAfterCurrentTab</tabstop>
@@ -597,22 +554,6 @@
    <sender>AlwaysHideTabBar</sender>
    <signal>toggled(bool)</signal>
    <receiver>Bottom</receiver>
-   <slot>setDisabled(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>20</x>
-     <y>20</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>20</x>
-     <y>20</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>AlwaysHideTabBar</sender>
-   <signal>toggled(bool)</signal>
-   <receiver>kcfg_TabBarUseUserStyleSheet</receiver>
    <slot>setDisabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
@@ -678,22 +619,6 @@
    <signal>toggled(bool)</signal>
    <receiver>positionLabel</receiver>
    <slot>setDisabled(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>20</x>
-     <y>20</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>20</x>
-     <y>20</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>kcfg_TabBarUseUserStyleSheet</sender>
-   <signal>toggled(bool)</signal>
-   <receiver>kcfg_TabBarUserStyleSheetFile</receiver>
-   <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
      <x>20</x>

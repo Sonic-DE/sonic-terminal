@@ -102,6 +102,7 @@ void TerminalScrollBar::setMarkerColor(QColor color)
 {
     _markerColor = color;
     update();
+    Q_EMIT overlaysChanged();
 }
 
 void TerminalScrollBar::setMarkerSize(double pSize)
@@ -110,16 +111,19 @@ void TerminalScrollBar::setMarkerSize(double pSize)
 
     regenerateMarkersGeometry();
     update();
+    Q_EMIT overlaysChanged();
 }
 
 void TerminalScrollBar::setSearchHighlightLineColor(QColor color) {
     _searchHighlightLineColor = color;
     update();
+    Q_EMIT overlaysChanged();
 }
 
 void TerminalScrollBar::setSearchHighlightLineOpacity(int lineOpacity) {
     _lineOpacity = lineOpacity;
     update();
+    Q_EMIT overlaysChanged();
 }
 void TerminalScrollBar::scrollBarPositionChanged(int)
 {
@@ -264,7 +268,7 @@ void TerminalScrollBar::updatePalette(const QPalette &pal)
     // scrollbar coloring, in particular in conjunction with light terminal background colors.
     // Use custom colors only for widget styles matched by the allowlist below, otherwise
     // fall back to generic widget colors.
-    if (appStyle->objectName() == QLatin1String("breeze")) {
+    if (appStyle->objectName() == QLatin1String("silver") || appStyle->objectName() == QLatin1String("breeze")) {
         setPalette(_backgroundMatchingPalette);
     } else {
         setPalette(QGuiApplication::palette());
@@ -306,6 +310,7 @@ void TerminalScrollBar::searchLines(const QSet<int>& indexSet, int lines) {
     }
 
     update();
+    Q_EMIT overlaysChanged();
 }
 
 void TerminalScrollBar::clearSearchLines() {
@@ -370,6 +375,7 @@ void TerminalScrollBar::removeMarker(int clickedYCoord)
     }
 
     update();
+    Q_EMIT overlaysChanged();
 }
 
 bool TerminalScrollBar::markerExists(int clickedYCoord)
@@ -407,6 +413,7 @@ void TerminalScrollBar::registerMarker(TerminalScrollBar::Marker *marker)
     }
 
     update();
+    Q_EMIT overlaysChanged();
 }
 
 void TerminalScrollBar::regenerateMarkersGeometry()

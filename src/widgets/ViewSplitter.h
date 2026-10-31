@@ -60,6 +60,8 @@ class KONSOLEPRIVATE_EXPORT ViewSplitter : public QSplitter
 
 public:
     explicit ViewSplitter(QWidget *parent = nullptr);
+    /** The widget of a PaneModel split: takes that split's id. */
+    ViewSplitter(int id, QWidget* parent);
 
     enum class AddBehavior {
         AddBefore,
@@ -177,6 +179,9 @@ Q_SIGNALS:
     void terminalDisplayDropped(TerminalDisplay *terminalDisplay);
 
 private:
+    // Keeps m_terminalMaximized (read by the inline terminalMaximized()) in step with the model.
+    friend class PaneWidgetView;
+
     /** recursively walks the object tree looking for Splitters and
      * TerminalDisplays, hiding the ones that should be hidden.
      * If a terminal display is not hidden in a subtree, we cannot

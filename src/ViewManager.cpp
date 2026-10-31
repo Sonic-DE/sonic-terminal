@@ -11,6 +11,8 @@
 #include "konsoledebug.h"
 
 // Qt
+#include <optional>
+
 #include <QFile>
 #include <QFileDialog>
 #include <QStringList>
@@ -47,13 +49,31 @@
 #include "session/SessionController.h"
 #include "session/SessionManager.h"
 
+#include "model/PaneModel.h"
+#include "quick/CompatWindows.h"
+#include "quick/TerminalView.h"
 #include "terminalDisplay/TerminalDisplay.h"
+#include "widgets/PaneWidgetView.h"
 #include "widgets/ViewContainer.h"
 #include "widgets/ViewSplitter.h"
 
 using namespace Konsole;
 
 int ViewManager::lastManagerId = 0;
+
+namespace {
+// The ViewManager declaration is frozen, so its PaneModel is found through the registry.
+PaneModel* paneModel(const ViewManager* manager)
+{
+    return PaneModelRegistry::model(manager);
+}
+
+PaneNode* parentSplit(const ViewManager* manager, TerminalDisplay* display)
+{
+    PaneNode* leaf = paneModel(manager)->leafIfAny(display);
+    return leaf ? leaf->parentNode() : nullptr;
+}
+}
 
 Q_DECLARE_METATYPE(QList<double>);
 
@@ -73,6 +93,7 @@ ViewManager::ViewManager(QObject *parent, KActionCollection *collection)
     qDBusRegisterMetaType<QList<double>>();
 #endif
 
+    PaneModelRegistry::add(this, new PaneModel(this));
     _viewContainer = createContainer();
     // setup actions which are related to the views
     setupActions();
@@ -95,7 +116,10 @@ ViewManager::ViewManager(QObject *parent, KActionCollection *collection)
 #endif
 }
 
-ViewManager::~ViewManager() = default;
+ViewManager::~ViewManager()
+{
+    PaneModelRegistry::remove(this);
+}
 
 int ViewManager::managerId() const
 {
@@ -402,13 +426,14 @@ void ViewManager::setupActions()
 
 void ViewManager::toggleActionsBasedOnState()
 {
-    const int count = _viewContainer->count();
+    PaneModel* model = paneModel(this);
+    const int count = model->count();
     for (QAction *tabOnlyAction : std::as_const(_multiTabOnlyActions)) {
         tabOnlyAction->setEnabled(count > 1);
     }
 
-    if ((_viewContainer != nullptr) && (_viewContainer->activeViewSplitter() != nullptr)) {
-        const int splitCount = _viewContainer->activeViewSplitter()->getToplevelSplitter()->findChildren<TerminalDisplay *>().count();
+    if (PaneNode* current = model->currentTab()) {
+        const int splitCount = current->toplevel()->displays().count();
 
         for (QAction *action : std::as_const(_multiSplitterOnlyActions)) {
             action->setEnabled(splitCount > 1);
@@ -418,51 +443,51 @@ void ViewManager::toggleActionsBasedOnState()
 
 void ViewManager::switchToView(int index)
 {
-    _viewContainer->setCurrentIndex(index);
+    paneModel(this)->setCurrentIndex(index);
 }
 
 void ViewManager::switchToTerminalDisplay(Konsole::TerminalDisplay *terminalDisplay)
 {
-    auto splitter = qobject_cast<ViewSplitter *>(terminalDisplay->parentWidget());
-    auto toplevelSplitter = splitter->getToplevelSplitter();
+    PaneNode* splitter = parentSplit(this, terminalDisplay);
+    PaneNode* toplevelSplitter = splitter ? splitter->toplevel() : nullptr;
 
     // Focus the TermialDisplay
     terminalDisplay->setFocus();
 
-    if (_viewContainer->currentWidget() != toplevelSplitter) {
+    if (toplevelSplitter && paneModel(this)->currentTab() != toplevelSplitter) {
         // Focus the tab
-        switchToView(_viewContainer->indexOf(toplevelSplitter));
+        switchToView(paneModel(this)->indexOf(toplevelSplitter));
     }
 }
 
 void ViewManager::focusUp()
 {
-    _viewContainer->activeViewSplitter()->focusUp();
+    paneModel(this)->currentTab()->focusUp();
 }
 
 void ViewManager::focusDown()
 {
-    _viewContainer->activeViewSplitter()->focusDown();
+    paneModel(this)->currentTab()->focusDown();
 }
 
 void ViewManager::focusLeft()
 {
-    _viewContainer->activeViewSplitter()->focusLeft();
+    paneModel(this)->currentTab()->focusLeft();
 }
 
 void ViewManager::focusRight()
 {
-    _viewContainer->activeViewSplitter()->focusRight();
+    paneModel(this)->currentTab()->focusRight();
 }
 
 void ViewManager::focusNext()
 {
-    _viewContainer->activeViewSplitter()->focusNext();
+    paneModel(this)->currentTab()->focusNext();
 }
 
 void ViewManager::focusPrev()
 {
-    _viewContainer->activeViewSplitter()->focusPrev();
+    paneModel(this)->currentTab()->focusPrevious();
 }
 
 void ViewManager::moveActiveViewLeft()
@@ -482,17 +507,22 @@ void ViewManager::nextContainer()
 
 void ViewManager::nextView()
 {
-    _viewContainer->activateNextView();
+    PaneModel* model = paneModel(this);
+    const int index = model->currentIndex();
+    model->setCurrentIndex(index == model->count() - 1 ? 0 : index + 1);
 }
 
 void ViewManager::previousView()
 {
-    _viewContainer->activatePreviousView();
+    PaneModel* model = paneModel(this);
+    const int index = model->currentIndex();
+    model->setCurrentIndex(index == 0 ? model->count() - 1 : index - 1);
 }
 
 void ViewManager::lastView()
 {
-    _viewContainer->activateLastView();
+    PaneModel* model = paneModel(this);
+    model->setCurrentIndex(model->count() - 1);
 }
 
 void ViewManager::activateLastUsedView(bool reverse)
@@ -542,32 +572,34 @@ void ViewManager::toggleTwoViews()
 void ViewManager::detachActiveView()
 {
     // find the currently active view and remove it from its container
-    if ((_viewContainer->findChildren<TerminalDisplay *>()).count() > 1) {
-        auto activeSplitter = _viewContainer->activeViewSplitter();
+    PaneModel* model = paneModel(this);
+    if (model->displays().count() > 1) {
+        PaneNode* activeSplitter = model->currentTab();
         activeSplitter->clearMaximized();
-        auto terminal = activeSplitter->activeTerminalDisplay();
-        auto newSplitter = new ViewSplitter();
-        newSplitter->addTerminalDisplay(terminal, Qt::Horizontal);
-        QHash<TerminalDisplay *, Session *> detachedSessions = forgetAll(newSplitter);
-        Q_EMIT terminalsDetached(newSplitter, detachedSessions);
-        focusAnotherTerminal(activeSplitter->getToplevelSplitter());
+        auto terminal = activeSplitter->activeDisplay();
+        PaneNode* newSplitter = model->createSplit();
+        newSplitter->addDisplay(terminal, Qt::Horizontal);
+        auto* newSplitterWidget = PaneWidgetView::splitterOf(newSplitter);
+        QHash<TerminalDisplay*, Session*> detachedSessions = forgetAll(newSplitterWidget);
+        Q_EMIT terminalsDetached(newSplitterWidget, detachedSessions);
+        focusAnotherTerminal(PaneWidgetView::splitterOf(activeSplitter->toplevel()));
         toggleActionsBasedOnState();
     }
 }
 
 void ViewManager::detachActiveTab()
 {
-    if (_viewContainer->count() < 2) {
+    PaneModel* model = paneModel(this);
+    if (model->count() < 2) {
         return;
     }
-    const int currentIdx = _viewContainer->currentIndex();
-    detachTab(currentIdx);
+    detachTab(model->currentIndex());
 }
 
 void ViewManager::detachTab(int tabIdx)
 {
-    ViewSplitter *splitter = _viewContainer->viewSplitterAt(tabIdx);
-    QHash<TerminalDisplay *, Session *> detachedSessions = forgetAll(_viewContainer->viewSplitterAt(tabIdx));
+    ViewSplitter* splitter = PaneWidgetView::splitterOf(paneModel(this)->tab(tabIdx));
+    QHash<TerminalDisplay*, Session*> detachedSessions = forgetAll(splitter);
     Q_EMIT terminalsDetached(splitter, detachedSessions);
 }
 
@@ -597,7 +629,7 @@ void ViewManager::toggleSemanticHints()
 
     profile->setProperty(Profile::SemanticHints, (profile->semanticHints() + 1) % 3);
 
-    auto activeTerminalDisplay = _viewContainer->activeViewSplitter()->activeTerminalDisplay();
+    auto activeTerminalDisplay = paneModel(this)->currentTab()->activeDisplay();
     const char *names[3] = {"Never", "Sometimes", "Always"};
     activeTerminalDisplay->showNotification(i18n("Semantic hints ") + i18n(names[profile->semanticHints()]));
     activeTerminalDisplay->update();
@@ -613,7 +645,7 @@ void ViewManager::toggleLineNumbers()
 
     profile->setProperty(Profile::LineNumbers, (profile->lineNumbers() + 1) % 3);
 
-    auto activeTerminalDisplay = _viewContainer->activeViewSplitter()->activeTerminalDisplay();
+    auto activeTerminalDisplay = paneModel(this)->currentTab()->activeDisplay();
     const char *names[3] = {"Never", "Sometimes", "Always"};
     activeTerminalDisplay->showNotification(i18n("Line numbers ") + i18n(names[profile->lineNumbers()]));
     activeTerminalDisplay->update();
@@ -621,9 +653,17 @@ void ViewManager::toggleLineNumbers()
 
 QHash<TerminalDisplay *, Session *> ViewManager::forgetAll(ViewSplitter *splitter)
 {
-    splitter->setParent(nullptr);
+    QList<TerminalDisplay*> displays;
+    if (PaneNode* node = PaneWidgetView::nodeOf(splitter)) {
+        // setParent(nullptr): a tab's page leaves the tab widget, a child split its parent.
+        node->model()->takeTab(node);
+        node->detachFromParent();
+        displays = node->displays();
+    } else {
+        splitter->setParent(nullptr);
+        displays = splitter->findChildren<TerminalDisplay*>();
+    }
     QHash<TerminalDisplay *, Session *> detachedSessions;
-    const QList<TerminalDisplay *> displays = splitter->findChildren<TerminalDisplay *>();
     for (TerminalDisplay *terminal : displays) {
         Session *session = forgetTerminal(terminal);
         detachedSessions[terminal] = session;
@@ -701,10 +741,12 @@ void ViewManager::sessionFinished(Session *session)
         return;
     }
 
+    PaneModel* model = paneModel(this);
     if (_navigationMethod == TabbedNavigation) {
         // The last session/tab, and only one view (no splits), emit empty()
         // so that close() is called in MainWindow, fixes #432077
-        if (_viewContainer->count() == 1 && _viewContainer->currentTabViewCount() == 1) {
+        const int currentTabViewCount = model->currentTab() ? model->currentTab()->displays().count() : 1;
+        if (model->count() == 1 && currentTabViewCount == 1) {
             Q_EMIT empty();
             return;
         }
@@ -720,7 +762,7 @@ void ViewManager::sessionFinished(Session *session)
     }
 
     // Before deleting the view, let's unmaximize if it's maximized.
-    auto *splitter = qobject_cast<ViewSplitter *>(view->parentWidget());
+    PaneNode* splitter = view ? parentSplit(this, view) : nullptr;
     if (splitter == nullptr) {
         return;
     }
@@ -742,13 +784,14 @@ void ViewManager::sessionFinished(Session *session)
 
     if (!_sessionMap.empty()) {
         updateTerminalDisplayHistory(view, true);
-        focusAnotherTerminal(splitter->getToplevelSplitter());
+        focusAnotherTerminal(PaneWidgetView::splitterOf(splitter->toplevel()));
     }
 }
 
 void ViewManager::focusAnotherTerminal(ViewSplitter *toplevelSplitter)
 {
-    auto tabTterminalDisplays = toplevelSplitter->findChildren<TerminalDisplay *>();
+    PaneNode* top = PaneWidgetView::nodeOf(toplevelSplitter);
+    auto tabTterminalDisplays = top ? top->displays() : toplevelSplitter->findChildren<TerminalDisplay*>();
     if (tabTterminalDisplays.count() == 0) {
         return;
     }
@@ -794,7 +837,7 @@ void ViewManager::splitTopBottom()
 void ViewManager::splitAuto(bool fromNextTab)
 {
     Qt::Orientation orientation;
-    auto activeTerminalDisplay = _viewContainer->activeViewSplitter()->activeTerminalDisplay();
+    auto activeTerminalDisplay = paneModel(this)->currentTab()->activeDisplay();
     if (activeTerminalDisplay->width() > activeTerminalDisplay->height()) {
         orientation = Qt::Horizontal;
     } else {
@@ -822,15 +865,16 @@ void ViewManager::splitView(Qt::Orientation orientation, bool fromNextTab)
 {
     TerminalDisplay *terminalDisplay;
     TerminalDisplay *focused;
+    PaneModel* model = paneModel(this);
     if (fromNextTab) {
-        int tabId = _viewContainer->indexOf(_viewContainer->activeViewSplitter());
-        auto nextTab = _viewContainer->viewSplitterAt(tabId + 1);
+        int tabId = model->indexOf(model->currentTab());
+        PaneNode* nextTab = model->tab(tabId + 1);
 
         if (!nextTab) {
             return;
         }
-        terminalDisplay = nextTab->activeTerminalDisplay();
-        focused = _viewContainer->activeViewSplitter()->activeTerminalDisplay();
+        terminalDisplay = nextTab->activeDisplay();
+        focused = model->currentTab()->activeDisplay();
     } else {
         int currentSessionId = currentSession();
         // At least one display/session exists if we are splitting
@@ -858,20 +902,23 @@ void ViewManager::splitView(Qt::Orientation orientation, bool fromNextTab)
 
 void ViewManager::expandActiveContainer()
 {
-    _viewContainer->activeViewSplitter()->adjustActiveTerminalDisplaySize(10);
+    paneModel(this)->currentTab()->adjustActiveDisplaySize(10);
 }
 
 void ViewManager::shrinkActiveContainer()
 {
-    _viewContainer->activeViewSplitter()->adjustActiveTerminalDisplaySize(-10);
+    paneModel(this)->currentTab()->adjustActiveDisplaySize(-10);
 }
 
 void ViewManager::equalSizeAllContainers()
 {
-    std::function<void(ViewSplitter *)> processChildren = [&processChildren](ViewSplitter *viewSplitter) -> void {
+    std::function<void(PaneNode*)> processChildren = [&processChildren](PaneNode* viewSplitter) -> void {
         // divide the size of the parent widget by the amount of children splits
-        auto hintSize = viewSplitter->size();
+        auto hintSize = viewSplitter->geometry().size();
         auto sizes = viewSplitter->sizes();
+        if (sizes.isEmpty()) {
+            return;
+        }
         auto sharedSize = hintSize / sizes.size();
         if (viewSplitter->orientation() == Qt::Horizontal) {
             for (auto &&size : sizes) {
@@ -886,14 +933,13 @@ void ViewManager::equalSizeAllContainers()
         viewSplitter->setSizes(sizes);
 
         // set equal sizes for each splitter children
-        for (auto &&child : viewSplitter->children()) {
-            auto childViewSplitter = qobject_cast<ViewSplitter *>(child);
-            if (childViewSplitter) {
-                processChildren(childViewSplitter);
+        for (int i = 0; i < viewSplitter->count(); ++i) {
+            if (PaneNode* child = viewSplitter->item(i); !child->isLeaf()) {
+                processChildren(child);
             }
         }
     };
-    processChildren(_viewContainer->activeViewSplitter()->getToplevelSplitter());
+    processChildren(paneModel(this)->currentTab()->toplevel());
 }
 
 SessionController *ViewManager::createController(Session *session, TerminalDisplay *view)
@@ -991,8 +1037,10 @@ TerminalDisplay *ViewManager::findTerminalDisplay(int viewId)
 
 void ViewManager::setCurrentView(TerminalDisplay *view)
 {
-    auto parentSplitter = qobject_cast<ViewSplitter *>(view->parentWidget());
-    _viewContainer->setCurrentWidget(parentSplitter->getToplevelSplitter());
+    PaneModel* model = paneModel(this);
+    if (PaneNode* parentSplitter = parentSplit(this, view)) {
+        model->setCurrentIndex(model->indexOf(parentSplitter->toplevel()));
+    }
     view->setFocus();
     setCurrentSession(_sessionMap[view]->sessionId());
 }
@@ -1132,6 +1180,11 @@ void ViewManager::viewDestroyed(QWidget *view)
 
 TerminalDisplay *ViewManager::createTerminalDisplay()
 {
+    // A QML window's terminals draw in its scene; their facades stay in this window.
+    std::optional<TerminalView::SceneModeGuard> sceneMode;
+    if (CompatWindows::contains(parent())) {
+        sceneMode.emplace();
+    }
     auto display = new TerminalDisplay(nullptr);
     registerTerminal(display);
 
@@ -1190,12 +1243,11 @@ QList<ViewProperties *> ViewManager::viewProperties() const
 {
     QList<ViewProperties *> list;
 
-    TabbedViewContainer *container = _viewContainer;
-    if (container == nullptr) {
+    if (_viewContainer == nullptr) {
         return {};
     }
 
-    const auto terminalContainers = _viewContainer->findChildren<TerminalDisplay *>();
+    const auto terminalContainers = paneModel(this)->displays();
     list.reserve(terminalContainers.size());
 
     for (auto terminalDisplay : terminalContainers) {
@@ -1220,21 +1272,18 @@ QJsonObject saveSessionTerminal(TerminalDisplay *terminalDisplay)
     return thisTerminal;
 }
 
-QJsonObject saveSessionsRecurse(QSplitter *splitter)
+QJsonObject saveSessionsRecurse(const PaneNode* splitter)
 {
     QJsonObject thisSplitter;
     thisSplitter.insert(QStringLiteral("Orientation"), splitter->orientation() == Qt::Horizontal ? QStringLiteral("Horizontal") : QStringLiteral("Vertical"));
 
     QJsonArray internalWidgets;
     for (int i = 0; i < splitter->count(); i++) {
-        auto *widget = splitter->widget(i);
-        auto *maybeSplitter = qobject_cast<QSplitter *>(widget);
-        auto *maybeTerminalDisplay = qobject_cast<TerminalDisplay *>(widget);
-
-        if (maybeSplitter != nullptr) {
-            internalWidgets.append(saveSessionsRecurse(maybeSplitter));
-        } else if (maybeTerminalDisplay != nullptr) {
-            internalWidgets.append(saveSessionTerminal(maybeTerminalDisplay));
+        const PaneNode* child = splitter->item(i);
+        if (!child->isLeaf()) {
+            internalWidgets.append(saveSessionsRecurse(child));
+        } else if (child->display() != nullptr) {
+            internalWidgets.append(saveSessionTerminal(child->display()));
         }
     }
     thisSplitter.insert(QStringLiteral("Widgets"), internalWidgets);
@@ -1267,7 +1316,7 @@ void ViewManager::saveLayout(QString fileName)
         KMessageBox::error(this->widget(), i18nc("@label:textbox", "A problem occurred when saving the Layout.\n%1", file.fileName()));
     }
 
-    QJsonObject jsonSplit = saveSessionsRecurse(_viewContainer->activeViewSplitter());
+    QJsonObject jsonSplit = saveSessionsRecurse(paneModel(this)->currentTab());
 
     if (!jsonSplit.isEmpty()) {
         file.write(QJsonDocument(jsonSplit).toJson());
@@ -1277,24 +1326,25 @@ void ViewManager::saveLayout(QString fileName)
 
 void ViewManager::saveSessions(KConfigGroup &group)
 {
+    PaneModel* model = paneModel(this);
     QJsonArray rootArray;
-    for (int i = 0; i < _viewContainer->count(); i++) {
-        auto *splitter = qobject_cast<QSplitter *>(_viewContainer->widget(i));
-        rootArray.append(saveSessionsRecurse(splitter));
+    for (int i = 0; i < model->count(); i++) {
+        rootArray.append(saveSessionsRecurse(model->tab(i)));
     }
 
     group.writeEntry("Tabs", QJsonDocument(rootArray).toJson(QJsonDocument::Compact));
-    group.writeEntry("Active", _viewContainer->currentIndex());
+    group.writeEntry("Active", model->currentIndex());
 }
 
 namespace
 {
-ViewSplitter *restoreSessionsSplitterRecurse(const QJsonObject &jsonSplitter, ViewManager *manager, bool useSessionId)
+PaneNode* restoreSessionsSplitterRecurse(const QJsonObject& jsonSplitter, ViewManager* manager, bool useSessionId)
 {
     const QJsonArray splitterWidgets = jsonSplitter[QStringLiteral("Widgets")].toArray();
     auto orientation = (jsonSplitter[QStringLiteral("Orientation")].toString() == QStringLiteral("Horizontal")) ? Qt::Horizontal : Qt::Vertical;
 
-    auto *currentSplitter = new ViewSplitter();
+    PaneModel* model = paneModel(manager);
+    PaneNode* currentSplitter = model->createSplit();
     currentSplitter->setOrientation(orientation);
 
     for (const auto widgetJsonValue : splitterWidgets) {
@@ -1309,7 +1359,7 @@ ViewSplitter *restoreSessionsSplitterRecurse(const QJsonObject &jsonSplitter, Vi
             Session *session = useSessionId ? SessionManager::instance()->idToSession(sessionIterator->toInt()) : SessionManager::instance()->createSession();
 
             auto newView = manager->createView(session);
-            currentSplitter->addWidget(newView);
+            currentSplitter->addItem(model->leaf(newView));
 
             int columns = newView->columns();
             int lines = newView->lines();
@@ -1339,7 +1389,7 @@ ViewSplitter *restoreSessionsSplitterRecurse(const QJsonObject &jsonSplitter, Vi
 
         } else {
             auto nextSplitter = restoreSessionsSplitterRecurse(widgetJsonObject, manager, useSessionId);
-            currentSplitter->addWidget(nextSplitter);
+            currentSplitter->addItem(nextSplitter);
         }
     }
     return currentSplitter;
@@ -1361,7 +1411,7 @@ void ViewManager::loadLayout(QString file)
     auto json = QJsonDocument::fromJson(jsonFile.readAll());
     if (!json.isEmpty()) {
         auto splitter = restoreSessionsSplitterRecurse(json.object(), this, false);
-        _viewContainer->addSplitter(splitter, _viewContainer->count());
+        _viewContainer->addSplitter(PaneWidgetView::splitterOf(splitter), paneModel(this)->count());
     }
 }
 void ViewManager::loadLayoutFile()
@@ -1378,7 +1428,7 @@ void ViewManager::restoreSessions(const KConfigGroup &group)
     const auto jsonTabs = QJsonDocument::fromJson(tabList).array();
     for (const auto &jsonSplitter : jsonTabs) {
         auto topLevelSplitter = restoreSessionsSplitterRecurse(jsonSplitter.toObject(), this, true);
-        _viewContainer->addSplitter(topLevelSplitter, _viewContainer->count());
+        _viewContainer->addSplitter(PaneWidgetView::splitterOf(topLevelSplitter), paneModel(this)->count());
     }
 
     if (!jsonTabs.isEmpty())
@@ -1439,8 +1489,9 @@ QStringList ViewManager::sessionList()
 {
     QStringList ids;
 
-    for (int i = 0; i < _viewContainer->count(); i++) {
-        const auto terminaldisplayList = _viewContainer->widget(i)->findChildren<TerminalDisplay *>();
+    PaneModel* model = paneModel(this);
+    for (int i = 0; i < model->count(); i++) {
+        const auto terminaldisplayList = model->tab(i)->displays();
         for (auto *terminaldisplay : terminaldisplayList) {
             ids.append(QString::number(terminaldisplay->sessionController()->session()->sessionId()));
         }
@@ -1469,9 +1520,9 @@ void ViewManager::setCurrentSession(int sessionId)
     if (display != nullptr) {
         display->setFocus(Qt::OtherFocusReason);
 
-        auto *splitter = qobject_cast<ViewSplitter *>(display->parent());
-        if (splitter != nullptr) {
-            _viewContainer->setCurrentWidget(splitter->getToplevelSplitter());
+        if (PaneNode* splitter = parentSplit(this, display)) {
+            PaneModel* model = paneModel(this);
+            model->setCurrentIndex(model->indexOf(splitter->toplevel()));
         }
     }
 }
@@ -1559,8 +1610,9 @@ QStringList ViewManager::viewHierarchy()
 {
     QStringList list;
 
-    for (int i = 0; i < _viewContainer->count(); ++i) {
-        list.append(_viewContainer->viewSplitterAt(i)->getChildWidgetsLayout());
+    PaneModel* model = paneModel(this);
+    for (int i = 0; i < model->count(); ++i) {
+        list.append(model->tab(i)->layoutString());
     }
 
     return list;
@@ -1568,7 +1620,7 @@ QStringList ViewManager::viewHierarchy()
 
 QList<double> ViewManager::getSplitProportions(int splitterId)
 {
-    const auto *splitter = _viewContainer->findSplitter(splitterId);
+    const PaneNode* splitter = paneModel(this)->findSplit(splitterId);
     if (splitter == nullptr)
         return QList<double>();
 
@@ -1603,21 +1655,22 @@ bool ViewManager::createSplit(int viewId, bool horizontalSplit)
 
 bool ViewManager::createSplitWithExisting(int targetSplitterId, QStringList widgetInfos, int idx, bool horizontalSplit)
 {
-    auto targetSplitter = _viewContainer->findSplitter(targetSplitterId);
+    PaneModel* model = paneModel(this);
+    PaneNode* targetSplitter = model->findSplit(targetSplitterId);
     if (targetSplitter == nullptr || idx < 0)
         return false;
 
-    QVector<QWidget *> linearLayout;
+    QVector<PaneNode*> linearLayout;
     QList<int> forbiddenSplitters, forbiddenViews;
 
     // specify that top level splitters should not be used as children for created splittter
-    for (int i = 0; i < _viewContainer->count(); ++i) {
-        forbiddenSplitters.append(_viewContainer->viewSplitterAt(i)->id());
+    for (int i = 0; i < model->count(); ++i) {
+        forbiddenSplitters.append(model->tab(i)->id());
     }
 
     // specify that parent splitters of the splitter with targetSplitterId id should not be used
     // as children for created splitter
-    for (auto splitter = targetSplitter; splitter != targetSplitter->getToplevelSplitter(); splitter = qobject_cast<ViewSplitter *>(splitter->parentWidget())) {
+    for (PaneNode* splitter = targetSplitter; splitter != targetSplitter->toplevel(); splitter = splitter->parentNode()) {
         forbiddenSplitters.append(splitter->id());
     }
 
@@ -1627,12 +1680,12 @@ bool ViewManager::createSplitWithExisting(int targetSplitterId, QStringList widg
     // children of created splitter, causing the final position
     // of created splitter to may not be at x
     for (int i = 0; i < targetSplitter->count(); ++i) {
-        auto w = targetSplitter->widget(i);
+        PaneNode* child = targetSplitter->item(i);
 
-        if (auto s = qobject_cast<ViewSplitter *>(w))
-            forbiddenSplitters.append(s->id());
+        if (!child->isLeaf())
+            forbiddenSplitters.append(child->id());
         else
-            forbiddenViews.append(qobject_cast<TerminalDisplay *>(w)->id());
+            forbiddenViews.append(child->display()->id());
     }
 
     for (auto &info : widgetInfos) {
@@ -1644,13 +1697,13 @@ bool ViewManager::createSplitWithExisting(int targetSplitterId, QStringList widg
         QChar type = typeAndId[0][0];
 
         if (type == QLatin1Char('s') && !forbiddenSplitters.removeOne(id)) {
-            if (auto s = _viewContainer->findSplitter(id)) {
+            if (auto s = model->findSplit(id)) {
                 linearLayout.append(s);
                 continue;
             }
         } else if (type == QLatin1Char('v') && !forbiddenViews.removeOne(id)) {
             if (auto v = findTerminalDisplay(id)) {
-                linearLayout.append(v);
+                linearLayout.append(model->leaf(v));
                 continue;
             }
         }
@@ -1659,27 +1712,26 @@ bool ViewManager::createSplitWithExisting(int targetSplitterId, QStringList widg
     }
 
     if (linearLayout.count() == 1) {
-        if (auto onlyChildSplitter = qobject_cast<ViewSplitter *>(linearLayout[0])) {
-            targetSplitter->addSplitter(onlyChildSplitter, idx);
+        if (!linearLayout[0]->isLeaf()) {
+            targetSplitter->addSplit(linearLayout[0], idx);
         } else {
-            auto onlyChildView = qobject_cast<TerminalDisplay *>(linearLayout[0]);
-            targetSplitter->addTerminalDisplay(onlyChildView, idx);
+            targetSplitter->addDisplay(linearLayout[0]->display(), idx);
         }
     } else {
-        ViewSplitter *createdSplitter = new ViewSplitter();
+        PaneNode* createdSplitter = model->createSplit();
         createdSplitter->setOrientation(horizontalSplit ? Qt::Horizontal : Qt::Vertical);
 
-        for (auto widget : std::as_const(linearLayout)) {
-            if (auto s = qobject_cast<ViewSplitter *>(widget))
-                createdSplitter->addSplitter(s);
+        for (PaneNode* node : std::as_const(linearLayout)) {
+            if (!node->isLeaf())
+                createdSplitter->addSplit(node);
             else
-                createdSplitter->addTerminalDisplay(qobject_cast<TerminalDisplay *>(widget));
+                createdSplitter->addDisplay(node->display());
         }
 
-        targetSplitter->addSplitter(createdSplitter, idx);
+        targetSplitter->addSplit(createdSplitter, idx);
     }
 
-    setCurrentView(targetSplitter->activeTerminalDisplay());
+    setCurrentView(targetSplitter->activeDisplay());
     return true;
 }
 
@@ -1695,7 +1747,7 @@ bool ViewManager::setCurrentView(int viewId)
 
 bool ViewManager::resizeSplits(int splitterId, QList<double> percentages)
 {
-    auto splitter = _viewContainer->findSplitter(splitterId);
+    PaneNode* splitter = paneModel(this)->findSplit(splitterId);
     int totalP = 0;
 
     for (auto p : percentages) {
@@ -1724,42 +1776,43 @@ bool ViewManager::resizeSplits(int splitterId, QList<double> percentages)
     }
 
     splitter->setSizes(newSizes);
-    setCurrentView(splitter->activeTerminalDisplay());
+    setCurrentView(splitter->activeDisplay());
     return true;
 }
 
 bool ViewManager::moveSplitter(int splitterId, int targetSplitterId, int idx)
 {
-    auto splitter = _viewContainer->findSplitter(splitterId);
-    auto targetSplitter = _viewContainer->findSplitter(targetSplitterId);
+    PaneModel* model = paneModel(this);
+    PaneNode* splitter = model->findSplit(splitterId);
+    PaneNode* targetSplitter = model->findSplit(targetSplitterId);
 
     if (splitter == nullptr || targetSplitter == nullptr || idx < 0)
         return false;
 
-    for (auto s = targetSplitter; s != s->getToplevelSplitter(); s = qobject_cast<ViewSplitter *>(s->parentWidget())) {
+    for (PaneNode* s = targetSplitter; s != s->toplevel(); s = s->parentNode()) {
         if (s == splitter)
             return false;
     }
 
-    for (int i = 0; i < _viewContainer->count(); ++i) {
-        if (splitter == _viewContainer->viewSplitterAt(i))
+    for (int i = 0; i < model->count(); ++i) {
+        if (splitter == model->tab(i))
             return false;
     }
 
-    targetSplitter->addSplitter(splitter, idx);
-    setCurrentView(splitter->activeTerminalDisplay());
+    targetSplitter->addSplit(splitter, idx);
+    setCurrentView(splitter->activeDisplay());
     return true;
 }
 
 bool ViewManager::moveView(int viewId, int targetSplitterId, int idx)
 {
     auto view = findTerminalDisplay(viewId);
-    auto targetSplitter = _viewContainer->findSplitter(targetSplitterId);
+    PaneNode* targetSplitter = paneModel(this)->findSplit(targetSplitterId);
 
     if (view == nullptr || targetSplitter == nullptr || idx < 0)
         return false;
 
-    targetSplitter->addTerminalDisplay(view, idx);
+    targetSplitter->addDisplay(view, idx);
     setCurrentView(view);
     return true;
 }
