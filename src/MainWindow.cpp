@@ -9,6 +9,7 @@
 #include "config-konsole.h"
 
 // Qt
+#include <QApplication>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMouseEvent>
@@ -59,19 +60,14 @@
 #include "session/SessionController.h"
 #include "session/SessionManager.h"
 
-#include "settings/ConfigurationDialog.h"
-#include "settings/GeneralSettings.h"
-#include "settings/MemorySettings.h"
-#include "settings/ProfileSettings.h"
-#include "settings/TabBarSettings.h"
-#include "settings/TemporaryFilesSettings.h"
-#include "settings/ThumbnailsSettings.h"
 
 #include "terminalDisplay/TerminalDisplay.h"
 #include "widgets/ViewContainer.h"
 
 #include "pluginsystem/IKonsolePlugin.h"
 
+#include "quick/ProfileListModel.h"
+#include "quick/QmlDialogs.h"
 #include "quick/WindowController.h"
 
 #include <QQuickWindow>
@@ -126,6 +122,11 @@ MainWindow::MainWindow()
     const QString xmlFile = componentName() + QLatin1String("ui.rc"); // Typically "konsoleui.rc"
     // The "Create" flag will make it call createGUI()
     setupGUI(guiOpts, xmlFile);
+    connect(guiFactory(), &KXMLGUIFactory::makingChanges, this, [this](bool changing) {
+        if (!changing) {
+            insertFixedToolBarActions();
+        }
+    });
 
     // Hamburger menu for when the menubar is hidden
     _hamburgerMenu = KStandardAction::hamburgerMenu(nullptr, nullptr, actionCollection());
@@ -556,6 +557,23 @@ void MainWindow::updateHamburgerMenu()
     }
 
     _hamburgerMenu->hideActionsOf(toolBar());
+}
+
+void MainWindow::insertFixedToolBarActions()
+{
+    // New Tab and Split View always lead the toolbar; they aren't in the XML, so
+    // Configure Toolbars can't remove them. The toolbar is rebuilt on every GUI change.
+    auto* bar = findChild<KToolBar*>(QStringLiteral("mainToolBar"), Qt::FindDirectChildrenOnly);
+    if (!bar) {
+        return;
+    }
+    QAction* first = bar->actions().value(0);
+    for (const QString& name : {QStringLiteral("new-tab"), QStringLiteral("split-view")}) {
+        QAction* action = actionCollection()->action(name);
+        if (action && !bar->actions().contains(action)) {
+            bar->insertAction(first, action);
+        }
+    }
 }
 
 void MainWindow::viewFullScreen(bool fullScreen)
@@ -997,62 +1015,37 @@ void MainWindow::showManageProfilesDialog()
 
 void MainWindow::showSettingsDialog(const bool showProfilePage)
 {
-    ConfigurationDialog *confDialog = findChild<ConfigurationDialog *>();
-    const QString profilePageName = i18nc("@title Preferences page name", "Profiles");
+    // One Configure dialog per window, reused while it is open.
+    static QHash<const MainWindow*, QPointer<QQuickWindow>> dialogs;
+    QPointer<QQuickWindow>& confDialog = dialogs[this];
 
-    if (confDialog != nullptr) {
-        if (showProfilePage) {
-            const auto items = confDialog->findChildren<KPageWidgetItem *>();
-            for (const auto page : items) {
-                if (page->name().contains(profilePageName)) {
-                    confDialog->setCurrentPage(page);
-                    break;
-                }
-            }
-        }
-        confDialog->show();
-        return;
-    }
-
-    confDialog = new ConfigurationDialog(this, KonsoleSettings::self());
-
-    const QString generalPageName = i18nc("@title Preferences page name", "General");
-    auto *generalPage = new KPageWidgetItem(new GeneralSettings(confDialog), generalPageName);
-    generalPage->setIcon(QIcon::fromTheme(QStringLiteral("utilities-terminal")));
-    confDialog->addPage(generalPage, true);
-
-    auto *profileSettings = new ProfileSettings(confDialog);
-    auto *profilePage = new KPageWidgetItem(profileSettings, profilePageName);
-    profilePage->setIcon(QIcon::fromTheme(QStringLiteral("preferences-desktop-theme")));
-    confDialog->addPage(profilePage, true);
-    connect(confDialog, &QDialog::accepted, profileSettings, &ProfileSettings::slotAccepted);
-
+    if (confDialog == nullptr) {
+        auto* profiles = new ProfileListModel;
+        profiles->setOpener(this);
 #if defined(Q_OS_LINUX)
-    const QString memoryPageName = i18nc("@title Preferences page name", "Memory");
-    auto memoryPage = new KPageWidgetItem(new MemorySettings(confDialog), memoryPageName);
-    memoryPage->setIcon(QIcon::fromTheme(QStringLiteral("memory")));
-    confDialog->addPage(memoryPage, true);
+        const bool memoryAvailable = true;
+#else
+        const bool memoryAvailable = false;
 #endif
-
-    const QString tabBarPageName = i18nc("@title Preferences page name", "Tab Bar / Splitters");
-    auto tabBarPage = new KPageWidgetItem(new TabBarSettings(confDialog), tabBarPageName);
-    tabBarPage->setIcon(QIcon::fromTheme(QStringLiteral("preferences-tabs")));
-    confDialog->addPage(tabBarPage, true);
-
-    const QString temporaryFilesPageName = i18nc("@title Preferences page name", "Temporary Files");
-    auto temporaryFilesPage = new KPageWidgetItem(new TemporaryFilesSettings(confDialog), temporaryFilesPageName);
-    temporaryFilesPage->setIcon(QIcon::fromTheme(QStringLiteral("folder-temp")));
-    confDialog->addPage(temporaryFilesPage, true);
-
-    const QString thumbnailPageName = i18nc("@title Preferences page name", "Thumbnails");
-    auto thumbnailPage = new KPageWidgetItem(new ThumbnailsSettings(confDialog), thumbnailPageName);
-    thumbnailPage->setIcon(QIcon::fromTheme(QStringLiteral("image-jpeg")));
-    confDialog->addPage(thumbnailPage, true);
+        confDialog = QmlDialogs::open(QStringLiteral("ConfigureDialog"),
+            this,
+            {{QStringLiteral("profiles"), QVariant::fromValue(profiles)},
+                {QStringLiteral("hasDBus"), bool(HAVE_DBUS)},
+                {QStringLiteral("memoryAvailable"), memoryAvailable}},
+            Qt::NonModal);
+        if (confDialog == nullptr) {
+            delete profiles;
+            return;
+        }
+        profiles->setParent(confDialog);
+        connect(this, &QObject::destroyed, confDialog, [this] {
+            dialogs.remove(this);
+        });
+    }
 
     if (showProfilePage) {
-        confDialog->setCurrentPage(profilePage);
+        QMetaObject::invokeMethod(confDialog, "showProfiles");
     }
-
     confDialog->show();
 }
 
@@ -1163,26 +1156,6 @@ void MainWindow::setRemoveWindowTitleBarAndFrame(bool frameless)
 
         // The window is visible and the setting changed
     } else if (windowFlags().testFlag(Qt::FramelessWindowHint) != frameless) {
-        // Usually, a QDialog with a parent stays on top of its parent.
-        // However, after hiding and showing the main window here, this
-        // stops being true.
-        //
-        // This can confuse users, if they apply this setting without closing
-        // the configuration dialog, and the dialog gets behind the main window.
-        // Afterwards, trying to open the configuration dialog doesn't work
-        // (it's already open, but behind the window).
-        //
-        // So, hide and show also the configuration dialog, which makes the dialog
-        // stay on top of its parent again.
-        ConfigurationDialog *confDialog = findChild<ConfigurationDialog *>();
-        QByteArray confDialogGeometry;
-        bool isConfDialogVisible = false;
-        if (confDialog != nullptr && confDialog->isVisible()) {
-            isConfDialogVisible = true;
-            confDialogGeometry = confDialog->saveGeometry();
-            confDialog->hide();
-        }
-
 #if WITH_X11
         const auto oldGeometry = saveGeometry();
         // This happens for every Konsole window. It depends on
@@ -1200,11 +1173,6 @@ void MainWindow::setRemoveWindowTitleBarAndFrame(bool frameless)
         setWindowFlags(newFlags);
         setVisible(true);
 #endif
-
-        if (confDialog != nullptr && isConfDialogVisible) {
-            confDialog->restoreGeometry(confDialogGeometry);
-            confDialog->show();
-        }
     }
 }
 

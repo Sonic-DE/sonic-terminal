@@ -44,6 +44,8 @@ QQC2.ToolButton {
             return QQC2.AbstractButton.TextBesideIcon;
         }
     }
+    // A QToolBar button doesn't take the focus from the terminal.
+    focusPolicy: Qt.NoFocus
     enabled: qAction?.enabled ?? false
     checkable: qAction?.checkable ?? false
     checked: qAction?.checked ?? false

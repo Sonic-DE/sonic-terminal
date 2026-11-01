@@ -75,6 +75,8 @@ Item {
             height: tabData.rect?.height ?? 0
             visible: tabData.visible ?? false
             checked: tabIndex === tabs.currentIndex
+            // QTabBar's: clicking a tab leaves the focus in the terminal.
+            focusPolicy: Qt.TabFocus
             // The style draws the frame; the icon and title go where it puts them for the hidden
             // tab, beside the close button (the desktop style can't leave room for it).
             Accessible.name: tabData.label ?? ""
@@ -158,6 +160,7 @@ Item {
             width: modelData.geometry.width
             height: modelData.geometry.height
             padding: 0
+            focusPolicy: Qt.NoFocus
             display: QQC2.AbstractButton.IconOnly
             // As the style's tab close indicator: the title bar close icon, small.
             icon.name: "window-close-symbolic"
@@ -180,6 +183,7 @@ Item {
             width: modelData.geometry.width
             height: modelData.geometry.height
             padding: 0
+            focusPolicy: Qt.NoFocus
             enabled: modelData.enabled
             display: QQC2.AbstractButton.IconOnly
             icon.name: index === 0 ? "go-previous" : "go-next"
@@ -204,6 +208,8 @@ Item {
                 y: modelData.geometry.y
                 width: modelData.geometry.width
                 height: modelData.geometry.height
+                // QToolButton's default: no focus by clicking.
+                focusPolicy: Qt.TabFocus
                 enabled: modelData.enabled
                 icon.name: modelData.iconName
                 text: modelData.text !== "" ? modelData.text : modelData.toolTip

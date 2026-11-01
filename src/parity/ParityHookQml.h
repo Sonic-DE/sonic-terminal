@@ -5,6 +5,7 @@
 
 #include <QList>
 #include <QString>
+#include <QStringList>
 
 class QMenu;
 class QObject;
@@ -31,5 +32,13 @@ namespace ParityHook {
     QObject* qmlDialogButton(QWindow* dialog, const QString& object, const QString& text, int standardButton);
     QPixmap grabQmlDialog(QWindow* dialog);
     void rejectQmlDialog(QWindow* dialog);
+    // A PageDialog's or TabbedPageDialog's pages (DialogPage children), as their titles;
+    // empty for a dialog without pages. Unavailable pages aren't listed.
+    QStringList qmlDialogPages(QWindow* dialog);
+    // Makes the page titled `title` current; false if there is none.
+    bool showQmlDialogPage(QWindow* dialog, const QString& title);
+    // Makes a row current in a list or combo box by object name: `row`, or the first row
+    // whose text starts with `text`; false if there is no such list or row.
+    bool selectQmlRow(QWindow* dialog, const QString& object, int row, const QString& text);
 }
 }

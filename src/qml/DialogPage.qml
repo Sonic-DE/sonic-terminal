@@ -10,4 +10,6 @@ import QtQuick.Layouts
 ColumnLayout {
     property string title
     property string iconName
+    // False leaves the page out, as a page not added to the dialog.
+    property bool available: true
 }

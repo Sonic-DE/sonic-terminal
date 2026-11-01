@@ -7,6 +7,7 @@
 #include "quick/ChromeAdapter.h"
 #include "quick/WindowController.h"
 
+#include <QAbstractItemModel>
 #include <QApplication>
 #include <QJSValue>
 #include <QMenu>
@@ -151,5 +152,85 @@ QPixmap grabQmlDialog(QWindow* dialog)
 void rejectQmlDialog(QWindow* dialog)
 {
     QMetaObject::invokeMethod(dialog, "reject");
+}
+
+namespace {
+    bool isPage(const QObject* item)
+    {
+        for (const QMetaObject* meta = item->metaObject(); meta; meta = meta->superClass()) {
+            if (QByteArray(meta->className()).startsWith("DialogPage_QMLTYPE")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // The page stack's children, in the order the dialog's currentIndex counts them.
+    QList<QQuickItem*> pageStack(QWindow* dialog)
+    {
+        const auto items = dialog->findChildren<QQuickItem*>();
+        for (QQuickItem* item : items) {
+            if (isPage(item) && item->parentItem()) {
+                return item->parentItem()->childItems();
+            }
+        }
+        return {};
+    }
+}
+
+QStringList qmlDialogPages(QWindow* dialog)
+{
+    QStringList titles;
+    const QList<QQuickItem*> stack = pageStack(dialog);
+    for (QQuickItem* page : stack) {
+        if (isPage(page) && page->property("available").toBool()) {
+            titles.append(page->property("title").toString());
+        }
+    }
+    return titles;
+}
+
+bool showQmlDialogPage(QWindow* dialog, const QString& title)
+{
+    const QList<QQuickItem*> stack = pageStack(dialog);
+    for (int i = 0; i < stack.size(); ++i) {
+        if (isPage(stack.at(i)) && stack.at(i)->property("title").toString().remove(u'&') == title) {
+            return dialog->setProperty("currentIndex", i);
+        }
+    }
+    return false;
+}
+
+bool selectQmlRow(QWindow* dialog, const QString& object, int row, const QString& text)
+{
+    auto* list = dialog->findChild<QQuickItem*>(object);
+    if (!list || !list->property("currentIndex").isValid()) {
+        return false;
+    }
+    const int count = list->property("count").toInt();
+    if (!text.isEmpty()) {
+        row = -1;
+        if (auto* model = list->property("model").value<QAbstractItemModel*>()) {
+            const QModelIndexList found = model->match(model->index(0, 0), Qt::DisplayRole, text, 1, Qt::MatchStartsWith);
+            row = found.isEmpty() ? -1 : found.first().row();
+        } else if (list->inherits("QQuickComboBox")) {
+            for (int i = 0; i < count && row < 0; ++i) {
+                QString choice;
+                QMetaObject::invokeMethod(list, "textAt", Q_RETURN_ARG(QString, choice), Q_ARG(int, i));
+                row = choice.startsWith(text) ? i : -1;
+            }
+        }
+    } else if (row < 0) {
+        row += count;
+    }
+    if (row < 0 || row >= count) {
+        return false;
+    }
+    list->setProperty("currentIndex", row);
+    // A user's choice in a combo box is also reported as activated.
+    if (list->inherits("QQuickComboBox")) {
+        QMetaObject::invokeMethod(list, "activated", Q_ARG(int, row));
+    }
+    return true;
 }
 }

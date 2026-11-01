@@ -82,6 +82,8 @@ Kirigami.AbstractApplicationWindow {
                         required property var modelData
                         required property int index
                         text: modelData.text
+                        // QMenuBar takes no focus.
+                        focusPolicy: Qt.NoFocus
                         highlighted: adapter.openIndex === index
                         onPressed: if (adapter.openIndex !== index) adapter.popupMenu(index)
                         // Alt + mnemonic clicks without a press.

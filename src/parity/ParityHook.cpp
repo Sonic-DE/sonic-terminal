@@ -85,6 +85,18 @@ static QPixmap grabQmlDialog(QWindow*)
 static void rejectQmlDialog(QWindow*)
 {
 }
+static QStringList qmlDialogPages(QWindow*)
+{
+    return {};
+}
+static bool showQmlDialogPage(QWindow*, const QString&)
+{
+    return false;
+}
+static bool selectQmlRow(QWindow*, const QString&, int, const QString&)
+{
+    return false;
+}
 }
 #endif
 
@@ -617,23 +629,57 @@ namespace {
                 }
                 return next(300);
             }
-            QTimer::singleShot(400, this, [this, dialog, name, close] {
+            captureQmlPages(dialog, name, qmlDialogPages(dialog), close, false);
+        }
+
+        // Each page in turn, as capturePages() for a widget page dialog.
+        void captureQmlPages(QPointer<QWindow> dialog, const QString& name, QStringList pages, bool close, bool paged)
+        {
+            QTimer::singleShot(paged ? 300 : 400, this, [this, dialog, name, pages, close]() mutable {
                 if (!dialog) {
                     return fail(QStringLiteral("dialog closed early: ") + name);
                 }
-                const QString file = QStringLiteral("dialog-") + name;
-                if (save(grabQmlDialog(dialog), file)) {
-                    QFile marker(QDir(_output).filePath(safeName(file) + QStringLiteral(".png.qml")));
-                    if (!marker.open(QIODevice::WriteOnly)) {
-                        return fail(QStringLiteral("cannot write ") + marker.fileName());
+                QString file = QStringLiteral("dialog-") + name;
+                if (!pages.isEmpty()) {
+                    const QString page = pages.takeFirst();
+                    if (!showQmlDialogPage(dialog, page)) {
+                        return fail(QStringLiteral("no page ") + page);
                     }
+                    trace(QStringLiteral("  page ") + page);
+                    file += QStringLiteral("-") + QString(page).remove(u'&');
+                    QTimer::singleShot(300, this, [this, dialog, name, pages, close, file] {
+                        if (!dialog) {
+                            return fail(QStringLiteral("dialog closed early: ") + name);
+                        }
+                        saveQmlDialog(dialog, file);
+                        if (!pages.isEmpty()) {
+                            return captureQmlPages(dialog, name, pages, close, true);
+                        }
+                        if (close) {
+                            rejectQmlDialog(dialog);
+                        }
+                        next(300);
+                    });
+                    return;
                 }
-                saveScreen(file);
+                saveQmlDialog(dialog, file);
                 if (close) {
                     rejectQmlDialog(dialog);
                 }
                 next(300);
             });
+        }
+
+        // The dialog's capture with compare.py's QML marker, and the screen around it.
+        void saveQmlDialog(QWindow* dialog, const QString& file)
+        {
+            if (save(grabQmlDialog(dialog), file)) {
+                QFile marker(QDir(_output).filePath(safeName(file) + QStringLiteral(".png.qml")));
+                if (!marker.open(QIODevice::WriteOnly)) {
+                    return fail(QStringLiteral("cannot write ") + marker.fileName());
+                }
+            }
+            saveScreen(file);
         }
 
         template <typename T>
@@ -673,6 +719,12 @@ namespace {
 
         void selectPage(const QString& title)
         {
+            if (QWindow* qml = frontQmlDialog()) {
+                if (!showQmlDialogPage(qml, title)) {
+                    return fail(QStringLiteral("no page ") + title);
+                }
+                return next(300);
+            }
             QDialog* dialog = visibleDialog();
             KPageView* view = dialog ? dialog->findChild<KPageView*>() : nullptr;
             if (!view) {
@@ -695,6 +747,12 @@ namespace {
 
         void selectRow(const QString& object, int row, const QString& text)
         {
+            if (QWindow* qml = frontQmlDialog()) {
+                if (!selectQmlRow(qml, object, row, text)) {
+                    return fail(QStringLiteral("select: no row %1 (%2) in %3").arg(row).arg(text, object));
+                }
+                return next(300);
+            }
             if (auto* combo = dialogChild<QComboBox>(object)) {
                 if (row < 0) {
                     row += combo->count();

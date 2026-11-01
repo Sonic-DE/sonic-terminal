@@ -176,6 +176,8 @@ TerminalView::TerminalView(TerminalDisplay* display, QQuickItem* parent)
         setFlag(ItemAcceptsInputMethod, true);
         setFlag(ItemAcceptsDrops, true);
         setActiveFocusOnTab(true);
+        // TerminalDisplay's (set after it creates this view): a click focuses the terminal.
+        setFocusPolicy(Qt::WheelFocus);
 
         _autoHideTimer = new QTimer(this);
         _autoHideTimer->setSingleShot(true);
@@ -390,6 +392,11 @@ void TerminalView::geometryChange(const QRectF& newGeometry, const QRectF& oldGe
     // A resized item gets a new texture, of which the scene graph paints only the dirty rect.
     if (newGeometry.size() != oldGeometry.size()) {
         QQuickPaintedItem::update(boundingRect().toAlignedRect());
+        // The snapshot takes the new size at the next polish; draw all of it, as the shell
+        // may print nothing (a closed dock's room would stay empty).
+        if (_sceneMode && _display) {
+            update(QRegion(_display->rect()));
+        }
     }
     if (!_sceneMode || _followsFacade || !_display || newGeometry.size() == oldGeometry.size()) {
         return;

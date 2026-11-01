@@ -77,6 +77,10 @@ public:
     Q_INVOKABLE void toolBarContextMenu(QObject* toolBar, QQuickItem* item, QPointF position);
     // The hidden bar's height (horizontal) or width (vertical) follows the QML bar's.
     Q_INVOKABLE void setExtent(QObject* bar, int extent);
+    // The Qt::ToolBarArea of the window edge nearest a point (window coordinates).
+    Q_INVOKABLE int dropArea(QPointF windowPosition, QSizeF windowSize) const;
+    // An unlocked toolbar dropped at the window's edge nearest the drop point.
+    Q_INVOKABLE void moveToolBar(QObject* toolBar, QPointF windowPosition, QSizeF windowSize);
 
     // The open menu bar menu, if any.
     QMenu* openMenu() const;

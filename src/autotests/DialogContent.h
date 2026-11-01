@@ -9,6 +9,8 @@
 // "tooltip:…"), collected from a widget dialog and from a QML dialog: the QML dialogs keep
 // all the content of the widget ones (DialogContentTest).
 
+#include <KPageDialog>
+#include <KPageView>
 #include <KPageWidgetModel>
 
 #include <QAbstractButton>
@@ -93,6 +95,17 @@ inline QSet<QString> fromWidgets(QWidget* dialog)
     return entries;
 }
 
+// A DialogPage, or a page type built on it.
+inline bool isPage(const QObject* item)
+{
+    for (const QMetaObject* meta = item->metaObject(); meta; meta = meta->superClass()) {
+        if (QByteArray(meta->className()).startsWith("DialogPage_QMLTYPE")) {
+            return true;
+        }
+    }
+    return false;
+}
+
 inline void fromItem(QQuickItem* item, QSet<QString>& entries)
 {
     // The attached property by the name the item's file imports QtQuick.Controls under.
@@ -103,7 +116,7 @@ inline void fromItem(QQuickItem* item, QSet<QString>& entries)
         }
     }
     const QString text = item->property("text").toString();
-    if (QByteArray(item->metaObject()->className()).startsWith("DialogPage_QMLTYPE")) {
+    if (isPage(item)) {
         add(entries, "page", item->property("title").toString());
     }
     // Controls: their own entries, not those of the items they're drawn with.
@@ -157,11 +170,55 @@ inline void fromItem(QQuickItem* item, QSet<QString>& entries)
     }
 }
 
+// A page dialog's widgets on every page and tab: those not current are hidden, and the
+// title shows the current page's name.
+inline QSet<QString> fromWidgetPages(KPageDialog* dialog)
+{
+    QSet<QString> entries;
+    // The model has them all: KConfigDialog's page items aren't the dialog's children.
+    auto* view = dialog->findChild<KPageView*>();
+    auto* model = view ? qobject_cast<KPageWidgetModel*>(view->model()) : nullptr;
+    if (!model) {
+        return entries;
+    }
+    for (int row = 0; row < model->rowCount(); ++row) {
+        KPageWidgetItem* page = model->item(model->index(row, 0));
+        add(entries, "page", page->name());
+        dialog->setCurrentPage(page);
+        entries += fromWidgets(dialog);
+        const QList<QTabWidget*> tabWidgets = page->widget()->findChildren<QTabWidget*>();
+        for (QTabWidget* tabs : tabWidgets) {
+            for (int i = 0; i < tabs->count(); ++i) {
+                tabs->setCurrentIndex(i);
+                entries += fromWidgets(dialog);
+            }
+        }
+    }
+    return entries;
+}
+
 // Every item of the dialog, shown or not: a page or tab not current still counts.
 inline QSet<QString> fromQml(QQuickWindow* dialog)
 {
     QSet<QString> entries;
     fromItem(dialog->contentItem(), entries);
+    return entries;
+}
+
+// A PageDialog's or TabbedPageDialog's items with each page current, as fromWidgetPages().
+inline QSet<QString> fromQmlPages(QQuickWindow* dialog)
+{
+    QSet<QString> entries;
+    // Pages a dialog type declares are its QObject children, not its content item's.
+    const QList<QQuickItem*> items = dialog->findChildren<QQuickItem*>();
+    int pages = 0;
+    for (QQuickItem* item : items) {
+        pages += isPage(item) ? 1 : 0;
+    }
+    for (int i = 0; i < pages; ++i) {
+        dialog->setProperty("currentIndex", i);
+        entries += fromQml(dialog);
+    }
     return entries;
 }
 

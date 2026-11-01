@@ -32,5 +32,14 @@ public:
     // TabTitleFormatButton's menu below the item (Session::TabTitleContext); the chosen
     // element, empty when none.
     Q_INVOKABLE static QString chooseTitleFormat(int context, QQuickItem* below);
+    // The Temporary Files page's locations; the cache one with "~" for the home directory.
+    Q_INVOKABLE static QString temporaryDirectory();
+    Q_INVOKABLE static QString cacheDirectory();
+    // KUrlRequester's directory mode: the chosen directory's path, empty when cancelled.
+    Q_INVOKABLE static QString chooseDirectory(const QString& start, QQuickItem* from);
+    // The General page's 'Enable all "Don't Ask Again" messages'.
+    Q_INVOKABLE static void enableAllMessages();
+    // KConfigDialog's Help button.
+    Q_INVOKABLE static void showHelp();
 };
 }

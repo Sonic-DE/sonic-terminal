@@ -12,12 +12,13 @@
 #include <QDir>
 #include <QKeyEvent>
 #include <QMetaEnum>
+#include <QPointer>
+#include <QQuickWindow>
 #include <QStringList>
 #include <QUrl>
 
 // KDE
 #include <KActionCollection>
-#include <KConfigDialog>
 #include <KLocalizedString>
 #include <KPluginFactory>
 
@@ -27,10 +28,10 @@
 #include "ViewManager.h"
 #include "konsoledebug.h"
 #include "profile/ProfileManager.h"
+#include "quick/ProfileListModel.h"
+#include "quick/QmlDialogs.h"
 #include "session/SessionController.h"
 #include "session/SessionManager.h"
-#include "settings/PartInfo.h"
-#include "settings/ProfileSettings.h"
 #include "terminalDisplay/TerminalDisplay.h"
 #include "widgets/EditProfileDialog.h"
 #include "widgets/ViewContainer.h"
@@ -305,21 +306,23 @@ void Part::activeViewTitleChanged(ViewProperties *properties)
 
 void Part::showManageProfilesDialog(QWidget *parent)
 {
-    // Make sure this string is unique among all users of this part
-    if (KConfigDialog::showDialog(QStringLiteral("konsolepartmanageprofiles"))) {
+    // One dialog for every user of this part, as KConfigDialog::showDialog() keeps it.
+    static QPointer<QQuickWindow> settingsDialog;
+    if (settingsDialog != nullptr) {
+        settingsDialog->show();
+        settingsDialog->raise();
+        settingsDialog->requestActivate();
         return;
     }
 
-    KConfigDialog *settingsDialog = new KConfigDialog(parent, QStringLiteral("konsolepartmanageprofiles"), KonsoleSettings::self());
-    settingsDialog->setFaceType(KPageDialog::Tabbed);
-
-    auto profileSettings = new ProfileSettings(settingsDialog);
-    settingsDialog->addPage(profileSettings, i18nc("@title Preferences page name", "Profiles"), QStringLiteral("configure"));
-
-    auto partInfoSettings = new PartInfoSettings(settingsDialog);
-    settingsDialog->addPage(partInfoSettings, i18nc("@title Preferences page name", "Part Info"), QStringLiteral("dialog-information"));
-
-    settingsDialog->show();
+    auto* profiles = new ProfileListModel;
+    profiles->setOpener(parent);
+    settingsDialog = QmlDialogs::open(QStringLiteral("PartSettingsDialog"), parent, {{QStringLiteral("profiles"), QVariant::fromValue(profiles)}}, Qt::NonModal);
+    if (settingsDialog == nullptr) {
+        delete profiles;
+        return;
+    }
+    profiles->setParent(settingsDialog);
 }
 
 void Part::showEditCurrentProfileDialog(QWidget *parent)

@@ -28,6 +28,7 @@
 #include "../widgets/ViewContainer.h"
 
 #include <KActionCollection>
+#include <KToolBar>
 #include <KXMLGUIFactory>
 
 #include <QDialog>
@@ -82,9 +83,12 @@ private Q_SLOTS:
     void testKeys();
     void testSearchTabs();
     void testPluginDock();
+    void testClosedDockRoomIsRepainted();
     void testDialogsAreTransientForTheQmlWindow();
     void testHamburgerMenuOpensUnderItsButton();
     void testFirstTerminalHasFocus();
+    void testClicksKeepTheTerminalFocus();
+    void testUnlockedToolBarDragsToAnEdge();
     void testGeometryFollows();
     void testFocusBridge();
     void testCloseClosesTheCompatWindow();
@@ -241,6 +245,36 @@ void QmlWindowTest::testChromeFollowsTheWidgets()
     QCOMPARE(qmlMenus, widgetMenus);
     QCOMPARE(chrome->menuBarVisible(), _widgetWindow->menuBar()->isVisible());
 
+    // The QML window draws a button for every action of the compat toolbars, as they are at startup.
+    const auto drawnActions = [qml] {
+        QStringList names;
+        std::function<void(QQuickItem*)> collect = [&](QQuickItem* item) {
+            const auto* action = qobject_cast<QAction*>(item->property("qAction").value<QObject*>());
+            if (action && item->isVisible() && item->width() > 0) {
+                names.append(action->objectName());
+            }
+            for (QQuickItem* child : item->childItems()) {
+                collect(child);
+            }
+        };
+        collect(qml->contentItem());
+        return names;
+    };
+    const auto compatActions = [this] {
+        QStringList names;
+        for (QToolBar* toolBar : _compatWindow->findChildren<QToolBar*>(Qt::FindDirectChildrenOnly)) {
+            for (QAction* action : toolBar->actions()) {
+                if (!toolBar->isHidden() && action->isVisible() && !action->isSeparator() && toolBar->widgetForAction(action)
+                    && qobject_cast<QToolButton*>(toolBar->widgetForAction(action))) {
+                    names.append(action->objectName());
+                }
+            }
+        }
+        return names;
+    };
+    QVERIFY(compatActions().contains(QStringLiteral("new-tab")));
+    QTRY_COMPARE(drawnActions(), compatActions());
+
     for (MainWindow* window : {_widgetWindow.data(), _compatWindow.data()}) {
         for (QToolBar* toolBar : window->findChildren<QToolBar*>(Qt::FindDirectChildrenOnly)) {
             toolBar->show();
@@ -262,6 +296,33 @@ void QmlWindowTest::testChromeFollowsTheWidgets()
         return names;
     };
     QVERIFY(!actionsOf(_widgetWindow->findChildren<QToolBar*>(Qt::FindDirectChildrenOnly)).isEmpty());
+    // The window's and the session's actions share one toolbar.
+    const QList<QToolBar*> toolBars = _widgetWindow->findChildren<QToolBar*>(Qt::FindDirectChildrenOnly);
+    QCOMPARE(toolBars.size(), 1);
+    QCOMPARE(toolBars.first()->objectName(), QStringLiteral("mainToolBar"));
+    const QStringList toolBarActions = actionsOf(toolBars);
+    QVERIFY(toolBarActions.contains(QStringLiteral("new-tab:on")));
+    QVERIFY(std::any_of(toolBarActions.cbegin(), toolBarActions.cend(), [](const QString& name) {
+        return name.startsWith(QStringLiteral("edit_paste:"));
+    }));
+    // New Tab and Split View lead it, also after the GUI is rebuilt (session switch, Configure Toolbars).
+    const auto leading = [this] {
+        const QList<QAction*> actions = _widgetWindow->findChild<QToolBar*>(QStringLiteral("mainToolBar"))->actions();
+        return QStringList{actions.value(0)->objectName(), actions.value(1)->objectName()};
+    };
+    const QStringList fixed{QStringLiteral("new-tab"), QStringLiteral("split-view")};
+    QCOMPARE(leading(), fixed);
+    for (KXMLGUIClient* client : _widgetWindow->guiFactory()->clients()) {
+        if (client != _widgetWindow.data()) {
+            _widgetWindow->guiFactory()->removeClient(client);
+            _widgetWindow->guiFactory()->addClient(client);
+            break;
+        }
+    }
+    QCOMPARE(leading(), fixed);
+    QVERIFY(QMetaObject::invokeMethod(_widgetWindow.data(), "saveNewToolbarConfig"));
+    QCOMPARE(_widgetWindow->findChildren<QToolBar*>(Qt::FindDirectChildrenOnly).size(), 1);
+    QCOMPARE(leading(), fixed);
     QStringList qmlActions;
     QTRY_VERIFY(!chrome->topLines().isEmpty());
     for (const QVariant& line : chrome->topLines()) {
@@ -445,8 +506,45 @@ void QmlWindowTest::testPluginDock()
     docks->closeDock(dock);
     QTRY_VERIFY(!dock->isVisible());
     QTRY_VERIFY(!content->isVisible());
+    // The terminal takes the dock's room back, in the compat window and the QML window.
+    const auto centralNow = [compatCentral, this] {
+        return QRect(compatCentral->mapTo(_compatWindow, QPoint(0, 0)), compatCentral->size());
+    };
+    QTRY_COMPARE(centralNow().left(), 0);
+    QTRY_COMPARE(centralNow().width(), _compatWindow->width());
+    QTRY_COMPARE(centralArea->mapRectToScene(centralArea->boundingRect()).toRect(), centralNow());
+    TerminalView* view = TerminalViewRegistry::view(displayOf(_compatWindow));
+    QTRY_COMPARE(view->mapRectToScene(view->boundingRect()).toRect().width(), centralNow().width());
     dock->show();
     QTRY_VERIFY(content->isVisible());
+}
+
+void QmlWindowTest::testClosedDockRoomIsRepainted()
+{
+    // A dock on the right (SSHManager's place in the report), opened and closed while the
+    // shell prints nothing: the terminal paints the room the dock leaves.
+    QQuickWindow* qml = _controller->qmlWindow();
+    QVERIFY(QTest::qWaitForWindowExposed(qml));
+    auto* dock = new QDockWidget(_compatWindow);
+    dock->setWidget(new QLabel(QStringLiteral("right dock")));
+    _compatWindow->addDockWidget(Qt::RightDockWidgetArea, dock);
+    TerminalDisplay* display = displayOf(_compatWindow);
+    TerminalView* view = TerminalViewRegistry::view(display);
+    QWidget* compatCentral = _compatWindow->centralWidget();
+    QTRY_VERIFY(compatCentral->width() < _compatWindow->width() - 50);
+    QTest::qWait(500);
+    dock->close();
+    QTRY_COMPARE(compatCentral->width(), _compatWindow->width());
+    QTRY_COMPARE(qRound(view->width()), display->width());
+    // The strip the dock covered, inside the terminal's content and left of its scroll bar.
+    const QColor background = display->terminalColor()->backgroundColor();
+    const auto stripPixel = [qml, view, display] {
+        const QRect content = display->contentRect();
+        const QPointF point(content.right() - 40, content.bottom() - 20);
+        return qml->grabWindow().pixelColor(view->mapToScene(point).toPoint());
+    };
+    QTRY_COMPARE(stripPixel().rgb(), background.rgb());
+    delete dock;
 }
 
 void QmlWindowTest::testDialogsAreTransientForTheQmlWindow()
@@ -506,6 +604,111 @@ void QmlWindowTest::testHamburgerMenuOpensUnderItsButton()
     QTRY_VERIFY((menu = qobject_cast<QMenu*>(QApplication::activePopupWidget())));
     QTRY_COMPARE(menu->geometry().top(), hamburgerButton()->mapToGlobal(QPointF(0, hamburgerButton()->height())).toPoint().y());
     menu->close();
+}
+
+void QmlWindowTest::testClicksKeepTheTerminalFocus()
+{
+    QQuickWindow* qml = _controller->qmlWindow();
+    TerminalView* view = TerminalViewRegistry::view(displayOf(_compatWindow));
+    QTRY_VERIFY(qml->isActive());
+    QTRY_VERIFY(view->hasActiveFocus());
+
+    // As the widget window's toolbar buttons and menu bar, its chrome doesn't take the focus by a click.
+    QList<QQuickItem*> buttons;
+    std::function<void(QQuickItem*)> collect = [&](QQuickItem* item) {
+        if (item->property("qAction").isValid() || QByteArray(item->metaObject()->className()).startsWith("QQuickMenuBarItem")) {
+            buttons.append(item);
+        }
+        for (QQuickItem* child : item->childItems()) {
+            collect(child);
+        }
+    };
+    collect(qml->contentItem());
+    QVERIFY(!buttons.isEmpty());
+    for (const QQuickItem* button : std::as_const(buttons)) {
+        QVERIFY2(!(button->focusPolicy() & Qt::ClickFocus), button->metaObject()->className());
+    }
+
+    // A click on the terminal gives it the focus back, as the widget's focus policy does.
+    QQuickItem other(qml->contentItem());
+    other.forceActiveFocus();
+    QTRY_VERIFY(!view->hasActiveFocus());
+    QTest::mouseClick(qml, Qt::LeftButton, {}, view->mapToScene(QPointF(view->width() / 2, view->height() / 2)).toPoint());
+    QTRY_VERIFY(view->hasActiveFocus());
+}
+
+void QmlWindowTest::testUnlockedToolBarDragsToAnEdge()
+{
+    QQuickWindow* qml = _controller->qmlWindow();
+    QVERIFY(QTest::qWaitForWindowExposed(qml));
+    auto* toolBar = _compatWindow->findChild<KToolBar*>(QStringLiteral("mainToolBar"), Qt::FindDirectChildrenOnly);
+    QVERIFY(toolBar);
+    const auto grip = [qml]() -> QQuickItem* {
+        QQuickItem* found = nullptr;
+        std::function<void(QQuickItem*)> find = [&](QQuickItem* item) {
+            if (item->objectName() == QLatin1String("toolBarGrip") && item->isVisible()) {
+                found = item;
+            }
+            for (QQuickItem* child : item->childItems()) {
+                find(child);
+            }
+        };
+        find(qml->contentItem());
+        return found;
+    };
+
+    // Locked (the default): no grip, as QToolBar shows no handle.
+    KToolBar::setToolBarsLocked(true);
+    QTRY_VERIFY(!toolBar->isMovable());
+    QTRY_VERIFY(!grip());
+
+    // Unlocked: dragging the grip to the window's bottom edge moves the toolbar there.
+    KToolBar::setToolBarsLocked(false);
+    QTRY_VERIFY(grip());
+    // While dragging, an indicator covers the edge the toolbar will go to.
+    const auto indicator = [qml]() -> QRectF {
+        QRectF rect;
+        std::function<void(QQuickItem*)> find = [&](QQuickItem* item) {
+            if (item->objectName() == QLatin1String("toolBarDropIndicator") && item->isVisible()) {
+                rect = item->mapRectToScene(item->boundingRect());
+            }
+            for (QQuickItem* child : item->childItems()) {
+                find(child);
+            }
+        };
+        find(qml->contentItem()->parentItem() ? qml->contentItem()->parentItem() : qml->contentItem());
+        return rect;
+    };
+    const auto drag = [qml, &indicator](QQuickItem* handle, QPoint to, bool atBottom) {
+        const QPoint from = handle->mapToScene(QPointF(handle->width() / 2, handle->height() / 2)).toPoint();
+        QTest::mousePress(qml, Qt::LeftButton, {}, from);
+        for (int step = 1; step <= 10; ++step) {
+            QTest::mouseMove(qml, from + (to - from) * step / 10);
+        }
+        QTRY_VERIFY(!indicator().isEmpty());
+        QCOMPARE(indicator().width(), qreal(qml->width()));
+        QCOMPARE(atBottom ? indicator().bottom() : indicator().top(), atBottom ? qreal(qml->height()) : 0.0);
+        QTest::mouseRelease(qml, Qt::LeftButton, {}, to);
+        QTRY_VERIFY(indicator().isEmpty());
+    };
+    drag(grip(), QPoint(qml->width() / 2, qml->height() - 5), true);
+    QTRY_COMPARE(_compatWindow->toolBarArea(toolBar), Qt::BottomToolBarArea);
+    auto* chrome = qml->findChild<ChromeAdapter*>();
+    QTRY_VERIFY(!chrome->bottomLines().isEmpty());
+
+    // And back to the top, from its grip in the bottom bar.
+    const auto gripRect = [&grip] {
+        QQuickItem* handle = grip();
+        return handle ? handle->mapRectToScene(handle->boundingRect()) : QRectF();
+    };
+    QTRY_VERIFY(gripRect().top() > qml->height() / 2 && gripRect().bottom() <= qml->height());
+    // The terminal takes the room the top bar left.
+    auto* centralArea = qml->findChild<QQuickItem*>(QStringLiteral("centralArea"));
+    QTRY_COMPARE(centralArea->mapRectToScene(centralArea->boundingRect()).top(), 0.0);
+    drag(grip(), QPoint(qml->width() / 2, 5), false);
+    QTRY_COMPARE(_compatWindow->toolBarArea(toolBar), Qt::TopToolBarArea);
+    QTRY_VERIFY(chrome->bottomLines().isEmpty());
+    KToolBar::setToolBarsLocked(true);
 }
 
 void QmlWindowTest::testFirstTerminalHasFocus()

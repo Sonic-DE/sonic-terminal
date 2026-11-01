@@ -59,6 +59,61 @@ QQC2.ToolBar {
                     onTapped: eventPoint => bar.chrome.toolBarContextMenu(toolBar.modelData.toolBar, toolBar, eventPoint.position)
                 }
 
+                // QToolBar's handle while the positions aren't locked: drag it to a window edge.
+                Item {
+                    id: grip
+                    objectName: "toolBarGrip"
+                    property point dropPosition
+                    visible: toolBar.modelData.movable ?? false
+                    implicitWidth: bar.vertical ? Kirigami.Units.gridUnit : Kirigami.Units.smallSpacing * 2
+                    implicitHeight: bar.vertical ? Kirigami.Units.smallSpacing * 2 : Kirigami.Units.gridUnit
+                    Layout.fillHeight: !bar.vertical
+                    Layout.fillWidth: bar.vertical
+
+                    Kirigami.Separator {
+                        anchors.centerIn: parent
+                        width: bar.vertical ? parent.width * 0.6 : 1
+                        height: bar.vertical ? 1 : parent.height * 0.6
+                    }
+                    HoverHandler {
+                        cursorShape: Qt.SizeAllCursor
+                    }
+                    DragHandler {
+                        id: gripDrag
+                        target: null
+                        onCentroidChanged: {
+                            if (active) {
+                                grip.dropPosition = centroid.scenePosition;
+                                dropIndicator.area = bar.chrome.dropArea(grip.dropPosition, Qt.size(grip.Window.width, grip.Window.height));
+                            }
+                        }
+                        onActiveChanged: {
+                            if (!active) {
+                                bar.chrome.moveToolBar(toolBar.modelData.toolBar, grip.dropPosition, Qt.size(grip.Window.width, grip.Window.height));
+                            }
+                        }
+                    }
+
+                    // Where the toolbar goes, as QMainWindow shows it while one is dragged.
+                    Rectangle {
+                        id: dropIndicator
+                        objectName: "toolBarDropIndicator"
+                        // Qt::ToolBarArea: 1 left, 2 right, 4 top, 8 bottom.
+                        property int area: 0
+                        readonly property bool horizontal: area === 4 || area === 8
+                        readonly property real extent: bar.vertical ? bar.width : bar.height
+                        parent: QQC2.Overlay.overlay
+                        visible: gripDrag.active && area !== 0
+                        x: area === 2 ? (parent?.width ?? 0) - width : 0
+                        y: area === 8 ? (parent?.height ?? 0) - height : 0
+                        width: horizontal ? (parent?.width ?? 0) : extent
+                        height: horizontal ? extent : (parent?.height ?? 0)
+                        color: Qt.alpha(Kirigami.Theme.highlightColor, 0.3)
+                        border.color: Kirigami.Theme.highlightColor
+                        border.width: 1
+                    }
+                }
+
                 Repeater {
                     model: toolBar.modelData.items
                     delegate: Loader {

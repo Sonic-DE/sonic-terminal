@@ -13,8 +13,19 @@
 #include "../HistorySizeDialog.h"
 #include "../RenameTabDialog.h"
 #include "../quick/CopyInputModel.h"
+#include "../quick/ProfileListModel.h"
 #include "../quick/QmlDialogs.h"
+#include "../settings/ConfigurationDialog.h"
+#include "../settings/GeneralSettings.h"
+#include "../settings/MemorySettings.h"
+#include "../settings/ProfileSettings.h"
+#include "../settings/TabBarSettings.h"
+#include "../settings/TemporaryFilesSettings.h"
+#include "../settings/ThumbnailsSettings.h"
+#include "KonsoleSettings.h"
+#include "ui_PartInfo.h"
 
+#include <KConfigDialog>
 #include <KLocalizedString>
 
 #include <QDir>
@@ -201,6 +212,35 @@ void DialogContentTest::testDialog_data()
     }) << QStringLiteral("TextInputDialog")
                                         << QVariantMap{{QStringLiteral("title"), i18n("Text Editor Custom Command")},
                                                {QStringLiteral("labelText"), editorLabel}};
+    // MainWindow::showSettingsDialog() before the QML dialog.
+    QTest::newRow("Configure") << std::function<QWidget*()>([] {
+        auto* dialog = new ConfigurationDialog(nullptr, KonsoleSettings::self());
+        const auto addPage = [dialog](QWidget* page, const QString& name, const QString& icon) {
+            auto* item = new KPageWidgetItem(page, name);
+            item->setIcon(QIcon::fromTheme(icon));
+            dialog->addPage(item, true);
+        };
+        addPage(new GeneralSettings(dialog), i18nc("@title Preferences page name", "General"), QStringLiteral("utilities-terminal"));
+        addPage(new ProfileSettings(dialog), i18nc("@title Preferences page name", "Profiles"), QStringLiteral("preferences-desktop-theme"));
+        addPage(new MemorySettings(dialog), i18nc("@title Preferences page name", "Memory"), QStringLiteral("memory"));
+        addPage(new TabBarSettings(dialog), i18nc("@title Preferences page name", "Tab Bar / Splitters"), QStringLiteral("preferences-tabs"));
+        addPage(new TemporaryFilesSettings(dialog), i18nc("@title Preferences page name", "Temporary Files"), QStringLiteral("folder-temp"));
+        addPage(new ThumbnailsSettings(dialog), i18nc("@title Preferences page name", "Thumbnails"), QStringLiteral("image-jpeg"));
+        return dialog;
+    }) << QStringLiteral("ConfigureDialog")
+                               << QVariantMap();
+    // Part::showManageProfilesDialog() before the QML dialog.
+    QTest::newRow("KPart settings") << std::function<QWidget*()>([] {
+        auto* dialog = new KConfigDialog(nullptr, QStringLiteral("DialogContentTest"), KonsoleSettings::self());
+        dialog->setFaceType(KPageDialog::Tabbed);
+        dialog->addPage(new ProfileSettings(dialog), i18nc("@title Preferences page name", "Profiles"), QStringLiteral("configure"));
+        // PartInfoSettings is built into the part only; it is its .ui and nothing else.
+        auto* partInfo = new QWidget(dialog);
+        Ui::PartInfoSettings().setupUi(partInfo);
+        dialog->addPage(partInfo, i18nc("@title Preferences page name", "Part Info"), QStringLiteral("dialog-information"));
+        return dialog;
+    }) << QStringLiteral("PartSettingsDialog")
+                                    << QVariantMap();
 }
 
 void DialogContentTest::testDialog()
@@ -209,16 +249,21 @@ void DialogContentTest::testDialog()
     QFETCH(QString, type);
     QFETCH(QVariantMap, properties);
     std::unique_ptr<QWidget> widgetDialog(widget());
-    const QSet<QString> expected = DialogContent::fromWidgets(widgetDialog.get());
+    auto* pageDialog = qobject_cast<KPageDialog*>(widgetDialog.get());
+    const QSet<QString> expected = pageDialog ? DialogContent::fromWidgetPages(pageDialog) : DialogContent::fromWidgets(widgetDialog.get());
     QVERIFY(!expected.isEmpty());
 
     if (type == QLatin1String("CopyInputDialog")) {
         properties.insert(QStringLiteral("sessions"), QVariant::fromValue(new CopyInputModel(this)));
     }
+    if (type == QLatin1String("ConfigureDialog") || type == QLatin1String("PartSettingsDialog")) {
+        properties.insert(QStringLiteral("profiles"), QVariant::fromValue(new ProfileListModel(this)));
+    }
     QPointer<QQuickWindow> dialog = QmlDialogs::open(type, nullptr, properties);
     QVERIFY(dialog);
     QCOMPARE(dialog->title(), widgetDialog->windowTitle());
-    const QStringList missing = DialogContent::missing(expected, DialogContent::fromQml(dialog));
+    const QSet<QString> found = pageDialog ? DialogContent::fromQmlPages(dialog) : DialogContent::fromQml(dialog);
+    const QStringList missing = DialogContent::missing(expected, found);
     QVERIFY2(missing.isEmpty(), qPrintable(missing.join(u'\n')));
     dialog->close();
     QTRY_VERIFY(!dialog);

@@ -17,7 +17,10 @@
 #include <QQmlEngine>
 #include <QQuickStyle>
 #include <QQuickWindow>
+#include <QScreen>
 #include <QWidget>
+
+#include <algorithm>
 
 namespace Konsole {
 namespace QmlDialogs {
@@ -61,6 +64,17 @@ namespace QmlDialogs {
         QWindow* parent = openerWindow ? CompatWindows::shownWindow(openerWindow) : nullptr;
         window->setTransientParent(parent);
         window->setModality(modality);
+        if (parent) {
+            // QDialog::adjustPosition(): centred on the parent, inside its screen.
+            QRect frame(QPoint(), window->size());
+            frame.moveCenter(parent->frameGeometry().center());
+            if (QScreen* screen = parent->screen()) {
+                const QRect area = screen->availableGeometry();
+                frame.moveLeft(std::clamp(frame.left(), area.left(), std::max(area.left(), area.right() - frame.width())));
+                frame.moveTop(std::clamp(frame.top(), area.top(), std::max(area.top(), area.bottom() - frame.height())));
+            }
+            window->setPosition(frame.topLeft());
+        }
         QObject::connect(window, &QWindow::visibleChanged, window, [window](bool visible) {
             if (!visible) {
                 window->deleteLater();

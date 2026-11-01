@@ -70,9 +70,23 @@ ecm_add_tests(
     QmlDialogsTest.cpp
     DialogContentTest.cpp
     SmallDialogsTest.cpp
+    SettingsEditorTest.cpp
+    ConfigureDialogTest.cpp
     LINK_LIBRARIES ${KONSOLE_TEST_LIBS} KF6::Parts
 )
-set_tests_properties(QmlDialogsTest DialogContentTest SmallDialogsTest PROPERTIES ENVIRONMENT
+# The widget settings pages the tests compare with aren't exported by konsoleapp.
+set(widget_settings_pages
+    ../settings/GeneralSettings.cpp
+    ../settings/MemorySettings.cpp
+    ../settings/TabBarSettings.cpp
+    ../settings/TemporaryFilesSettings.cpp
+    ../settings/ThumbnailsSettings.cpp
+)
+target_sources(DialogContentTest PRIVATE ${widget_settings_pages} ../settings/ProfileSettings.cpp ../delegates/ProfileShortcutDelegate.cpp)
+target_sources(ConfigureDialogTest PRIVATE ${widget_settings_pages})
+# testPartDialog loads the part from the build tree.
+add_dependencies(ConfigureDialogTest konsolepart)
+set_tests_properties(QmlDialogsTest DialogContentTest SmallDialogsTest ConfigureDialogTest PROPERTIES ENVIRONMENT
     "QT_QPA_PLATFORMTHEME=kde;QT_STYLE_OVERRIDE=Silver;QT_QUICK_CONTROLS_STYLE=org.kde.desktop")
 set_tests_properties(QmlWindowTest PROPERTIES ENVIRONMENT
     "QT_QPA_PLATFORMTHEME=kde;QT_STYLE_OVERRIDE=Silver;QT_QUICK_CONTROLS_STYLE=org.kde.desktop")

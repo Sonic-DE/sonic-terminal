@@ -51,6 +51,7 @@ Item {
                     QQC2.ToolButton {
                         Layout.preferredHeight: parent.height
                         Layout.preferredWidth: parent.height
+                        focusPolicy: Qt.NoFocus
                         display: QQC2.AbstractButton.IconOnly
                         icon.name: "window-close"
                         text: dock.modelData.title ?? ""

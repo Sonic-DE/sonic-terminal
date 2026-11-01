@@ -22,10 +22,13 @@ DialogWindow {
     property var outlines: []
 
     function showPage(page) {
-        const index = Array.prototype.indexOf.call(stack.children, page);
-        if (index >= 0) {
-            stack.currentIndex = index;
+        for (let i = 0; i < stack.children.length; ++i) {
+            if (stack.children[i] === page) {
+                stack.currentIndex = i;
+                return;
+            }
         }
+        console.warn("showPage: not a page of this dialog:", page);
     }
 
     // The texts a user sees on a control, as the labels, buttons and combo boxes KPageView
@@ -55,12 +58,15 @@ DialogWindow {
         for (const outline of outlines) {
             outline.destroy();
         }
-        const hidden = [];
+        const hidden = Array.prototype.filter.call(stack.children, page => !page.available);
         const outlined = [];
         const lower = text.toLowerCase();
         if (lower.length > 0) {
             for (let i = 0; i < stack.children.length; ++i) {
                 const page = stack.children[i];
+                if (!page.available) {
+                    continue;
+                }
                 const matches = matchingControls(page, lower);
                 if (matches.length === 0 && !page.title.toLowerCase().includes(lower)) {
                     hidden.push(page);
@@ -81,6 +87,8 @@ DialogWindow {
             }
         }
     }
+
+    Component.onCompleted: search("")
 
     Component {
         id: outlineComponent
@@ -106,47 +114,80 @@ DialogWindow {
         Layout.fillHeight: true
         spacing: 0
 
-        ColumnLayout {
+        // KPageView's list is a view: the view's background behind the search and the pages.
+        Rectangle {
             Layout.fillHeight: true
             Layout.preferredWidth: Kirigami.Units.gridUnit * 8
-            spacing: Kirigami.Units.smallSpacing
+            Kirigami.Theme.colorSet: Kirigami.Theme.View
+            Kirigami.Theme.inherit: false
+            color: Kirigami.Theme.backgroundColor
 
-            Kirigami.SearchField {
-                id: searchField
+            ColumnLayout {
+                anchors.fill: parent
+                spacing: Kirigami.Units.smallSpacing
 
-                objectName: "pageSearch"
-                Layout.fillWidth: true
-                focus: true
-                placeholderText: i18nc("@info:placeholder", "Search…")
-                onTextChanged: searchTimer.restart()
-            }
+                Kirigami.SearchField {
+                    id: searchField
 
-            QQC2.ScrollView {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
+                    objectName: "pageSearch"
+                    Layout.fillWidth: true
+                    focus: true
+                    placeholderText: i18nc("@info:placeholder", "Search…")
+                    onTextChanged: searchTimer.restart()
+                }
 
-                ListView {
-                    id: pageList
+                QQC2.ScrollView {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
 
-                    objectName: "pageList"
-                    model: stack.children
-                    currentIndex: stack.currentIndex
-                    clip: true
+                    ListView {
+                        id: pageList
 
-                    delegate: QQC2.ItemDelegate {
-                        required property Item modelData
-                        required property int index
+                        objectName: "pageList"
+                        model: stack.children
+                        currentIndex: stack.currentIndex
+                        clip: true
 
-                        width: ListView.view.width
-                        visible: !root.hiddenPages.includes(modelData)
-                        height: visible ? implicitHeight : 0
-                        display: QQC2.AbstractButton.TextUnderIcon
-                        text: modelData.title
-                        icon.name: modelData.iconName
-                        icon.width: Kirigami.Units.iconSizes.medium
-                        icon.height: Kirigami.Units.iconSizes.medium
-                        highlighted: ListView.isCurrentItem
-                        onClicked: stack.currentIndex = index
+                        delegate: QQC2.ItemDelegate {
+                            id: pageDelegate
+
+                            required property Item modelData
+                            required property int index
+                            readonly property bool selected: ListView.isCurrentItem
+                            // As the widget style draws a view's selection: in the inactive
+                            // colours while the view hasn't the focus.
+                            readonly property var colors: pageList.activeFocus ? palette.active : palette.inactive
+
+                            width: ListView.view.width
+                            visible: !root.hiddenPages.includes(modelData)
+                            height: visible ? implicitHeight : 0
+                            text: modelData.title
+                            onClicked: stack.currentIndex = index
+
+                            background: Rectangle {
+                                readonly property color highlight: pageDelegate.palette.active.highlight
+
+                                color: pageDelegate.selected ? pageDelegate.colors.highlight
+                                    : pageDelegate.hovered ? Qt.rgba(highlight.r, highlight.g, highlight.b, 0.2) : "transparent"
+                            }
+                            contentItem: ColumnLayout {
+                                spacing: Kirigami.Units.smallSpacing
+
+                                Kirigami.Icon {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    Layout.preferredWidth: Kirigami.Units.iconSizes.medium
+                                    Layout.preferredHeight: Kirigami.Units.iconSizes.medium
+                                    source: pageDelegate.modelData.iconName
+                                }
+                                QQC2.Label {
+                                    Layout.fillWidth: true
+                                    horizontalAlignment: Text.AlignHCenter
+                                    elide: Text.ElideRight
+                                    text: pageDelegate.text
+                                    color: pageDelegate.selected ? pageDelegate.colors.highlightedText : pageDelegate.colors.text
+                                }
+                            }
+                        }
                     }
                 }
             }

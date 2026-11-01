@@ -59,6 +59,8 @@ qt_policy(SET QTP0001 NEW)
 include(ECMFindQmlModule)
 ecm_find_qmlmodule(org.kde.kirigami REQUIRED)
 ecm_find_qmlmodule(org.kde.qqc2desktopstyle.private REQUIRED)
+# KeySequenceItem: the Profiles settings page's shortcuts.
+ecm_find_qmlmodule(org.kde.kquickcontrols REQUIRED)
 
 find_package(SonicLogging 6.31.0 REQUIRED)
 

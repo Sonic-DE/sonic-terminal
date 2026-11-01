@@ -204,6 +204,8 @@ void ChromeAdapter::refresh()
         int lastLine = 0;
         for (QToolBar* toolBar : std::as_const(toolBars)) {
             watch(toolBar);
+            // Lock Toolbar Positions shows or hides the grip.
+            connect(toolBar, &QToolBar::movableChanged, this, &ChromeAdapter::scheduleRefresh, Qt::UniqueConnection);
             if (toolBar->isHidden()) {
                 continue;
             }
@@ -242,6 +244,7 @@ void ChromeAdapter::refresh()
             toolBarsOfLine.append(QVariantMap{{QStringLiteral("toolBar"), QVariant::fromValue<QObject*>(toolBar)},
                 {QStringLiteral("buttonStyle"), int(toolBar->toolButtonStyle())},
                 {QStringLiteral("iconSize"), toolBar->iconSize().width()},
+                {QStringLiteral("movable"), toolBar->isMovable()},
                 {QStringLiteral("items"), items}});
             lines[area].append(QVariant(toolBarsOfLine));
         }
@@ -355,6 +358,27 @@ void ChromeAdapter::setExtent(QObject* bar, int extent)
         }
     } else if (widget->minimumHeight() != extent || widget->maximumHeight() != extent) {
         widget->setFixedHeight(extent);
+    }
+}
+
+int ChromeAdapter::dropArea(QPointF windowPosition, QSizeF windowSize) const
+{
+    const qreal distances[] = {windowPosition.y(), windowSize.height() - windowPosition.y(), windowPosition.x(),
+        windowSize.width() - windowPosition.x()};
+    const Qt::ToolBarArea areas[] = {Qt::TopToolBarArea, Qt::BottomToolBarArea, Qt::LeftToolBarArea, Qt::RightToolBarArea};
+    return areas[std::min_element(std::begin(distances), std::end(distances)) - std::begin(distances)];
+}
+
+void ChromeAdapter::moveToolBar(QObject* toolBar, QPointF windowPosition, QSizeF windowSize)
+{
+    auto* bar = qobject_cast<QToolBar*>(toolBar);
+    if (!bar || !_window || !bar->isMovable()) {
+        return;
+    }
+    const auto area = Qt::ToolBarArea(dropArea(windowPosition, windowSize));
+    if (_window->toolBarArea(bar) != area && bar->isAreaAllowed(area)) {
+        _window->addToolBar(area, bar);
+        scheduleRefresh();
     }
 }
 
