@@ -67,8 +67,13 @@ ecm_add_tests(
     PaneModelTest.cpp
     TerminalViewTest.cpp
     QmlWindowTest.cpp
+    QmlDialogsTest.cpp
+    DialogContentTest.cpp
+    SmallDialogsTest.cpp
     LINK_LIBRARIES ${KONSOLE_TEST_LIBS} KF6::Parts
 )
+set_tests_properties(QmlDialogsTest DialogContentTest SmallDialogsTest PROPERTIES ENVIRONMENT
+    "QT_QPA_PLATFORMTHEME=kde;QT_STYLE_OVERRIDE=Silver;QT_QUICK_CONTROLS_STYLE=org.kde.desktop")
 set_tests_properties(QmlWindowTest PROPERTIES ENVIRONMENT
     "QT_QPA_PLATFORMTHEME=kde;QT_STYLE_OVERRIDE=Silver;QT_QUICK_CONTROLS_STYLE=org.kde.desktop")
 # As the parity runs: widgets and the desktop style's QML items read one colour scheme.

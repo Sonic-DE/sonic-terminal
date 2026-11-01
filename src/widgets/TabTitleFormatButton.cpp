@@ -66,15 +66,24 @@ void TabTitleFormatButton::setContext(Session::TabTitleContext titleContext)
 
     menu()->clear();
 
+    if (titleContext == Session::LocalTabTitle) {
+        setToolTip(i18nc("@info:tooltip", "Insert title format"));
+    } else if (titleContext == Session::RemoteTabTitle) {
+        setToolTip(i18nc("@info:tooltip", "Insert remote title format"));
+    }
+
+    menu()->addActions(elementActions(titleContext, this));
+}
+
+QList<QAction*> TabTitleFormatButton::elementActions(Session::TabTitleContext titleContext, QObject* parent)
+{
     int count = 0;
     const Element *array = nullptr;
 
     if (titleContext == Session::LocalTabTitle) {
-        setToolTip(i18nc("@info:tooltip", "Insert title format"));
         array = _localElements;
         count = _localElementCount;
     } else if (titleContext == Session::RemoteTabTitle) {
-        setToolTip(i18nc("@info:tooltip", "Insert remote title format"));
         array = _remoteElements;
         count = _remoteElementCount;
     }
@@ -83,12 +92,12 @@ void TabTitleFormatButton::setContext(Session::TabTitleContext titleContext)
     menuActions.reserve(count);
 
     for (int i = 0; i < count; i++) {
-        auto *action = new QAction(array[i].description.toString(), this);
+        auto* action = new QAction(array[i].description.toString(), parent);
         action->setData(array[i].element);
         menuActions << action;
     }
 
-    menu()->addActions(menuActions);
+    return menuActions;
 }
 
 Session::TabTitleContext TabTitleFormatButton::context() const

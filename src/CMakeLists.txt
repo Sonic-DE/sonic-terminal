@@ -261,6 +261,9 @@ set(konsoleprivate_SRCS ${windowadaptors_SRCS}
                         quick/TerminalViewAccessible.cpp
                         quick/ChromeAdapter.cpp
                         quick/CompatWindows.cpp
+                        quick/QmlDialogs.cpp
+                        quick/CopyInputModel.cpp
+                        quick/DialogHelpers.cpp
                         quick/DockAdapter.cpp
                         quick/FindBarAdapter.cpp
                         quick/HeaderBarAdapter.cpp
@@ -352,7 +355,20 @@ qt_add_qml_module(konsoleprivate
     OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/qml/org/sonicde/terminal
     QML_FILES
         qml/ActionToolButton.qml
+        qml/ClearableTextField.qml
+        qml/ColorComboBox.qml
+        qml/CopyInputDialog.qml
+        qml/DialogPage.qml
+        qml/DialogWindow.qml
         qml/DockPanels.qml
+        qml/HistorySizeDialog.qml
+        qml/HistorySizeFields.qml
+        qml/MnemonicLabel.qml
+        qml/PageDialog.qml
+        qml/RenameTabDialog.qml
+        qml/TabbedPageDialog.qml
+        qml/TabTitleFields.qml
+        qml/TextInputDialog.qml
         qml/PaneTree.qml
         qml/SearchTabs.qml
         qml/TabBar.qml
@@ -391,6 +407,8 @@ target_link_libraries(konsoleprivate
     Sonic::Logging
     KF6::IconWidgets
     KF6::BookmarksWidgets
+    KF6::I18nQml
+    Qt::QuickControls2
 )
 
 set_target_properties(konsoleprivate PROPERTIES

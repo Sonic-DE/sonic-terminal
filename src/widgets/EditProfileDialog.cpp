@@ -14,7 +14,6 @@
 #include <QDialogButtonBox>
 #include <QFileDialog>
 #include <QIcon>
-#include <QInputDialog>
 #include <QMenu>
 #include <QPushButton>
 #include <QRegularExpressionValidator>
@@ -52,6 +51,9 @@
 #include "ShellCommand.h"
 #include "WindowSystemInfo.h"
 #include "profile/ProfileManager.h"
+#include "quick/QmlDialogs.h"
+
+#include <QQuickWindow>
 
 // Others
 #if defined(Q_OS_LINUX) | defined(Q_OS_FREEBSD) | defined(Q_OS_OPENBSD) | defined(Q_OS_SOLARIS) | defined(Q_OS_MACOS)
@@ -658,7 +660,6 @@ void EditProfileDialog::setupGeneralPage(const Profile::Ptr &profile)
 
 void EditProfileDialog::showEnvironmentEditor()
 {
-    bool ok;
     const Profile::Ptr profile = _profile;
 
     QStringList currentEnvironment;
@@ -672,15 +673,20 @@ void EditProfileDialog::showEnvironmentEditor()
         currentEnvironment = profile->environment();
     }
 
-    QString text = QInputDialog::getMultiLineText(this,
-                                                  i18n("Edit Environment"),
-                                                  i18n("One environment variable per line"),
-                                                  currentEnvironment.join(QStringLiteral("\n")),
-                                                  &ok);
+    QQuickWindow* dialog = QmlDialogs::open(QStringLiteral("TextInputDialog"),
+        this,
+        {{QStringLiteral("title"), i18n("Edit Environment")},
+            {QStringLiteral("labelText"), i18n("One environment variable per line")},
+            {QStringLiteral("multiLine"), true},
+            {QStringLiteral("textValue"), currentEnvironment.join(QStringLiteral("\n"))}});
+    if (!dialog) {
+        return;
+    }
 
-    QStringList newEnvironment;
+    QmlDialogs::onAccepted(dialog, this, [this, dialog]() {
+        const QString text = dialog->property("textValue").toString();
+        QStringList newEnvironment;
 
-    if (ok) {
         if (!text.isEmpty()) {
             newEnvironment = text.split(QLatin1Char('\n'));
             updateTempProfileProperty(Profile::Environment, newEnvironment);
@@ -688,7 +694,7 @@ void EditProfileDialog::showEnvironmentEditor()
             // the user could have removed all entries so we return an empty list
             updateTempProfileProperty(Profile::Environment, newEnvironment);
         }
-    }
+    });
 }
 
 void EditProfileDialog::setupTabsPage(const Profile::Ptr &profile)
@@ -2015,32 +2021,30 @@ void EditProfileDialog::setTextEditorCombo(const Profile::Ptr &profile)
 
     _mouseUi->textEditorCustomBtn->setEnabled(currentEditor == Enum::CustomTextEditor);
     connect(_mouseUi->textEditorCustomBtn, &QAbstractButton::clicked, this, [this, profile]() {
-        auto *dlg = new QInputDialog(static_cast<QWidget *>(this));
-        dlg->setLabelText(
-            i18n("The format is e.g. 'editorExec PATH:LINE:COLUMN'\n\n"
-                 "PATH    will be replaced by the path to the text file\n"
-                 "LINE    will be replaced by the line number\n"
-                 "COLUMN  (optional) will be replaced by the column number\n"
-                 "Note: you will need to replace 'PATH:LINE:COLUMN' by the actual\n"
-                 "syntax the editor you want to use supports; e.g.:\n"
-                 "gedit +LINE:COLUMN PATH\n\n"
-                 "If PATH or LINE aren't present in the command, this setting\n"
-                 "will be ignored and the file will be opened by the default text\n"
-                 "editor."));
         const QString cmd = profile->customTextEditorCmd();
-        dlg->setTextValue(cmd);
-        dlg->setAttribute(Qt::WA_DeleteOnClose);
-        dlg->setWindowTitle(i18n("Text Editor Custom Command"));
+        QQuickWindow* dlg = QmlDialogs::open(QStringLiteral("TextInputDialog"),
+            this,
+            {{QStringLiteral("title"), i18n("Text Editor Custom Command")},
+                {QStringLiteral("labelText"),
+                    i18n("The format is e.g. 'editorExec PATH:LINE:COLUMN'\n\n"
+                         "PATH    will be replaced by the path to the text file\n"
+                         "LINE    will be replaced by the line number\n"
+                         "COLUMN  (optional) will be replaced by the column number\n"
+                         "Note: you will need to replace 'PATH:LINE:COLUMN' by the actual\n"
+                         "syntax the editor you want to use supports; e.g.:\n"
+                         "gedit +LINE:COLUMN PATH\n\n"
+                         "If PATH or LINE aren't present in the command, this setting\n"
+                         "will be ignored and the file will be opened by the default text\n"
+                         "editor.")},
+                {QStringLiteral("textValue"), cmd}},
+            Qt::NonModal);
+        if (!dlg) {
+            return;
+        }
 
-        QFontMetrics fm(font());
-        const int width = qMin(fm.averageCharWidth() * cmd.size(), this->width());
-        dlg->resize(width, dlg->height());
-
-        connect(dlg, &QDialog::accepted, this, [this, dlg]() {
-            updateTempProfileProperty(Profile::TextEditorCmdCustom, dlg->textValue());
+        QmlDialogs::onAccepted(dlg, this, [this, dlg]() {
+            updateTempProfileProperty(Profile::TextEditorCmdCustom, dlg->property("textValue").toString());
         });
-
-        dlg->show();
     });
 }
 

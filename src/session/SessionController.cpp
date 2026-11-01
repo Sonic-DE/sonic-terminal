@@ -10,9 +10,13 @@
 
 #include "profile/ProfileManager.h"
 #include "quick/CompatWindows.h"
+#include "quick/CopyInputModel.h"
+#include "quick/QmlDialogs.h"
+
 #include "src/SearchHistoryTask.h"
 #include "terminalDisplay/TerminalColor.h"
 #include "terminalDisplay/TerminalFonts.h"
+#include <QQuickWindow>
 
 // Qt
 #include <QAction>
@@ -55,10 +59,8 @@
 #include <Sonic/Logging/Log>
 
 // Konsole
-#include "CopyInputDialog.h"
 #include "Emulation.h"
-#include "HistorySizeDialog.h"
-#include "RenameTabDialog.h"
+#include "Enumeration.h"
 #include "SaveHistoryAutoTask.h"
 #include "SaveHistoryTask.h"
 #include "ScreenWindow.h"
@@ -1082,25 +1084,22 @@ void SessionController::renameSession()
     const QColor sessionTabColor = session()->color();
     const QColor sessionActivityTabColor = session()->activityColor();
 
-    auto* dialog = new RenameTabDialog(CompatWindows::activeWindow());
-    dialog->setAttribute(Qt::WA_DeleteOnClose);
-    dialog->setModal(true);
-    dialog->setTabTitleText(sessionLocalTabTitleFormat);
-    dialog->setRemoteTabTitleText(sessionRemoteTabTitleFormat);
-    dialog->setColor(sessionTabColor);
-    dialog->setActivityColor(sessionActivityTabColor);
-
-    if (session()->isRemote()) {
-        dialog->focusRemoteTabTitleText();
-    } else {
-        dialog->focusTabTitleText();
+    QQuickWindow* dialog = QmlDialogs::open(QStringLiteral("RenameTabDialog"),
+        CompatWindows::activeWindow(),
+        {{QStringLiteral("tabTitle"), sessionLocalTabTitleFormat},
+            {QStringLiteral("remoteTabTitle"), sessionRemoteTabTitleFormat},
+            {QStringLiteral("initialColor"), sessionTabColor},
+            {QStringLiteral("initialActivityColor"), sessionActivityTabColor},
+            {QStringLiteral("focusRemote"), session()->isRemote()}});
+    if (!dialog) {
+        return;
     }
 
-    connect(dialog, &QDialog::accepted, this, [=]() {
-        const QString tabTitle = dialog->tabTitleText();
-        const QString remoteTabTitle = dialog->remoteTabTitleText();
-        const QColor tabColor = dialog->color();
-        const QColor tabActivityColor = dialog->activityColor();
+    QmlDialogs::onAccepted(dialog, this, [=, this]() {
+        const QString tabTitle = dialog->property("tabTitle").toString();
+        const QString remoteTabTitle = dialog->property("remoteTabTitle").toString();
+        const QColor tabColor = dialog->property("color").value<QColor>();
+        const QColor tabActivityColor = dialog->property("activityColor").value<QColor>();
 
         if (tabTitle != sessionLocalTabTitleFormat) {
             session()->setTabTitleFormat(Session::LocalTabTitle, tabTitle);
@@ -1127,8 +1126,6 @@ void SessionController::renameSession()
             snapshot();
         }
     });
-
-    dialog->show();
 }
 
 // This is called upon Menu->Close Session and right-click on tab->Close Tab
@@ -1414,19 +1411,21 @@ void SessionController::copyInputToSelectedTabs(QList<Session *> *sessions)
         newGroup.remove(session());
         update(newGroup, currentGroup);
     } else {
-        auto *dialog = new CopyInputDialog(view());
-        dialog->setAttribute(Qt::WA_DeleteOnClose);
-        dialog->setModal(true);
-        dialog->setMasterSession(session());
-        dialog->setChosenSessions(currentGroup);
+        auto* model = new CopyInputModel;
+        model->setMasterSession(session());
+        model->setChosenSessions(currentGroup);
+        QQuickWindow* dialog = QmlDialogs::open(QStringLiteral("CopyInputDialog"), view(), {{QStringLiteral("sessions"), QVariant::fromValue(model)}});
+        if (!dialog) {
+            delete model;
+            return;
+        }
+        model->setParent(dialog);
 
-        connect(dialog, &QDialog::accepted, this, [=]() {
-            QSet<Session *> newGroup = dialog->chosenSessions();
+        QmlDialogs::onAccepted(dialog, this, [=, this]() {
+            QSet<Session*> newGroup = model->chosenSessions();
             newGroup.remove(session());
             update(newGroup, currentGroup);
         });
-
-        dialog->show();
     }
 }
 
@@ -1797,27 +1796,27 @@ void SessionController::changeSearchMatch()
 }
 void SessionController::showHistoryOptions()
 {
-    auto* dialog = new HistorySizeDialog(CompatWindows::activeWindow());
-    dialog->setAttribute(Qt::WA_DeleteOnClose);
-    dialog->setModal(true);
-
+    QVariantMap properties;
     const HistoryType &currentHistory = session()->historyType();
     if (currentHistory.isEnabled()) {
         if (currentHistory.isUnlimited()) {
-            dialog->setMode(Enum::UnlimitedHistory);
+            properties.insert(QStringLiteral("mode"), Enum::UnlimitedHistory);
         } else {
-            dialog->setMode(Enum::FixedSizeHistory);
-            dialog->setLineCount(currentHistory.maximumLineCount());
+            properties.insert(QStringLiteral("mode"), Enum::FixedSizeHistory);
+            properties.insert(QStringLiteral("initialLineCount"), currentHistory.maximumLineCount());
         }
     } else {
-        dialog->setMode(Enum::NoHistory);
+        properties.insert(QStringLiteral("mode"), Enum::NoHistory);
     }
 
-    connect(dialog, &QDialog::accepted, this, [this, dialog]() {
-        scrollBackOptionsChanged(dialog->mode(), dialog->lineCount());
-    });
+    QQuickWindow* dialog = QmlDialogs::open(QStringLiteral("HistorySizeDialog"), CompatWindows::activeWindow(), properties);
+    if (!dialog) {
+        return;
+    }
 
-    dialog->show();
+    QmlDialogs::onAccepted(dialog, this, [this, dialog]() {
+        scrollBackOptionsChanged(dialog->property("mode").toInt(), dialog->property("lineCount").toInt());
+    });
 }
 void SessionController::sessionResizeRequest(const QSize &size)
 {

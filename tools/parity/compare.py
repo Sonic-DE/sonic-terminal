@@ -18,6 +18,13 @@ capture whose <capture>.png.panes lists the same number of terminals on both sid
 compared pane by pane, each at its own position, over the size both share, without the
 menus and dialogs covering them; xprop's _NET_WM_ICON_NAME isn't compared (QWindow sets
 none, a widget window an empty one).
+
+A capture of a QML dialog (the hook writes <capture>.png.qml next to it) isn't compared
+pixel by pixel (the dialogs keep their content, not their layout): its most common colour
+must be the baseline's, and every colour covering at least 2 % of it must cover at least
+0.5 % of the baseline capture, within 2 levels per channel (the theme's colours, no
+others), or be one of INTENDED_QML_COLOURS. Its screen capture is compared by pane, the baseline's dialog with its shadow
+left out as the run's is.
 """
 
 import argparse
@@ -31,7 +38,19 @@ from PIL import Image
 TEXT_DIFFERENCE_LIMIT = 0.10
 OVERLAY_DIFFERENCE_LIMIT = 0.10
 OVERLAY_BLEND_ROUNDING = 1
+# Silver's largest shadow (64 blur, 16 offset), as the hook records it around a dialog.
+SHADOW = 80
+# Colours a QML dialog may show that its widget dialog didn't, with their source (SilverLight,
+# the parity runs' scheme).
+INTENDED_QML_COLOURS = {
+    # Joseph, 2026-11-01: messages follow the colour scheme; KMessageWidget hard-codes Breeze's
+    # blue (kmessagewidget.cpp), Kirigami's InlineMessage uses activeTextColor at 20 %.
+    (203, 223, 238): "information message background",
+}
 PATTERNS = ("*.txt", "*.png", "*.png.overlays", "*.png.panes")
+QML_DIALOG_COLOUR_SHARE = 0.02
+BASELINE_COLOUR_SHARE = 0.005
+COLOUR_TOLERANCE = 2
 
 
 def safe_name(name):
@@ -134,11 +153,41 @@ def compare_panes(name, baseline_dir, run_dir, base, new, base_panes, new_panes)
         return f"{name}: {in_overlays / overlaid:.1%} of overlay pixels differ (limit {OVERLAY_DIFFERENCE_LIMIT:.0%}, by pane)"
     return None
 
+def colour_shares(image):
+    """The image's RGB colours, most common first, with the share of pixels each covers."""
+    colours, counts = numpy.unique(image[:, :, :3].reshape(-1, 3), axis=0, return_counts=True)
+    order = numpy.argsort(-counts)
+    return colours[order], counts[order] / counts.sum()
+
+def compare_colours(name, base, new):
+    for image, side in ((base, "baseline"), (new, "run")):
+        if (image == image[0, 0]).all():
+            return f"{name}: the {side} capture is a single colour"
+    base_colours, base_shares = colour_shares(base)
+    new_colours, new_shares = colour_shares(new)
+    near = lambda a, b: bool((numpy.abs(a - b) <= COLOUR_TOLERANCE).all())
+    print(f"{name}: QML dialog, compared by colour")
+    if not near(base_colours[0], new_colours[0]):
+        return f"{name}: main colour {tuple(new_colours[0])} instead of the baseline's {tuple(base_colours[0])} (by colour)"
+    theme = list(base_colours[base_shares >= BASELINE_COLOUR_SHARE]) + [numpy.array(colour) for colour in INTENDED_QML_COLOURS]
+    for colour, share in zip(new_colours, new_shares):
+        if share < QML_DIALOG_COLOUR_SHARE:
+            break
+        if not any(near(colour, known) for known in theme):
+            return f"{name}: colour {tuple(colour)} covers {share:.1%}, not a colour of the baseline (by colour)"
+    return None
+
 def compare_image(name, baseline_dir, run_dir, report_dir, qml_window=False):
     base, new = load(baseline_dir / name), load(run_dir / name)
+    if (run_dir / f"{name}.qml").exists():
+        return compare_colours(name, base, new)
     if qml_window:
         base_panes = read_panes(baseline_dir / f"{name}.panes")
         new_panes = read_panes(run_dir / f"{name}.panes")
+        if name.endswith(".screen.png") and (run_dir / name.replace(".screen.png", ".png.qml")).exists():
+            # The baseline's covered rectangles are frames only (recorded before the hook added
+            # shadows); a QML dialog of another size leaves the widget dialog's shadow beside it.
+            base_panes = (base_panes[0], [(x - SHADOW, y - SHADOW, w + 2 * SHADOW, h + 2 * SHADOW) for x, y, w, h in base_panes[1]])
         if base_panes[0] and len(base_panes[0]) == len(new_panes[0]):
             return compare_panes(name, baseline_dir, run_dir, base, new, base_panes, new_panes)
     if base.shape != new.shape:

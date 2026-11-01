@@ -8,9 +8,12 @@
 #include "quick/WindowController.h"
 
 #include <QApplication>
+#include <QJSValue>
 #include <QMenu>
 #include <QPainter>
 #include <QPixmap>
+#include <QQmlEngine>
+#include <QQuickItem>
 #include <QQuickWindow>
 
 namespace Konsole::ParityHook {
@@ -62,5 +65,91 @@ QPixmap grabQmlWindow(const MainWindow* window)
         }
     }
     return pixmap;
+}
+
+namespace {
+    bool isDialog(const QWindow* window)
+    {
+        for (const QMetaObject* meta = window->metaObject(); meta; meta = meta->superClass()) {
+            if (QByteArray(meta->className()).startsWith("DialogWindow_QMLTYPE")) {
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
+QList<QWindow*> qmlDialogs()
+{
+    QList<QWindow*> dialogs;
+    const auto windows = QGuiApplication::topLevelWindows();
+    for (QWindow* window : windows) {
+        if (window->isVisible() && isDialog(window)) {
+            dialogs.append(window);
+        }
+    }
+    return dialogs;
+}
+
+QWindow* qmlDialog(const QString& title)
+{
+    QWindow* focused = QGuiApplication::focusWindow();
+    if (focused && isDialog(focused) && (title.isEmpty() || focused->title() == title)) {
+        return focused;
+    }
+    if (!title.isEmpty()) {
+        const QList<QWindow*> dialogs = qmlDialogs();
+        for (QWindow* dialog : dialogs) {
+            if (dialog->title() == title) {
+                return dialog;
+            }
+        }
+    }
+    return nullptr;
+}
+
+QObject* qmlDialogButton(QWindow* dialog, const QString& object, const QString& text, int standardButton)
+{
+    auto* quick = qobject_cast<QQuickWindow*>(dialog);
+    if (!quick) {
+        return nullptr;
+    }
+    if (!object.isEmpty()) {
+        return quick->findChild<QQuickItem*>(object);
+    }
+    if (standardButton) {
+        // DialogButtonBox::standardButton(), through the engine (its return type is private).
+        QQuickItem* box = nullptr;
+        const auto items = quick->findChildren<QQuickItem*>();
+        for (QQuickItem* item : items) {
+            box = box ? box : (item->inherits("QQuickDialogButtonBox") ? item : nullptr);
+        }
+        QQmlEngine* engine = box ? qmlEngine(box) : nullptr;
+        if (!engine) {
+            return nullptr;
+        }
+        QJSValue boxValue = engine->toScriptValue(box);
+        return boxValue.property(QStringLiteral("standardButton")).callWithInstance(boxValue, {QJSValue(standardButton)}).toQObject();
+    }
+    QList<QQuickItem*> items = {quick->contentItem()};
+    while (!items.isEmpty()) {
+        QQuickItem* item = items.takeFirst();
+        if (item->inherits("QQuickAbstractButton") && item->isVisible() && item->property("text").toString().remove(u'&') == text) {
+            return item;
+        }
+        items += item->childItems();
+    }
+    return nullptr;
+}
+
+QPixmap grabQmlDialog(QWindow* dialog)
+{
+    auto* quick = qobject_cast<QQuickWindow*>(dialog);
+    return quick ? QPixmap::fromImage(quick->grabWindow()) : QPixmap();
+}
+
+void rejectQmlDialog(QWindow* dialog)
+{
+    QMetaObject::invokeMethod(dialog, "reject");
 }
 }

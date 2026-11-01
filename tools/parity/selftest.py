@@ -64,6 +64,31 @@ def scroll_bar_in_shorter_pane(run):
         (directory / "window.client.png.panes").write_text(f"pane 0 0 60 {height}\n")
 
 
+def qml_dialog(run, background=(40, 40, 40, 255), control=(200, 200, 200, 255)):
+    """The Configure page as a QML dialog: other size and layout, given colours."""
+    pixels = numpy.zeros((50, 70, 4), dtype=numpy.uint8)
+    pixels[:, :] = background
+    pixels[20:32, 30:60] = control
+    Image.fromarray(pixels).save(run / "dialog-configure-Tab_Bar___Splitters.png")
+    (run / "dialog-configure-Tab_Bar___Splitters.png.qml").write_text("")
+
+def dialog_shadow(run, qml=True):
+    """A dialog's screen capture: the baseline's frame-only cover and its shadow beside it."""
+    baseline = run.parent / "baseline"
+    for directory, shadow in ((baseline, True), (run, False)):
+        pixels = numpy.zeros((40, 60, 4), dtype=numpy.uint8)
+        pixels[:, :] = (40, 40, 40, 255)
+        pixels[5:15, 5:25] = (200, 200, 200, 255)
+        if shadow:
+            pixels[20:30, 26:30] = (39, 39, 39, 255)
+        Image.fromarray(pixels).save(directory / "dialog-configure-Tab_Bar___Splitters.screen.png")
+        (directory / "dialog-configure-Tab_Bar___Splitters.screen.png.panes").write_text("pane 0 0 60 40\ncovered 30 20 20 10\n")
+        (directory / "dialog-configure-Tab_Bar___Splitters.screen.png.overlays").write_text("\n")
+    if qml:
+        (run / "dialog-configure-Tab_Bar___Splitters.png.qml").write_text("")
+        image(run / "dialog-configure-Tab_Bar___Splitters.png", patch=((20, 30, 30, 50), (40, 40, 40, 255)))
+
+
 def without_icon_name(run):
     (run / "xprop-main.txt").write_text("WM_NAME(STRING) = \"x\"\n")
 
@@ -98,6 +123,14 @@ def main():
             (run / "window.client.png.panes").write_text("pane 0 0 40 40\ncovered 0 25 10 10\n")), 0, True),
         "qml: icon name missing from xprop": (without_icon_name, 0, True),
         "qml: scroll bar end in a shorter pane": (scroll_bar_in_shorter_pane, 0, True),
+        # A QML dialog: by colour, not layout.
+        "qml dialog: theme colours, another layout": (qml_dialog, 0, True),
+        "qml dialog: a colour outside the theme": (lambda run: qml_dialog(run, control=(0, 120, 215, 255)), 1, True),
+        "qml dialog: another main colour": (lambda run: qml_dialog(run, background=(200, 200, 200, 255), control=(40, 40, 40, 255)), 1, True),
+        "qml dialog: single colour": (lambda run: qml_dialog(run, control=(40, 40, 40, 255)), 1, True),
+        "qml dialog: an intended colour": (lambda run: qml_dialog(run, control=(203, 223, 238, 255)), 0, True),
+        "qml dialog: the widget dialog's shadow beside it": (dialog_shadow, 0, True),
+        "qml: a widget dialog's shadow outside its cover": (lambda run: dialog_shadow(run, qml=False), 1, True),
     }
     failures = 0
     with tempfile.TemporaryDirectory(prefix="parity-selftest-") as temp:

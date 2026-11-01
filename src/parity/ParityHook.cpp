@@ -66,6 +66,25 @@ static QPixmap grabQmlWindow(const MainWindow*)
 {
     return QPixmap();
 }
+static QList<QWindow*> qmlDialogs()
+{
+    return {};
+}
+static QWindow* qmlDialog(const QString&)
+{
+    return nullptr;
+}
+static QObject* qmlDialogButton(QWindow*, const QString&, const QString&, int)
+{
+    return nullptr;
+}
+static QPixmap grabQmlDialog(QWindow*)
+{
+    return QPixmap();
+}
+static void rejectQmlDialog(QWindow*)
+{
+}
 }
 #endif
 
@@ -231,6 +250,9 @@ namespace {
                         covered += widget->frameGeometry();
                     }
                 }
+                for (QWindow* dialog : qmlDialogs()) {
+                    covered += dialog->frameGeometry();
+                }
                 QList<QRect> visible;
                 for (const QRect& rect : std::as_const(result)) {
                     for (const QRect& part : QRegion(rect) - covered) {
@@ -312,6 +334,14 @@ namespace {
                         rect.adjust(-80, -80, 80, 80);
                         lines.append(QStringLiteral("covered %1 %2 %3 %4").arg(rect.x()).arg(rect.y()).arg(rect.width()).arg(rect.height()));
                     }
+                }
+                for (QWindow* dialog : qmlDialogs()) {
+                    QRect rect = dialog->frameGeometry();
+                    if (rect.width() <= 1 || rect.height() <= 1) {
+                        rect = dialog->geometry();
+                    }
+                    rect.adjust(-80, -80, 80, 80);
+                    lines.append(QStringLiteral("covered %1 %2 %3 %4").arg(rect.x()).arg(rect.y()).arg(rect.width()).arg(rect.height()));
                 }
             }
             QFile file(QDir(_output).filePath(safeName(name) + QStringLiteral(".png.panes")));
@@ -551,6 +581,61 @@ namespace {
             return nullptr;
         }
 
+        // The QML dialog a step acts on: the focused or named one, else any shown while no
+        // widget dialog is.
+        QWindow* frontQmlDialog() const
+        {
+            if (QWindow* dialog = qmlDialog(_targetTitle)) {
+                return dialog;
+            }
+            const QList<QWindow*> dialogs = qmlDialogs();
+            return _targetTitle.isEmpty() && !dialogs.isEmpty() && !visibleDialog() ? dialogs.constLast() : nullptr;
+        }
+
+        void clickQml(QObject* button, const QString& what, int delayMs)
+        {
+            if (!button) {
+                return fail(QStringLiteral("no button %1 in %2").arg(what, frontQmlDialog() ? frontQmlDialog()->title() : QStringLiteral("<no dialog>")));
+            }
+            if (!button->property("enabled").toBool()) {
+                return fail(QStringLiteral("button disabled: ") + what);
+            }
+            // Deferred: a button may open a menu or modal dialog that doesn't return until closed.
+            QTimer::singleShot(0, button, [button] {
+                QMetaObject::invokeMethod(button, "click");
+            });
+            next(delayMs);
+        }
+
+        // A QML dialog's capture, marked for compare.py's colour rule (no pixel parity).
+        void captureQmlDialog(QPointer<QWindow> dialog, const QString& name, bool close, bool image)
+        {
+            trace(QStringLiteral("dialog ") + name + QStringLiteral(" ") + dialog->title());
+            if (!image) {
+                if (close) {
+                    rejectQmlDialog(dialog);
+                }
+                return next(300);
+            }
+            QTimer::singleShot(400, this, [this, dialog, name, close] {
+                if (!dialog) {
+                    return fail(QStringLiteral("dialog closed early: ") + name);
+                }
+                const QString file = QStringLiteral("dialog-") + name;
+                if (save(grabQmlDialog(dialog), file)) {
+                    QFile marker(QDir(_output).filePath(safeName(file) + QStringLiteral(".png.qml")));
+                    if (!marker.open(QIODevice::WriteOnly)) {
+                        return fail(QStringLiteral("cannot write ") + marker.fileName());
+                    }
+                }
+                saveScreen(file);
+                if (close) {
+                    rejectQmlDialog(dialog);
+                }
+                next(300);
+            });
+        }
+
         template <typename T>
         T* dialogChild(const QString& object, const QString& text = QString())
         {
@@ -638,6 +723,9 @@ namespace {
 
         void captureDialog(const QString& name, bool close, int remainingMs, bool image = true)
         {
+            if (QWindow* qml = frontQmlDialog()) {
+                return captureQmlDialog(qml, name, close, image);
+            }
             QDialog* dialog = visibleDialog();
             if (!dialog) {
                 if (remainingMs <= 0) {
@@ -1066,13 +1154,22 @@ namespace {
             if (op == QLatin1String("click")) {
                 const QString object = step.value(QStringLiteral("object")).toString();
                 const QString text = step.value(QStringLiteral("text")).toString();
-                return click(dialogChild<QAbstractButton>(object, text), object.isEmpty() ? text : object, step.value(QStringLiteral("delay")).toInt(800));
+                const int delay = step.value(QStringLiteral("delay")).toInt(800);
+                if (QWindow* qml = frontQmlDialog()) {
+                    return clickQml(qmlDialogButton(qml, object, text, 0), object.isEmpty() ? text : object, delay);
+                }
+                return click(dialogChild<QAbstractButton>(object, text), object.isEmpty() ? text : object, delay);
             }
             if (op == QLatin1String("button")) {
                 static const QHash<QString, QDialogButtonBox::StandardButton> roles = {{QStringLiteral("ok"), QDialogButtonBox::Ok},
                     {QStringLiteral("cancel"), QDialogButtonBox::Cancel},
                     {QStringLiteral("apply"), QDialogButtonBox::Apply}};
                 const QString role = step.value(QStringLiteral("role")).toString();
+                if (QWindow* qml = frontQmlDialog()) {
+                    // QML's DialogButtonBox shares QDialogButtonBox's values.
+                    return clickQml(qmlDialogButton(qml, QString(), QString(), int(roles.value(role, QDialogButtonBox::NoButton))), role,
+                        step.value(QStringLiteral("delay")).toInt(800));
+                }
                 auto* box = dialogChild<QDialogButtonBox>(QString());
                 if (!box) {
                     if (QDialog* dialog = visibleDialog()) {

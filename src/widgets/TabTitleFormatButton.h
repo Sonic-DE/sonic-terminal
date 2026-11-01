@@ -30,6 +30,9 @@ public:
     void setContext(Session::TabTitleContext titleContext);
     Session::TabTitleContext context() const;
 
+    // The menu's entries; each action's data is the element it inserts.
+    static QList<QAction*> elementActions(Session::TabTitleContext titleContext, QObject* parent);
+
 Q_SIGNALS:
     void dynamicElementSelected(const QString &);
 

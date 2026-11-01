@@ -462,7 +462,7 @@ void QmlWindowTest::testDialogsAreTransientForTheQmlWindow()
     }
 
     // Or to the active window (QApplication::activeWindow() in the widget window), here the
-    // compat window behind the active QML window: the rename tab dialog.
+    // compat window behind the active QML window: the rename tab dialog, now QML.
     QQuickWindow* qml = _controller->qmlWindow();
     qml->requestActivate();
     QTRY_VERIFY(qml->isActive());
@@ -473,11 +473,10 @@ void QmlWindowTest::testDialogsAreTransientForTheQmlWindow()
     }
     QVERIFY(rename);
     rename->trigger();
-    QDialog* renameDialog = nullptr;
-    QTRY_VERIFY((renameDialog = qobject_cast<QDialog*>(QApplication::activeModalWidget() ? QApplication::activeModalWidget() : QApplication::activeWindow())));
-    QVERIFY(renameDialog->windowHandle());
-    QCOMPARE(renameDialog->windowHandle()->transientParent(), qml);
-    renameDialog->reject();
+    QQuickWindow* renameDialog = nullptr;
+    QTRY_VERIFY((renameDialog = qobject_cast<QQuickWindow*>(QGuiApplication::modalWindow())));
+    QCOMPARE(renameDialog->transientParent(), qml);
+    renameDialog->close();
 }
 
 void QmlWindowTest::testHamburgerMenuOpensUnderItsButton()

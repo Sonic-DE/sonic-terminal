@@ -9,6 +9,7 @@
 
 #include "CompatWindows.h"
 #include "MainWindow.h"
+#include "QmlDialogs.h"
 #include "TerminalView.h"
 #include "TerminalViewRegistry.h"
 #include "terminalDisplay/TerminalDisplay.h"
@@ -37,8 +38,6 @@
 #include <QPlatformSurfaceEvent>
 #include <QPointer>
 #include <QQmlComponent>
-#include <QQmlEngine>
-#include <QQuickStyle>
 #include <QQuickWindow>
 #include <QScreen>
 #include <QSurfaceFormat>
@@ -199,26 +198,6 @@ namespace {
         const bool _autoAccelerators;
         QTimer _acceleratorTimer;
     };
-
-    // One engine for every QML window; Qt Quick settings must precede the first QML.
-    QQmlEngine* engine()
-    {
-        static QQmlEngine* engine = [] {
-            if (QQuickStyle::name().isEmpty()) {
-                QQuickStyle::setStyle(QStringLiteral("org.kde.desktop"));
-            }
-            // QML text renders like the widgets' (only affects items created afterwards).
-            QQuickWindow::setTextRenderType(QQuickWindow::NativeTextRendering);
-            auto* engine = new QQmlEngine(qApp);
-            QObject::connect(engine, &QQmlEngine::warnings, engine, [](const QList<QQmlError>& warnings) {
-                for (const QQmlError& warning : warnings) {
-                    sonicWarning() << "qml:" << warning.toString();
-                }
-            });
-            return engine;
-        }();
-        return engine;
-    }
 }
 
 WindowController::WindowController(MainWindow* window)
@@ -317,7 +296,7 @@ void WindowController::activateMenuBar()
 
 void WindowController::createQmlWindow()
 {
-    QQmlComponent component(engine(), QStringLiteral("org.sonicde.terminal.app"), QStringLiteral("Main"));
+    QQmlComponent component(QmlDialogs::engine(), QStringLiteral("org.sonicde.terminal.app"), QStringLiteral("Main"));
     QObject* object = component.createWithInitialProperties({{QStringLiteral("controller"), QVariant::fromValue(this)}});
     _qmlWindow = qobject_cast<QQuickWindow*>(object);
     if (!_qmlWindow) {
