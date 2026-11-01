@@ -264,6 +264,7 @@ set(konsoleprivate_SRCS ${windowadaptors_SRCS}
                         quick/QmlDialogs.cpp
                         quick/CopyInputModel.cpp
                         quick/DialogHelpers.cpp
+                        quick/ProfileEditor.cpp
                         quick/ProfileListModel.cpp
                         quick/SettingsEditor.cpp
                         quick/DockAdapter.cpp
@@ -358,6 +359,7 @@ qt_add_qml_module(konsoleprivate
     QML_FILES
         qml/ActionToolButton.qml
         qml/ClearableTextField.qml
+        qml/ColorButton.qml
         qml/ColorComboBox.qml
         qml/ConfigureDialog.qml
         qml/ConfigureGeneralPage.qml
@@ -370,12 +372,20 @@ qt_add_qml_module(konsoleprivate
         qml/DialogPage.qml
         qml/DialogWindow.qml
         qml/DockPanels.qml
+        qml/EditProfileAdvancedPage.qml
+        qml/EditProfileDialog.qml
+        qml/EditProfileGeneralPage.qml
+        qml/EditProfileMousePage.qml
+        qml/EditProfileScrollingPage.qml
+        qml/EditProfileTabsPage.qml
         qml/HistorySizeDialog.qml
         qml/HistorySizeFields.qml
         qml/MnemonicLabel.qml
         qml/PageDialog.qml
         qml/PartInfoPage.qml
         qml/PartSettingsDialog.qml
+        qml/ProfileCheckBox.qml
+        qml/ProfileRadioButton.qml
         qml/RenameTabDialog.qml
         qml/SettingCheckBox.qml
         qml/SettingRadioButton.qml

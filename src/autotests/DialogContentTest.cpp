@@ -12,7 +12,9 @@
 #include "../CopyInputDialog.h"
 #include "../HistorySizeDialog.h"
 #include "../RenameTabDialog.h"
+#include "../profile/ProfileManager.h"
 #include "../quick/CopyInputModel.h"
+#include "../quick/ProfileEditor.h"
 #include "../quick/ProfileListModel.h"
 #include "../quick/QmlDialogs.h"
 #include "../settings/ConfigurationDialog.h"
@@ -22,6 +24,7 @@
 #include "../settings/TabBarSettings.h"
 #include "../settings/TemporaryFilesSettings.h"
 #include "../settings/ThumbnailsSettings.h"
+#include "../widgets/EditProfileDialog.h"
 #include "KonsoleSettings.h"
 #include "ui_PartInfo.h"
 
@@ -39,6 +42,19 @@
 #include <memory>
 
 using namespace Konsole;
+
+namespace {
+// The profile both Edit Profile dialogs show.
+Profile::Ptr editedProfile()
+{
+    static const Profile::Ptr profile = [] {
+        Profile::Ptr created(new Profile(ProfileManager::instance()->defaultProfile()));
+        created->setProperty(Profile::Name, QStringLiteral("DialogContentTest"));
+        return created;
+    }();
+    return profile;
+}
+}
 
 class DialogContentTest : public QObject {
     Q_OBJECT
@@ -241,6 +257,13 @@ void DialogContentTest::testDialog_data()
         return dialog;
     }) << QStringLiteral("PartSettingsDialog")
                                     << QVariantMap();
+    // SessionController::editCurrentProfile() before the QML dialog.
+    QTest::newRow("Edit Profile") << std::function<QWidget*()>([] {
+        auto* dialog = new EditProfileDialog;
+        dialog->setProfile(editedProfile());
+        return dialog;
+    }) << QStringLiteral("EditProfileDialog")
+                                  << QVariantMap();
 }
 
 void DialogContentTest::testDialog()
@@ -250,7 +273,11 @@ void DialogContentTest::testDialog()
     QFETCH(QVariantMap, properties);
     std::unique_ptr<QWidget> widgetDialog(widget());
     auto* pageDialog = qobject_cast<KPageDialog*>(widgetDialog.get());
-    const QSet<QString> expected = pageDialog ? DialogContent::fromWidgetPages(pageDialog) : DialogContent::fromWidgets(widgetDialog.get());
+    // The QML Edit Profile dialog has these pages so far.
+    const QStringList pages = type == QLatin1String("EditProfileDialog")
+        ? QStringList{i18nc("@title:tab Generic, common options", "General"), i18n("Tabs"), i18n("Scrolling"), i18n("Mouse"), i18nc("@title:tab Complex options", "Advanced")}
+        : QStringList();
+    const QSet<QString> expected = pageDialog ? DialogContent::fromWidgetPages(pageDialog, pages) : DialogContent::fromWidgets(widgetDialog.get());
     QVERIFY(!expected.isEmpty());
 
     if (type == QLatin1String("CopyInputDialog")) {
@@ -258,6 +285,9 @@ void DialogContentTest::testDialog()
     }
     if (type == QLatin1String("ConfigureDialog") || type == QLatin1String("PartSettingsDialog")) {
         properties.insert(QStringLiteral("profiles"), QVariant::fromValue(new ProfileListModel(this)));
+    }
+    if (type == QLatin1String("EditProfileDialog")) {
+        properties.insert(QStringLiteral("editor"), QVariant::fromValue(new ProfileEditor(editedProfile(), ProfileEditor::ExistingProfile, this)));
     }
     QPointer<QQuickWindow> dialog = QmlDialogs::open(type, nullptr, properties);
     QVERIFY(dialog);

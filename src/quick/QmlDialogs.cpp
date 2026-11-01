@@ -15,6 +15,7 @@
 #include <QPointer>
 #include <QQmlComponent>
 #include <QQmlEngine>
+#include <QQuickItem>
 #include <QQuickStyle>
 #include <QQuickWindow>
 #include <QScreen>
@@ -45,44 +46,55 @@ namespace QmlDialogs {
         return engine;
     }
 
+    namespace {
+        QQuickWindow* openTransientFor(const QString& type, QWindow* parent, const QVariantMap& properties, Qt::WindowModality modality)
+        {
+            QQmlComponent component(engine(), QStringLiteral("org.sonicde.terminal"), type);
+            QObject* object = component.createWithInitialProperties(properties);
+            auto* window = qobject_cast<QQuickWindow*>(object);
+            if (!window) {
+                sonicCritical() << "dialog" << type << "didn't load:" << component.errorString();
+                delete object;
+                return nullptr;
+            }
+            QQmlEngine::setObjectOwnership(window, QQmlEngine::CppOwnership);
+            window->setTransientParent(parent);
+            window->setModality(modality);
+            if (parent) {
+                // QDialog::adjustPosition(): centred on the parent, inside its screen.
+                QRect frame(QPoint(), window->size());
+                frame.moveCenter(parent->frameGeometry().center());
+                if (QScreen* screen = parent->screen()) {
+                    const QRect area = screen->availableGeometry();
+                    frame.moveLeft(std::clamp(frame.left(), area.left(), std::max(area.left(), area.right() - frame.width())));
+                    frame.moveTop(std::clamp(frame.top(), area.top(), std::max(area.top(), area.bottom() - frame.height())));
+                }
+                window->setPosition(frame.topLeft());
+            }
+            QObject::connect(window, &QWindow::visibleChanged, window, [window](bool visible) {
+                if (!visible) {
+                    window->deleteLater();
+                }
+            });
+            sonicDebug() << "dialog" << type << "opened, transient for" << parent;
+            window->setVisible(true);
+            return window;
+        }
+    }
+
     QQuickWindow* open(const QString& type, QWidget* opener, const QVariantMap& properties, Qt::WindowModality modality)
     {
-        QQmlComponent component(engine(), QStringLiteral("org.sonicde.terminal"), type);
-        QObject* object = component.createWithInitialProperties(properties);
-        auto* window = qobject_cast<QQuickWindow*>(object);
-        if (!window) {
-            sonicCritical() << "dialog" << type << "didn't load:" << component.errorString();
-            delete object;
-            return nullptr;
-        }
-        QQmlEngine::setObjectOwnership(window, QQmlEngine::CppOwnership);
         QWidget* openerWindow = opener ? opener->window() : nullptr;
         if (openerWindow && !CompatWindows::contains(openerWindow)) {
             // A KPart host's window: its native window may not exist yet.
             openerWindow->winId();
         }
-        QWindow* parent = openerWindow ? CompatWindows::shownWindow(openerWindow) : nullptr;
-        window->setTransientParent(parent);
-        window->setModality(modality);
-        if (parent) {
-            // QDialog::adjustPosition(): centred on the parent, inside its screen.
-            QRect frame(QPoint(), window->size());
-            frame.moveCenter(parent->frameGeometry().center());
-            if (QScreen* screen = parent->screen()) {
-                const QRect area = screen->availableGeometry();
-                frame.moveLeft(std::clamp(frame.left(), area.left(), std::max(area.left(), area.right() - frame.width())));
-                frame.moveTop(std::clamp(frame.top(), area.top(), std::max(area.top(), area.bottom() - frame.height())));
-            }
-            window->setPosition(frame.topLeft());
-        }
-        QObject::connect(window, &QWindow::visibleChanged, window, [window](bool visible) {
-            if (!visible) {
-                window->deleteLater();
-            }
-        });
-        sonicDebug() << "dialog" << type << "opened, transient for" << parent;
-        window->setVisible(true);
-        return window;
+        return openTransientFor(type, openerWindow ? CompatWindows::shownWindow(openerWindow) : nullptr, properties, modality);
+    }
+
+    QQuickWindow* openFrom(const QString& type, QQuickItem* from, const QVariantMap& properties, Qt::WindowModality modality)
+    {
+        return openTransientFor(type, from ? from->window() : nullptr, properties, modality);
     }
 
     namespace {

@@ -146,7 +146,9 @@ inline void fromItem(QQuickItem* item, QSet<QString>& entries)
         return;
     }
     if (item->inherits("QQuickSpinBox")) {
-        addRange(entries, item->property("from"), item->property("to"));
+        // A QDoubleSpinBox's range, of a spin box counting in fractions.
+        const bool real = item->property("realFrom").isValid();
+        addRange(entries, item->property(real ? "realFrom" : "from"), item->property(real ? "realTo" : "to"));
         add(entries, "suffix", item->property("suffix").toString());
         return;
     }
@@ -170,9 +172,9 @@ inline void fromItem(QQuickItem* item, QSet<QString>& entries)
     }
 }
 
-// A page dialog's widgets on every page and tab: those not current are hidden, and the
-// title shows the current page's name.
-inline QSet<QString> fromWidgetPages(KPageDialog* dialog)
+// A page dialog's widgets on every page and tab (or on the pages named): those not current
+// are hidden, and the title shows the current page's name.
+inline QSet<QString> fromWidgetPages(KPageDialog* dialog, const QStringList& pageNames = {})
 {
     QSet<QString> entries;
     // The model has them all: KConfigDialog's page items aren't the dialog's children.
@@ -183,6 +185,9 @@ inline QSet<QString> fromWidgetPages(KPageDialog* dialog)
     }
     for (int row = 0; row < model->rowCount(); ++row) {
         KPageWidgetItem* page = model->item(model->index(row, 0));
+        if (!pageNames.isEmpty() && !pageNames.contains(page->name())) {
+            continue;
+        }
         add(entries, "page", page->name());
         dialog->setCurrentPage(page);
         entries += fromWidgets(dialog);

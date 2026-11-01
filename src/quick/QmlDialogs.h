@@ -14,6 +14,7 @@
 
 class QObject;
 class QQmlEngine;
+class QQuickItem;
 class QQuickWindow;
 class QWidget;
 
@@ -33,6 +34,9 @@ namespace QmlDialogs {
      * accepted() or rejected() as a QDialog would. Null if the component didn't load.
      */
     KONSOLEPRIVATE_EXPORT QQuickWindow* open(const QString& type, QWidget* opener, const QVariantMap& properties = {},
+        Qt::WindowModality modality = Qt::ApplicationModal);
+    // As open(), from an item of a QML window (a dialog opening another): transient for that window.
+    KONSOLEPRIVATE_EXPORT QQuickWindow* openFrom(const QString& type, QQuickItem* from, const QVariantMap& properties = {},
         Qt::WindowModality modality = Qt::ApplicationModal);
 
     // connect(dialog, &QDialog::accepted, context, callback) for a QML dialog.

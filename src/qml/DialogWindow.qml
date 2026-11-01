@@ -17,8 +17,8 @@ Window {
     default property alias content: contentColumn.data
     property alias standardButtons: buttonBox.standardButtons
     property alias buttonBox: buttonBox
-    // False keeps the dialog open on OK (an overridden QDialog::accept() refusing).
-    property bool acceptable: true
+    // Asked on OK; false keeps the dialog open (an overridden QDialog::accept() refusing).
+    property var acceptCheck: () => true
 
     signal accepted
     signal rejected
@@ -28,7 +28,7 @@ Window {
     property bool done: false
 
     function accept() {
-        if (!acceptable || done) {
+        if (done || !acceptCheck()) {
             return;
         }
         done = true;
