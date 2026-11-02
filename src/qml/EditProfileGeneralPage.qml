@@ -84,6 +84,8 @@ DialogPage {
 
         objectName: "generalPageMessageWidget"
         Layout.fillWidth: true
+        // Wrapped: its one-line width mustn't widen the dialog.
+        Layout.preferredWidth: Kirigami.Units.gridUnit * 20
         type: Kirigami.MessageType.Error
         showCloseButton: true
         text: root.editor.message
@@ -245,6 +247,7 @@ DialogPage {
                 objectName: "containerWarningWidget"
                 Layout.columnSpan: 2
                 Layout.fillWidth: true
+                Layout.preferredWidth: Kirigami.Units.gridUnit * 20
                 type: Kirigami.MessageType.Warning
                 text: root.editor.containersDisabledReason
                 visible: !root.editor.containersEnabled
@@ -335,6 +338,7 @@ DialogPage {
                 objectName: "useCurrentWindowSizeNote"
                 Layout.columnSpan: 2
                 Layout.fillWidth: true
+                Layout.preferredWidth: Kirigami.Units.gridUnit * 20
                 wrapMode: Text.WordWrap
                 text: i18n("<html><head/><body><p><span style=\" font-style:italic;\">Settings → Configure Konsole → General → Remember window size</span> must be disabled for these entries to work.</p></body></html>")
             }

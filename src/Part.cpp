@@ -28,12 +28,12 @@
 #include "ViewManager.h"
 #include "konsoledebug.h"
 #include "profile/ProfileManager.h"
+#include "quick/ProfileEditor.h"
 #include "quick/ProfileListModel.h"
 #include "quick/QmlDialogs.h"
 #include "session/SessionController.h"
 #include "session/SessionManager.h"
 #include "terminalDisplay/TerminalDisplay.h"
-#include "widgets/EditProfileDialog.h"
 #include "widgets/ViewContainer.h"
 
 using namespace Konsole;
@@ -329,10 +329,8 @@ void Part::showEditCurrentProfileDialog(QWidget *parent)
 {
     Q_ASSERT(activeSession());
 
-    auto dialog = new EditProfileDialog(parent);
-    dialog->setAttribute(Qt::WA_DeleteOnClose);
-    dialog->setProfile(SessionManager::instance()->sessionProfile(activeSession()));
-    dialog->show();
+    // Not modal, as the widget dialog was.
+    ProfileEditor::open(SessionManager::instance()->sessionProfile(activeSession()), ProfileEditor::ExistingProfile, parent, Qt::NonModal);
 }
 
 void Part::changeSessionSettings(const QString &text)

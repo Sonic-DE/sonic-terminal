@@ -46,6 +46,9 @@ INTENDED_QML_COLOURS = {
     # Joseph, 2026-11-01: messages follow the colour scheme; KMessageWidget hard-codes Breeze's
     # blue (kmessagewidget.cpp), Kirigami's InlineMessage uses activeTextColor at 20 %.
     (203, 223, 238): "information message background",
+    # Joseph, 2026-11-02: a disabled combo box as the desktop QML style draws it (Silver's
+    # widgets fill it with the window colour).
+    (229, 229, 229): "disabled combo box",
 }
 PATTERNS = ("*.txt", "*.png", "*.png.overlays", "*.png.panes")
 QML_DIALOG_COLOUR_SHARE = 0.02

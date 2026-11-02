@@ -27,9 +27,10 @@ DialogPage {
     component Setting: ProfileCheckBox {
         editor: root.editor
     }
+    // The .ui's fixed 16 px vertical spacers.
     component Gap: Item {
         Layout.columnSpan: 2
-        Layout.preferredHeight: Kirigami.Units.largeSpacing
+        Layout.preferredHeight: 16
     }
 
     GridLayout {
@@ -120,16 +121,17 @@ DialogPage {
             text: i18n("Reflow lines when terminal resizes")
         }
 
-        QQC2.Label {
+        SectionLabel {
             text: i18n("Color of scrollbar markers:")
         }
         ColorButton {
             objectName: "markerColorButton"
+            Layout.fillWidth: true
             Component.onCompleted: color = root.editor.value("MarkerColor")
             onColorEdited: color => root.editor.setValue("MarkerColor", color)
         }
 
-        QQC2.Label {
+        SectionLabel {
             text: i18n("Size of each marker (as a percentage of scrollbar length):")
         }
         // QDoubleSpinBox with one decimal: the value in tenths.
@@ -141,6 +143,7 @@ DialogPage {
             readonly property string suffix: i18n(" %")
 
             objectName: "markerSizeWidget"
+            Layout.fillWidth: true
             editable: true
             from: realFrom * 10
             to: realTo * 10
@@ -155,16 +158,17 @@ DialogPage {
             onValueModified: root.editor.setValue("MarkerSize", value / 10)
         }
 
-        QQC2.Label {
+        SectionLabel {
             text: i18n("Color of scrollbar search highlighting lines:")
         }
         ColorButton {
             objectName: "searchHighligheterColorButton"
+            Layout.fillWidth: true
             Component.onCompleted: color = root.editor.value("SearchLineColor")
             onColorEdited: color => root.editor.setValue("SearchLineColor", color)
         }
 
-        QQC2.Label {
+        SectionLabel {
             text: i18n("Search highlighting line opacity:")
         }
         QQC2.Slider {
@@ -172,7 +176,6 @@ DialogPage {
             Layout.fillWidth: true
             from: 0
             to: 200
-            stepSize: 1
             Component.onCompleted: value = root.editor.value("SearchLineOpacity")
             onMoved: root.editor.setValue("SearchLineOpacity", Math.round(value))
         }

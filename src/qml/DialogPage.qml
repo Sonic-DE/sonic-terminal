@@ -9,6 +9,8 @@ import QtQuick.Layouts
 // A page of a PageDialog or TabbedPageDialog (a KPageWidgetItem): its name, icon and content.
 ColumnLayout {
     property string title
+    // KPageWidgetItem::header(): the heading above the page, its name unless set.
+    property string header: title
     property string iconName
     // False leaves the page out, as a page not added to the dialog.
     property bool available: true

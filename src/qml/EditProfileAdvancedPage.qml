@@ -146,7 +146,7 @@ DialogPage {
             onKeySequenceModified: root.editor.setValue("PeekPrimaryKeySequence", keySequence)
         }
 
-        QQC2.Label {
+        SectionLabel {
             text: i18n("Set interval between autosaves:")
         }
         QQC2.SpinBox {

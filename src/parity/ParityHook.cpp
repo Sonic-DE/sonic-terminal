@@ -97,6 +97,14 @@ static bool selectQmlRow(QWindow*, const QString&, int, const QString&)
 {
     return false;
 }
+static bool setQmlText(QWindow*, const QString&, const QString&)
+{
+    return false;
+}
+static bool clickQmlItem(QWindow*, const QString&, int, int)
+{
+    return false;
+}
 }
 #endif
 
@@ -612,6 +620,7 @@ namespace {
             if (!button->property("enabled").toBool()) {
                 return fail(QStringLiteral("button disabled: ") + what);
             }
+            rememberShownDialogs();
             // Deferred: a button may open a menu or modal dialog that doesn't return until closed.
             QTimer::singleShot(0, button, [button] {
                 QMetaObject::invokeMethod(button, "click");
@@ -713,6 +722,7 @@ namespace {
             if (!button->isEnabled()) {
                 return fail(QStringLiteral("button disabled: ") + what);
             }
+            rememberShownDialogs();
             QTimer::singleShot(0, button, &QAbstractButton::click);
             next(delayMs);
         }
@@ -779,9 +789,28 @@ namespace {
             fail(QStringLiteral("select: no list ") + object);
         }
 
+        void rememberShownDialogs()
+        {
+            _shownBeforeClick.clear();
+            const QList<QWindow*> shown = qmlDialogs();
+            for (QWindow* window : shown) {
+                _shownBeforeClick.append(window);
+            }
+        }
+
         void captureDialog(const QString& name, bool close, int remainingMs, bool image = true)
         {
-            if (QWindow* qml = frontQmlDialog()) {
+            QWindow* qml = frontQmlDialog();
+            // A dialog the click opens (KNewStuff's, a widget dialog) can take a moment to show:
+            // wait for it rather than take the dialog the click was made in, until the timeout.
+            if (qml && _shownBeforeClick.contains(qml) && !visibleDialog() && remainingMs > 0) {
+                QTimer::singleShot(100, this, [this, name, close, remainingMs, image] {
+                    captureDialog(name, close, remainingMs - 100, image);
+                });
+                return;
+            }
+            if (qml) {
+                _shownBeforeClick.clear();
                 return captureQmlDialog(qml, name, close, image);
             }
             QDialog* dialog = visibleDialog();
@@ -794,6 +823,7 @@ namespace {
                 });
                 return;
             }
+            _shownBeforeClick.clear();
             trace(QStringLiteral("dialog ") + name + QStringLiteral(" ") + dialog->windowTitle());
             if (!image) {
                 // Contents depend on the outside world (KNewStuff's network); only the dialog's opening is checked.
@@ -1245,6 +1275,12 @@ namespace {
             }
             if (op == QLatin1String("clickItem")) {
                 const QString object = step.value(QStringLiteral("object")).toString();
+                if (QWindow* qml = frontQmlDialog()) {
+                    if (!clickQmlItem(qml, object, step.value(QStringLiteral("row")).toInt(), step.value(QStringLiteral("column")).toInt())) {
+                        return fail(QStringLiteral("clickItem: no item in ") + object);
+                    }
+                    return next(step.value(QStringLiteral("delay")).toInt(800));
+                }
                 auto* itemView = dialogChild<QAbstractItemView>(object);
                 const QModelIndex index = itemView ? itemView->model()->index(step.value(QStringLiteral("row")).toInt(), step.value(QStringLiteral("column")).toInt())
                                                    : QModelIndex();
@@ -1260,6 +1296,12 @@ namespace {
                 return next(step.value(QStringLiteral("delay")).toInt(800));
             }
             if (op == QLatin1String("setText")) {
+                if (QWindow* qml = frontQmlDialog()) {
+                    if (!setQmlText(qml, step.value(QStringLiteral("object")).toString(), step.value(QStringLiteral("text")).toString())) {
+                        return fail(QStringLiteral("setText: no line edit ") + step.value(QStringLiteral("object")).toString());
+                    }
+                    return next(300);
+                }
                 auto* edit = dialogChild<QLineEdit>(step.value(QStringLiteral("object")).toString());
                 if (!edit) {
                     return fail(QStringLiteral("setText: no line edit ") + step.value(QStringLiteral("object")).toString());
@@ -1317,6 +1359,8 @@ namespace {
         QList<Backdrop*> _backdrops;
         bool _failed = false;
         QString _targetTitle;
+        // QML dialogs already shown when the last click happened: not the dialog it opens.
+        QList<QPointer<QWindow>> _shownBeforeClick;
         int _index = 0;
         int _currentWindow = 0;
         // The QML window's mouse event timestamps.

@@ -45,7 +45,13 @@ PageDialog {
     EditProfileTabsPage {
         editor: root.editor
     }
+    EditProfileAppearancePage {
+        editor: root.editor
+    }
     EditProfileScrollingPage {
+        editor: root.editor
+    }
+    EditProfileKeyboardPage {
         editor: root.editor
     }
     EditProfileMousePage {

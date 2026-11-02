@@ -206,7 +206,7 @@ DialogWindow {
             Kirigami.Heading {
                 objectName: "pageTitle"
                 level: 2
-                text: root.currentPage ? root.currentPage.title : ""
+                text: root.currentPage ? root.currentPage.header : ""
             }
 
             Kirigami.Separator {

@@ -231,6 +231,8 @@ DialogPage {
             QQC2.Label {
                 objectName: "allowLinkEscapeSequenceButtonWarning"
                 Layout.fillWidth: true
+                // Wrapped: its one-line width mustn't widen the dialog.
+                Layout.preferredWidth: Kirigami.Units.gridUnit * 20
                 wrapMode: Text.WordWrap
                 text: i18n("<b>WARNING</b>: This has security implications as it allows malicious URLs to be shown as another URL or hidden.<br>Make sure you understand the implications before turning this on.")
             }

@@ -40,5 +40,10 @@ namespace ParityHook {
     // Makes a row current in a list or combo box by object name: `row`, or the first row
     // whose text starts with `text`; false if there is no such list or row.
     bool selectQmlRow(QWindow* dialog, const QString& object, int row, const QString& text);
+    // Sets a text field's text by object name; false if there is none.
+    bool setQmlText(QWindow* dialog, const QString& object, const QString& text);
+    // Clicks a table's cell through its clickItem(row, column), after this returns (the cell
+    // may open a modal dialog); false if there is no such table.
+    bool clickQmlItem(QWindow* dialog, const QString& object, int row, int column);
 }
 }

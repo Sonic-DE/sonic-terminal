@@ -11,9 +11,16 @@
 
 #include "../CopyInputDialog.h"
 #include "../HistorySizeDialog.h"
+#include "../KeyBindingEditor.h"
 #include "../RenameTabDialog.h"
+#include "../WindowSystemInfo.h"
+#include "../colorscheme/ColorSchemeEditor.h"
+#include "../colorscheme/ColorSchemeManager.h"
+#include "../keyboardtranslator/KeyboardTranslatorManager.h"
 #include "../profile/ProfileManager.h"
+#include "../quick/ColorSchemeEditorBackend.h"
 #include "../quick/CopyInputModel.h"
+#include "../quick/KeyBindingEditorBackend.h"
 #include "../quick/ProfileEditor.h"
 #include "../quick/ProfileListModel.h"
 #include "../quick/QmlDialogs.h"
@@ -264,6 +271,19 @@ void DialogContentTest::testDialog_data()
         return dialog;
     }) << QStringLiteral("EditProfileDialog")
                                   << QVariantMap();
+    // EditProfileDialog::showColorSchemeEditor() and showKeyBindingEditor().
+    QTest::newRow("Color Scheme Editor") << std::function<QWidget*()>([] {
+        auto* dialog = new ColorSchemeEditor(WindowSystemInfo::compositingActive());
+        dialog->setup(ColorSchemeManager::instance()->defaultColorScheme(), false);
+        return dialog;
+    }) << QStringLiteral("ColorSchemeEditorDialog")
+                                         << QVariantMap();
+    QTest::newRow("Key Binding Editor") << std::function<QWidget*()>([] {
+        auto* dialog = new KeyBindingEditor;
+        dialog->setup(KeyboardTranslatorManager::instance()->defaultTranslator(), QString(), false);
+        return dialog;
+    }) << QStringLiteral("KeyBindingEditorDialog")
+                                        << QVariantMap();
 }
 
 void DialogContentTest::testDialog()
@@ -273,11 +293,7 @@ void DialogContentTest::testDialog()
     QFETCH(QVariantMap, properties);
     std::unique_ptr<QWidget> widgetDialog(widget());
     auto* pageDialog = qobject_cast<KPageDialog*>(widgetDialog.get());
-    // The QML Edit Profile dialog has these pages so far.
-    const QStringList pages = type == QLatin1String("EditProfileDialog")
-        ? QStringList{i18nc("@title:tab Generic, common options", "General"), i18n("Tabs"), i18n("Scrolling"), i18n("Mouse"), i18nc("@title:tab Complex options", "Advanced")}
-        : QStringList();
-    const QSet<QString> expected = pageDialog ? DialogContent::fromWidgetPages(pageDialog, pages) : DialogContent::fromWidgets(widgetDialog.get());
+    const QSet<QString> expected = pageDialog ? DialogContent::fromWidgetPages(pageDialog) : DialogContent::fromWidgets(widgetDialog.get());
     QVERIFY(!expected.isEmpty());
 
     if (type == QLatin1String("CopyInputDialog")) {
@@ -288,6 +304,14 @@ void DialogContentTest::testDialog()
     }
     if (type == QLatin1String("EditProfileDialog")) {
         properties.insert(QStringLiteral("editor"), QVariant::fromValue(new ProfileEditor(editedProfile(), ProfileEditor::ExistingProfile, this)));
+    }
+    if (type == QLatin1String("ColorSchemeEditorDialog")) {
+        properties.insert(QStringLiteral("editor"),
+            QVariant::fromValue(new ColorSchemeEditorBackend(ColorSchemeManager::instance()->defaultColorScheme(), false, WindowSystemInfo::compositingActive(), this)));
+    }
+    if (type == QLatin1String("KeyBindingEditorDialog")) {
+        properties.insert(QStringLiteral("editor"),
+            QVariant::fromValue(new KeyBindingEditorBackend(KeyboardTranslatorManager::instance()->defaultTranslator(), QString(), false, this)));
     }
     QPointer<QQuickWindow> dialog = QmlDialogs::open(type, nullptr, properties);
     QVERIFY(dialog);

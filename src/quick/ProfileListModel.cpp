@@ -5,11 +5,12 @@
 
 #include "ProfileListModel.h"
 
+#include "ProfileEditor.h"
 #include "profile/ProfileManager.h"
 #include "profile/ProfileModel.h"
-#include "widgets/EditProfileDialog.h"
 
 #include <QFont>
+#include <QWidget>
 
 namespace Konsole {
 ProfileListModel::ProfileListModel(QObject* parent)
@@ -101,12 +102,9 @@ void ProfileListModel::createProfile(int row)
     newProfile->setProperty(Profile::Name, uniqueName);
     newProfile->setProperty(Profile::UntranslatedName, uniqueName);
 
-    auto* dialog = new EditProfileDialog(_opener);
-    dialog->setAttribute(Qt::WA_DeleteOnClose);
-    dialog->setModal(true);
-    dialog->setProfile(newProfile, EditProfileDialog::NewProfile);
-    dialog->selectProfileName();
-    dialog->show();
+    if (QQuickWindow* dialog = ProfileEditor::open(newProfile, ProfileEditor::NewProfile, _opener)) {
+        QMetaObject::invokeMethod(dialog, "selectProfileName");
+    }
 }
 
 void ProfileListModel::editProfile(int row)
@@ -115,11 +113,7 @@ void ProfileListModel::editProfile(int row)
     if (!(profile && profile->isEditable())) {
         return;
     }
-    auto* dialog = new EditProfileDialog(_opener);
-    dialog->setAttribute(Qt::WA_DeleteOnClose);
-    dialog->setModal(true);
-    dialog->setProfile(profile);
-    dialog->show();
+    ProfileEditor::open(profile, ProfileEditor::ExistingProfile, _opener);
 }
 
 void ProfileListModel::deleteProfile(int row)

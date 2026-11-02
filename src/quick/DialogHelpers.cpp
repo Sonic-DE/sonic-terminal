@@ -48,7 +48,9 @@ QColor DialogHelpers::noneColor()
 
 QVariant DialogHelpers::chooseColor(const QColor& initial, QQuickItem* from)
 {
-    QColorDialog dialog(initial);
+    // As QColorDialog::getColor(): the colour set once the dialog is built.
+    QColorDialog dialog;
+    dialog.setCurrentColor(initial);
     if (from && from->window()) {
         dialog.winId();
         dialog.windowHandle()->setTransientParent(from->window());

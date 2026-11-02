@@ -5,16 +5,24 @@
 
 #include "ProfileEditor.h"
 
+#include "ColorSchemeEditorBackend.h"
 #include "Enumeration.h"
+#include "FontDialog.h"
+#include "KeyBindingEditorBackend.h"
 #include "QmlDialogs.h"
 #include "ShellCommand.h"
+#include "WindowSystemInfo.h"
+#include "colorscheme/ColorSchemeManager.h"
 #include "containers/ContainerRegistry.h"
+#include "keyboardtranslator/KeyboardTranslatorManager.h"
 #include "profile/ProfileGroup.h"
 #include "profile/ProfileManager.h"
 
 #include <KCodecAction>
 #include <KIconDialog>
 #include <KLocalizedString>
+#include <KNSCore/Entry>
+#include <KNSWidgets/Dialog>
 #include <Sonic/Logging/Log>
 
 #include <QCoreApplication>
@@ -27,6 +35,7 @@
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QStandardPaths>
+#include <QTimer>
 
 #if defined(Q_OS_LINUX) | defined(Q_OS_FREEBSD) | defined(Q_OS_OPENBSD) | defined(Q_OS_SOLARIS) | defined(Q_OS_MACOS)
 #include <unistd.h>
@@ -84,10 +93,10 @@ ProfileEditor::ProfileEditor(const Profile::Ptr& profile, State state, QObject* 
     }
 }
 
-QQuickWindow* ProfileEditor::open(const Profile::Ptr& profile, State state, QWidget* opener)
+QQuickWindow* ProfileEditor::open(const Profile::Ptr& profile, State state, QWidget* opener, Qt::WindowModality modality)
 {
     auto* editor = new ProfileEditor(profile, state);
-    QQuickWindow* dialog = QmlDialogs::open(QStringLiteral("EditProfileDialog"), opener, {{QStringLiteral("editor"), QVariant::fromValue(editor)}});
+    QQuickWindow* dialog = QmlDialogs::open(QStringLiteral("EditProfileDialog"), opener, {{QStringLiteral("editor"), QVariant::fromValue(editor)}}, modality);
     if (!dialog) {
         delete editor;
         return nullptr;
@@ -611,6 +620,336 @@ void ProfileEditor::chooseEncoding(QQuickItem* below)
     });
     const QPoint position = below ? below->mapToGlobal(QPointF(0, below->height())).toPoint() : QCursor::pos();
     codecAction.menu()->exec(position);
+}
+
+void ProfileEditor::unpreview(Profile::Property property)
+{
+    auto node = _previewedProperties.extract(property);
+    if (!node) {
+        return;
+    }
+
+    Profile::PropertyMap map;
+    map.insert(std::move(node));
+    ProfileManager::instance()->changeProfile(_profile, map, false);
+}
+
+QVariantList ProfileEditor::colorSchemes() const
+{
+    QList<std::shared_ptr<const ColorScheme>> schemes = ColorSchemeManager::instance()->allColorSchemes();
+    std::sort(schemes.begin(), schemes.end(), [](const auto& a, const auto& b) {
+        return a->description() < b->description();
+    });
+    QVariantList choices;
+    for (const auto& scheme : std::as_const(schemes)) {
+        QColor background = scheme->backgroundColor();
+        background.setAlphaF(scheme->opacity());
+        choices.append(QVariantMap{{QStringLiteral("name"), scheme->name()},
+            {QStringLiteral("description"), scheme->description()},
+            {QStringLiteral("background"), background},
+            {QStringLiteral("foreground"), scheme->foregroundColor()}});
+    }
+    return choices;
+}
+
+QString ProfileEditor::transparencyWarning() const
+{
+    const auto scheme = ColorSchemeManager::instance()->findColorScheme(value(QStringLiteral("ColorScheme")).toString());
+    if (!scheme || scheme->opacity() >= 1.0) {
+        return {};
+    }
+    if (!WindowSystemInfo::compositingActive()) {
+        return i18n(
+            "This color scheme uses a transparent background"
+            " which does not appear to be supported on your"
+            " desktop");
+    }
+    if (!WindowSystemInfo::HAVE_TRANSPARENCY) {
+        return i18n(
+            "Konsole was started before desktop effects were enabled."
+            " You need to restart Konsole to see transparent background.");
+    }
+    return {};
+}
+
+QString ProfileEditor::colorSchemeMessage() const
+{
+    return _colorSchemeMessage;
+}
+
+QFont ProfileEditor::previewFont() const
+{
+    QFont font = _profile->font();
+    font.setStyleStrategy(_profile->antiAliasFonts() ? QFont::PreferAntialias : QFont::NoAntialias);
+    return font;
+}
+
+QString ProfileEditor::fontText() const
+{
+    const QFont font = _profile->font();
+    return QStringLiteral("%1 %2pt").arg(font.family()).arg(font.pointSize());
+}
+
+QString ProfileEditor::emojiFontText() const
+{
+    const QFont font = _profile->emojiFont();
+    return QStringLiteral("%1 %2pt").arg(font.family()).arg(font.pointSize());
+}
+
+void ProfileEditor::selectColorScheme(const QString& name)
+{
+    updateTempProfileProperty(Profile::ColorScheme, name);
+    preview(Profile::ColorScheme, name);
+    Q_EMIT changed();
+}
+
+bool ProfileEditor::canResetColorScheme(const QString& name) const
+{
+    return ColorSchemeManager::instance()->canResetColorScheme(name);
+}
+
+bool ProfileEditor::isColorSchemeDeletable(const QString& name) const
+{
+    return ColorSchemeManager::instance()->isColorSchemeDeletable(name);
+}
+
+void ProfileEditor::removeColorScheme(const QString& name)
+{
+    if (ColorSchemeManager::instance()->deleteColorScheme(name)) {
+        Q_EMIT colorSchemesChanged();
+        Q_EMIT colorSchemeChosen(QString());
+    }
+}
+
+void ProfileEditor::resetColorScheme(const QString& name)
+{
+    ColorSchemeManager::instance()->deleteColorScheme(name);
+    Q_EMIT colorSchemesChanged();
+    // The list selects the profile's scheme again, as a choice.
+    const QString current = _profile->colorScheme();
+    selectColorScheme(current);
+    Q_EMIT colorSchemeChosen(current);
+}
+
+void ProfileEditor::editColorScheme(const QString& name, bool isNewScheme, QQuickItem* from)
+{
+    const auto scheme = name.isEmpty() ? ColorSchemeManager::instance()->defaultColorScheme() : ColorSchemeManager::instance()->findColorScheme(name);
+    if (!scheme) {
+        return;
+    }
+    // One editor at a time.
+    if (_colorSchemeEditor) {
+        _colorSchemeEditor->close();
+    }
+    auto* backend = new ColorSchemeEditorBackend(scheme, isNewScheme, WindowSystemInfo::compositingActive());
+    connect(backend, &ColorSchemeEditorBackend::saveRequested, this, &ProfileEditor::saveColorScheme);
+    QQuickWindow* dialog = QmlDialogs::openFrom(QStringLiteral("ColorSchemeEditorDialog"), from, {{QStringLiteral("editor"), QVariant::fromValue(backend)}}, Qt::NonModal);
+    if (!dialog) {
+        delete backend;
+        return;
+    }
+    backend->setParent(dialog);
+    _colorSchemeEditor = dialog;
+}
+
+void ProfileEditor::saveColorScheme(const ColorScheme& scheme, bool isNewScheme)
+{
+    auto newScheme = std::make_shared<ColorScheme>(scheme);
+
+    // if this is a new color scheme, pick a name based on the description
+    if (isNewScheme) {
+        newScheme->setName(newScheme->description());
+    }
+
+    ColorSchemeManager::instance()->addColorScheme(newScheme);
+    Q_EMIT colorSchemesChanged();
+
+    // select the edited or the new colorScheme after saving the changes
+    selectColorScheme(newScheme->name());
+    Q_EMIT colorSchemeChosen(newScheme->name());
+}
+
+void ProfileEditor::getNewColorSchemes(QQuickItem* from)
+{
+    if (!_getNewDialog) {
+        // KNSWidgets::Button's dialog: titled after the button, reported when it closes.
+        _getNewDialog = new KNSWidgets::Dialog(QStringLiteral(":/konsole/konsole.knsrc"));
+        _getNewDialog->setWindowTitle(i18n("Get New...").remove(QLatin1Char('&')));
+        connect(this, &QObject::destroyed, _getNewDialog, &QObject::deleteLater);
+        connect(_getNewDialog, &KNSWidgets::Dialog::finished, this, [this]() {
+            gotNewColorSchemes(_getNewDialog->changedEntries());
+        });
+    }
+    setTransientFor(_getNewDialog, from);
+    _getNewDialog->open();
+}
+
+void ProfileEditor::gotNewColorSchemes(const QList<KNSCore::Entry>& changedEntries)
+{
+    int failures = 0;
+    for (auto& entry : std::as_const(changedEntries)) {
+        switch (entry.status()) {
+        case KNSCore::Entry::Installed: {
+            const auto installedFiles = entry.installedFiles();
+            for (const QString& file : installedFiles) {
+                if (ColorSchemeManager::instance()->loadColorScheme(file)) {
+                    continue;
+                }
+                sonicWarning() << "Failed to load file" << file;
+                ++failures;
+            }
+            if (failures == entry.installedFiles().size()) {
+                _colorSchemeMessage = xi18nc("@info", "Scheme <resource>%1</resource> failed to load.", entry.name());
+                Q_EMIT colorSchemeMessageChanged();
+                QTimer::singleShot(8000, this, [this]() {
+                    _colorSchemeMessage.clear();
+                    Q_EMIT colorSchemeMessageChanged();
+                });
+            }
+            break;
+        }
+        case KNSCore::Entry::Deleted: {
+            const auto uninstalledFiles = entry.uninstalledFiles();
+            for (const auto& file : uninstalledFiles) {
+                if (ColorSchemeManager::instance()->unloadColorScheme(file)) {
+                    continue;
+                }
+                sonicWarning() << "Failed to unload file" << file;
+                // If unloading fails we do not care. If the scheme failed here
+                // it either wasn't loaded or was invalid to begin with.
+            }
+            break;
+        }
+        case KNSCore::Entry::Invalid:
+        case KNSCore::Entry::Installing:
+        case KNSCore::Entry::Downloadable:
+        case KNSCore::Entry::Updateable:
+        case KNSCore::Entry::Updating:
+            // Not interesting.
+            break;
+        }
+    }
+    Q_EMIT colorSchemesChanged();
+    // The list shows the profile's scheme again; it isn't chosen anew.
+    Q_EMIT colorSchemeChosen(_profile->colorScheme());
+}
+
+void ProfileEditor::chooseFont(QQuickItem* from)
+{
+    showFontDialog(false, from);
+}
+
+void ProfileEditor::chooseEmojiFont(QQuickItem* from)
+{
+    showFontDialog(true, from);
+}
+
+void ProfileEditor::showFontDialog(bool emoji, QQuickItem* from)
+{
+    QPointer<FontDialog>& dialog = emoji ? _emojiFontDialog : _fontDialog;
+    const Profile::Property property = emoji ? Profile::EmojiFont : Profile::Font;
+    if (!dialog) {
+        dialog = emoji ? new FontDialog(nullptr, true, _profile->emojiFont()) : new FontDialog(nullptr);
+        dialog->setModal(true);
+        connect(this, &QObject::destroyed, dialog, &QObject::deleteLater);
+        connect(dialog, &FontDialog::fontChanged, this, [this, property](const QFont& font) {
+            preview(property, font);
+            Q_EMIT changed();
+        });
+        connect(dialog, &FontDialog::accepted, this, [this, property, dialog = dialog.data()]() {
+            const QFont font = dialog->font();
+            preview(property, font);
+            updateTempProfileProperty(property, font);
+        });
+        connect(dialog, &FontDialog::rejected, this, [this, property]() {
+            unpreview(property);
+            Q_EMIT changed();
+        });
+    }
+    if (!emoji) {
+        dialog->setFont(_profile->font());
+    }
+    setTransientFor(dialog, from);
+    dialog->show();
+}
+
+QVariantList ProfileEditor::keyBindings() const
+{
+    auto* manager = KeyboardTranslatorManager::instance();
+    QVariantList choices;
+    const QStringList names = manager->allTranslators();
+    for (const QString& name : names) {
+        const KeyboardTranslator* translator = manager->findTranslator(name);
+        if (translator == nullptr) {
+            continue;
+        }
+        choices.append(QVariantMap{{QStringLiteral("name"), translator->name()},
+            {QStringLiteral("description"), translator->description()},
+            {QStringLiteral("path"), manager->findTranslatorPath(name)}});
+    }
+    std::sort(choices.begin(), choices.end(), [](const QVariant& a, const QVariant& b) {
+        return a.toMap().value(QStringLiteral("description")).toString() < b.toMap().value(QStringLiteral("description")).toString();
+    });
+    return choices;
+}
+
+void ProfileEditor::selectKeyBindings(const QString& name)
+{
+    updateTempProfileProperty(Profile::KeyBindings, name);
+}
+
+bool ProfileEditor::canResetKeyBindings(const QString& name) const
+{
+    return KeyboardTranslatorManager::instance()->isTranslatorResettable(name);
+}
+
+bool ProfileEditor::isKeyBindingsDeletable(const QString& name) const
+{
+    return KeyboardTranslatorManager::instance()->isTranslatorDeletable(name);
+}
+
+void ProfileEditor::removeKeyBindings(const QString& name)
+{
+    if (KeyboardTranslatorManager::instance()->deleteTranslator(name)) {
+        Q_EMIT keyBindingsChanged();
+        Q_EMIT keyBindingsChosen(QString());
+    }
+}
+
+void ProfileEditor::resetKeyBindings(const QString& name)
+{
+    auto* manager = KeyboardTranslatorManager::instance();
+    manager->deleteTranslator(name);
+    // find and load the translator
+    manager->findTranslator(name);
+    Q_EMIT keyBindingsChanged();
+    selectKeyBindings(name);
+    Q_EMIT keyBindingsChosen(name);
+}
+
+void ProfileEditor::editKeyBindings(const QString& name, bool isNewTranslator, QQuickItem* from)
+{
+    auto* manager = KeyboardTranslatorManager::instance();
+    const KeyboardTranslator* translator = name.isEmpty() ? manager->defaultTranslator() : manager->findTranslator(name);
+    if (translator == nullptr) {
+        return;
+    }
+    auto* backend = new KeyBindingEditorBackend(translator, _profile->keyBindings(), isNewTranslator);
+    connect(backend, &KeyBindingEditorBackend::saved, this, [this](const QString& saved, bool isProfileTranslator) {
+        Q_EMIT keyBindingsChanged();
+        // The list selects the saved scheme, which chooses it.
+        selectKeyBindings(saved);
+        if (isProfileTranslator) {
+            updateTempProfileProperty(Profile::KeyBindings, saved);
+        }
+        Q_EMIT keyBindingsChosen(saved);
+    });
+    QQuickWindow* dialog = QmlDialogs::openFrom(QStringLiteral("KeyBindingEditorDialog"), from, {{QStringLiteral("editor"), QVariant::fromValue(backend)}});
+    if (!dialog) {
+        delete backend;
+        return;
+    }
+    backend->setParent(dialog);
 }
 }
 

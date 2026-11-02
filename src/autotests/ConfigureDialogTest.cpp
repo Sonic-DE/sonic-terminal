@@ -12,6 +12,7 @@
 
 #include "../MainWindow.h"
 #include "../profile/ProfileManager.h"
+#include "../quick/ProfileEditor.h"
 #include "../quick/ProfileListModel.h"
 #include "../quick/WindowController.h"
 #include "../settings/GeneralSettings.h"
@@ -19,7 +20,6 @@
 #include "../settings/TabBarSettings.h"
 #include "../settings/TemporaryFilesSettings.h"
 #include "../settings/ThumbnailsSettings.h"
-#include "../widgets/EditProfileDialog.h"
 #include "KonsoleSettings.h"
 
 #include <KActionCollection>
@@ -60,6 +60,7 @@ private Q_SLOTS:
     void testOneDialogPerWindow();
     void testProfilesPage();
     void testPartDialog();
+    void testEditCurrentProfile();
 
 private:
     void trigger(const QString& action);
@@ -99,12 +100,6 @@ void ConfigureDialogTest::init()
 
 void ConfigureDialogTest::cleanup()
 {
-    const auto widgets = QApplication::topLevelWidgets();
-    for (QWidget* widget : widgets) {
-        if (qobject_cast<EditProfileDialog*>(widget)) {
-            widget->close();
-        }
-    }
     const auto windows = QGuiApplication::topLevelWindows();
     for (QWindow* window : windows) {
         if (window->isVisible() && qobject_cast<QQuickWindow*>(window) && window != _controller->qmlWindow()) {
@@ -386,11 +381,11 @@ void ConfigureDialogTest::testProfilesPage()
     select();
     QVERIFY(editButton->isEnabled() && deleteButton->isEnabled() && defaultButton->isEnabled());
 
-    // Edit and New open the (widget) Edit Profile dialog for the window.
-    const auto editor = []() -> EditProfileDialog* {
-        const auto widgets = QApplication::topLevelWidgets();
-        for (QWidget* widget : widgets) {
-            if (auto* found = qobject_cast<EditProfileDialog*>(widget); found && found->isVisible()) {
+    // Edit and New open the Edit Profile dialog over the window; New with the name selected.
+    const auto editor = []() -> QQuickWindow* {
+        const auto windows = QGuiApplication::topLevelWindows();
+        for (QWindow* window : windows) {
+            if (auto* found = qobject_cast<QQuickWindow*>(window); found && found->isVisible() && found->findChild<ProfileEditor*>()) {
                 return found;
             }
         }
@@ -398,14 +393,18 @@ void ConfigureDialogTest::testProfilesPage()
     };
     QMetaObject::invokeMethod(editButton, "click");
     QTRY_VERIFY(editor());
-    QCOMPARE(editor()->windowTitle(), QStringLiteral("Edit Profile \"ConfigureTest\""));
-    QCOMPARE(editor()->parentWidget(), _window.data());
-    editor()->reject();
+    QCOMPARE(editor()->title(), QStringLiteral("Edit Profile \"ConfigureTest\""));
+    QCOMPARE(editor()->transientParent(), _controller->qmlWindow());
+    QCOMPARE(editor()->modality(), Qt::ApplicationModal);
+    editor()->close();
     QTRY_VERIFY(!editor());
     QMetaObject::invokeMethod(newButton, "click");
     QTRY_VERIFY(editor());
-    QCOMPARE(editor()->windowTitle(), QStringLiteral("Create New Profile"));
-    editor()->reject();
+    QCOMPARE(editor()->title(), QStringLiteral("Create New Profile"));
+    QQuickItem* name = editor()->findChild<QQuickItem*>(QStringLiteral("profileNameEdit"));
+    QVERIFY(!name->property("text").toString().isEmpty());
+    QCOMPARE(name->property("selectedText").toString(), name->property("text").toString());
+    editor()->close();
     QTRY_VERIFY(!editor());
 
     // The shortcut column.
@@ -459,6 +458,34 @@ void ConfigureDialogTest::testPartDialog()
     QMetaObject::invokeMethod(button(dialog, QStringLiteral("OK")), "click");
     QTRY_VERIFY(!guard);
     delete result.plugin;
+}
+
+void ConfigureDialogTest::testEditCurrentProfile()
+{
+    // The built-in profile isn't editable: the action edits a new copy of it, and once that
+    // is saved the session's profile is an editable one.
+    QAction* action = nullptr;
+    const auto clients = _window->guiFactory()->clients();
+    for (KXMLGUIClient* client : clients) {
+        action = action ? action : client->actionCollection()->action(QStringLiteral("edit-current-profile"));
+    }
+    QVERIFY(action);
+    QCOMPARE(action->text().remove(u'&'), QStringLiteral("Create New Profile..."));
+    action->trigger();
+    QQuickWindow* dialog = nullptr;
+    QTRY_VERIFY((dialog = dialogTitled(QStringLiteral("Create New Profile"))));
+    QCOMPARE(dialog->transientParent(), _controller->qmlWindow());
+    QCOMPARE(dialog->modality(), Qt::ApplicationModal);
+    auto* editor = dialog->findChild<ProfileEditor*>();
+    QVERIFY(editor);
+    const Profile::Ptr created = editor->profile();
+    QVERIFY(created != ProfileManager::instance()->builtinProfile());
+    QPointer<QQuickWindow> guard(dialog);
+    QMetaObject::invokeMethod(button(dialog, QStringLiteral("OK")), "click");
+    QTRY_VERIFY(!guard);
+    QVERIFY(ProfileManager::instance()->allProfiles().contains(created));
+    QCOMPARE(action->text().remove(u'&'), QStringLiteral("Edit Current Profile..."));
+    ProfileManager::instance()->deleteProfile(created);
 }
 
 QTEST_MAIN(ConfigureDialogTest)

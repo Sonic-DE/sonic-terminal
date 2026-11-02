@@ -18,18 +18,23 @@ DialogPage {
     title: i18nc("@title Preferences page name", "Memory")
     iconName: "memory"
 
+    // QFormLayout: the label column is as wide as the check box; a third column takes the
+    // spare width so the spanning note wraps at the page's width.
     GridLayout {
         Layout.fillWidth: true
-        columns: 2
+        columns: 3
 
         SettingCheckBox {
-            Layout.columnSpan: 2
             settings: root.settings
             setting: "EnableMemoryMonitoring"
             text: i18n("Enable memory monitoring:")
         }
+        Item {
+            Layout.column: 2
+            Layout.fillWidth: true
+        }
         QQC2.Label {
-            Layout.columnSpan: 2
+            Layout.columnSpan: 3
             Layout.fillWidth: true
             Layout.preferredWidth: Kirigami.Units.gridUnit * 20
             wrapMode: Text.WordWrap

@@ -87,7 +87,7 @@
 #include "SessionGroup.h"
 #include "SessionManager.h"
 
-#include "widgets/EditProfileDialog.h"
+#include "quick/ProfileEditor.h"
 #include "widgets/IncrementalSearchBar.h"
 
 #include "terminalDisplay/TerminalColor.h"
@@ -1036,12 +1036,8 @@ void SessionController::changeCodec(const QByteArray &codec)
 
 void SessionController::editCurrentProfile()
 {
-    auto* dialog = new EditProfileDialog(CompatWindows::activeWindow());
-    dialog->setAttribute(Qt::WA_DeleteOnClose);
-    dialog->setModal(true);
-
     auto profile = SessionManager::instance()->sessionProfile(session());
-    auto state = EditProfileDialog::ExistingProfile;
+    auto state = ProfileEditor::ExistingProfile;
     // Don't edit uneditable profiles, instead create a new one
     if (!profile->isEditable()) {
         auto newProfile = Profile::Ptr(new Profile(profile));
@@ -1051,16 +1047,15 @@ void SessionController::editCurrentProfile()
         newProfile->setProperty(Profile::UntranslatedName, uniqueName);
         profile = newProfile;
         SessionManager::instance()->setSessionProfile(session(), profile);
-        state = EditProfileDialog::NewProfile;
+        state = ProfileEditor::NewProfile;
+    }
 
-        connect(dialog, &QDialog::accepted, this, [this, profile]() {
+    QQuickWindow* dialog = ProfileEditor::open(profile, state, CompatWindows::activeWindow());
+    if (dialog && state == ProfileEditor::NewProfile) {
+        QmlDialogs::onAccepted(dialog, this, [this, profile]() {
             setEditProfileActionText(profile);
         });
     }
-
-    dialog->setProfile(profile, state);
-
-    dialog->show();
 }
 
 void SessionController::nextProfile()

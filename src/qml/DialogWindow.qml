@@ -19,6 +19,8 @@ Window {
     property alias buttonBox: buttonBox
     // Asked on OK; false keeps the dialog open (an overridden QDialog::accept() refusing).
     property var acceptCheck: () => true
+    // The button Return presses (QPushButton::setDefault): OK, or Cancel.
+    property int defaultButton: QQC2.DialogButtonBox.Ok
 
     signal accepted
     signal rejected
@@ -66,8 +68,8 @@ Window {
         focus: true
 
         Keys.onEscapePressed: root.reject()
-        Keys.onReturnPressed: root.accept()
-        Keys.onEnterPressed: root.accept()
+        Keys.onReturnPressed: root.defaultButton === QQC2.DialogButtonBox.Cancel ? root.reject() : root.accept()
+        Keys.onEnterPressed: root.defaultButton === QQC2.DialogButtonBox.Cancel ? root.reject() : root.accept()
 
         ColumnLayout {
             id: contentColumn
@@ -86,11 +88,11 @@ Window {
             onRejected: root.reject()
             onApplied: root.applied()
             onReset: root.defaultsRequested()
-            // OK is the default button (QPushButton::setDefault), drawn as such.
+            // The default button is drawn as such.
             Component.onCompleted: {
-                const ok = standardButton(QQC2.DialogButtonBox.Ok);
-                if (ok) {
-                    ok.Accessible.defaultButton = true;
+                const button = standardButton(root.defaultButton);
+                if (button) {
+                    button.Accessible.defaultButton = true;
                 }
             }
         }

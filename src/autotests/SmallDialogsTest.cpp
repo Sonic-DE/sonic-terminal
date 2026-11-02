@@ -16,14 +16,12 @@
 #include "../history/HistoryTypeNone.h"
 #include "../history/compact/CompactHistoryType.h"
 #include "../profile/ProfileManager.h"
+#include "../quick/ProfileEditor.h"
 #include "../quick/WindowController.h"
 #include "../session/Session.h"
 #include "../session/SessionController.h"
-#include "../widgets/EditProfileDialog.h"
 
 #include <KActionCollection>
-#include <KPageView>
-#include <KPageWidgetModel>
 #include <KXMLGUIFactory>
 
 #include <QAbstractButton>
@@ -369,14 +367,12 @@ void SmallDialogsTest::testEnvironmentEditor()
     profile->setProperty(Profile::Name, QStringLiteral("SmallDialogsEnvironment"));
     profile->setProperty(Profile::Environment, QStringList{QStringLiteral("A=1"), QStringLiteral("B=2")});
     ProfileManager::instance()->addProfile(profile);
-    EditProfileDialog editor;
-    editor.setProfile(profile);
-    editor.show();
-    QVERIFY(QTest::qWaitForWindowExposed(&editor));
+    QPointer<QQuickWindow> editor = ProfileEditor::open(profile, ProfileEditor::ExistingProfile, nullptr);
+    QVERIFY(editor);
+    QVERIFY(QTest::qWaitForWindowExposed(editor));
 
     const auto open = [&editor]() -> QQuickWindow* {
-        auto* button = editor.findChild<QAbstractButton*>(QStringLiteral("environmentEditButton"));
-        button->click();
+        QMetaObject::invokeMethod(item(editor, QStringLiteral("environmentEditButton")), "click");
         QQuickWindow* dialog = nullptr;
         [&] {
             QTRY_VERIFY((dialog = dialogTitled(QStringLiteral("Edit Environment"))));
@@ -385,7 +381,7 @@ void SmallDialogsTest::testEnvironmentEditor()
     };
     QQuickWindow* dialog = open();
     QVERIFY(dialog);
-    QCOMPARE(dialog->transientParent(), editor.windowHandle());
+    QCOMPARE(dialog->transientParent(), editor.data());
     QCOMPARE(dialog->modality(), Qt::ApplicationModal);
     QCOMPARE(dialog->property("labelText").toString(), QStringLiteral("One environment variable per line"));
     QQuickItem* area = item(dialog, QStringLiteral("textValueArea"));
@@ -399,8 +395,9 @@ void SmallDialogsTest::testEnvironmentEditor()
     QVERIFY(dialog);
     QCOMPARE(item(dialog, QStringLiteral("textValueArea"))->property("text").toString(), QStringLiteral("C=3\nD=4"));
     clickButton(dialog, QStringLiteral("Cancel"));
-    editor.findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Apply)->click();
+    clickButton(editor, QStringLiteral("Apply"));
     QCOMPARE(profile->environment(), (QStringList{QStringLiteral("C=3"), QStringLiteral("D=4")}));
+    editor->close();
 }
 
 void SmallDialogsTest::testCustomTextEditorCommand()
@@ -410,26 +407,16 @@ void SmallDialogsTest::testCustomTextEditorCommand()
     profile->setProperty(Profile::TextEditorCmd, Enum::CustomTextEditor);
     profile->setProperty(Profile::TextEditorCmdCustom, QStringLiteral("editor PATH:LINE"));
     ProfileManager::instance()->addProfile(profile);
-    EditProfileDialog editor;
-    editor.setProfile(profile);
-    editor.show();
-    QVERIFY(QTest::qWaitForWindowExposed(&editor));
+    QPointer<QQuickWindow> editor = ProfileEditor::open(profile, ProfileEditor::ExistingProfile, nullptr);
+    QVERIFY(editor);
+    QVERIFY(QTest::qWaitForWindowExposed(editor));
 
-    // Pages are set up when first shown.
-    auto* pages = qobject_cast<KPageWidgetModel*>(editor.findChild<KPageView*>()->model());
-    QVERIFY(pages);
-    for (int row = 0; row < pages->rowCount(); ++row) {
-        KPageWidgetItem* page = pages->item(pages->index(row, 0));
-        if (page->name() == QLatin1String("Mouse")) {
-            editor.setCurrentPage(page);
-        }
-    }
-    auto* button = editor.findChild<QAbstractButton*>(QStringLiteral("textEditorCustomBtn"));
+    QQuickItem* button = item(editor, QStringLiteral("textEditorCustomBtn"));
     QVERIFY(button && button->isEnabled());
-    button->click();
+    QMetaObject::invokeMethod(button, "click");
     QQuickWindow* dialog = nullptr;
     QTRY_VERIFY((dialog = dialogTitled(QStringLiteral("Text Editor Custom Command"))));
-    QCOMPARE(dialog->transientParent(), editor.windowHandle());
+    QCOMPARE(dialog->transientParent(), editor.data());
     // As the widget dialog: shown, not modal.
     QCOMPARE(dialog->modality(), Qt::NonModal);
     QVERIFY(dialog->property("labelText").toString().startsWith(QLatin1String("The format is e.g. 'editorExec PATH:LINE:COLUMN'")));
@@ -442,8 +429,9 @@ void SmallDialogsTest::testCustomTextEditorCommand()
     QTRY_VERIFY(field->hasActiveFocus());
     QTest::keyClick(dialog, Qt::Key_Return);
     QTRY_VERIFY(!dialogTitled(QStringLiteral("Text Editor Custom Command")));
-    editor.findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Apply)->click();
+    clickButton(editor, QStringLiteral("Apply"));
     QCOMPARE(profile->customTextEditorCmd(), QStringLiteral("other +LINE PATH"));
+    editor->close();
 }
 
 QTEST_MAIN(SmallDialogsTest)

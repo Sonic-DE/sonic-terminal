@@ -8,16 +8,28 @@
 #include "konsoleprivate_export.h"
 #include "profile/Profile.h"
 
+#include <QFont>
 #include <QKeySequence>
 #include <QObject>
+#include <QPointer>
+#include <QQuickWindow>
 #include <QVariantList>
 #include <QtQml/qqmlregistration.h>
 
 class QQuickItem;
-class QQuickWindow;
 class QWidget;
 
+namespace KNSWidgets {
+class Dialog;
+}
+namespace KNSCore {
+class Entry;
+}
+
 namespace Konsole {
+class ColorScheme;
+class FontDialog;
+
 /**
  * The Edit Profile dialog's edits of a profile (EditProfileDialog without widgets): changes
  * collect in a temporary profile and reach the profile on Apply or OK; previewed ones show
@@ -38,6 +50,13 @@ class KONSOLEPRIVATE_EXPORT ProfileEditor : public QObject {
     Q_PROPERTY(QString containersDisabledReason READ containersDisabledReason CONSTANT)
     Q_PROPERTY(QVariantList textEditors READ textEditors CONSTANT)
     Q_PROPERTY(QString homeDirectory READ homeDirectory CONSTANT)
+    Q_PROPERTY(QVariantList colorSchemes READ colorSchemes NOTIFY colorSchemesChanged)
+    Q_PROPERTY(QString transparencyWarning READ transparencyWarning NOTIFY changed)
+    Q_PROPERTY(QString colorSchemeMessage READ colorSchemeMessage NOTIFY colorSchemeMessageChanged)
+    Q_PROPERTY(QFont previewFont READ previewFont NOTIFY changed)
+    Q_PROPERTY(QString fontText READ fontText NOTIFY changed)
+    Q_PROPERTY(QString emojiFontText READ emojiFontText NOTIFY changed)
+    Q_PROPERTY(QVariantList keyBindings READ keyBindings NOTIFY keyBindingsChanged)
 
 public:
     enum State {
@@ -49,7 +68,7 @@ public:
     ProfileEditor(const Profile::Ptr& profile, State state, QObject* parent = nullptr);
 
     // The QML Edit Profile dialog for profile, transient for opener's window.
-    static QQuickWindow* open(const Profile::Ptr& profile, State state, QWidget* opener);
+    static QQuickWindow* open(const Profile::Ptr& profile, State state, QWidget* opener, Qt::WindowModality modality = Qt::ApplicationModal);
 
     Profile::Ptr profile() const;
 
@@ -68,6 +87,18 @@ public:
     // The text editor choices in Enum::TextEditorCmd order: {text, iconName, enabled}.
     QVariantList textEditors() const;
     QString homeDirectory() const;
+    // The colour schemes by description: {name, description, background, foreground}.
+    QVariantList colorSchemes() const;
+    // Why the chosen scheme's transparency won't show; empty if it will.
+    QString transparencyWarning() const;
+    // A Get New scheme that failed to load, for a few seconds.
+    QString colorSchemeMessage() const;
+    // The font as the preview shows it (the profile's, with its smoothing).
+    QFont previewFont() const;
+    QString fontText() const;
+    QString emojiFontText() const;
+    // The key bindings schemes by description: {name, description, path}.
+    QVariantList keyBindings() const;
 
     // The shown value: the edited one, else the profile's.
     Q_INVOKABLE QVariant value(const QString& name) const;
@@ -96,9 +127,41 @@ public:
     // The encoding menu below its button.
     Q_INVOKABLE void chooseEncoding(QQuickItem* below);
 
+    // The Appearance page's colour scheme list: choosing one previews it.
+    Q_INVOKABLE void selectColorScheme(const QString& name);
+    Q_INVOKABLE bool canResetColorScheme(const QString& name) const;
+    Q_INVOKABLE bool isColorSchemeDeletable(const QString& name) const;
+    Q_INVOKABLE void removeColorScheme(const QString& name);
+    Q_INVOKABLE void resetColorScheme(const QString& name);
+    // The QML Colour Scheme Editor on name (the default scheme if empty), one at a time.
+    Q_INVOKABLE void editColorScheme(const QString& name, bool isNewScheme, QQuickItem* from);
+    // KNewStuff's dialog for colour schemes.
+    Q_INVOKABLE void getNewColorSchemes(QQuickItem* from);
+    // FontDialog, previewing the font until it is accepted or cancelled.
+    Q_INVOKABLE void chooseFont(QQuickItem* from);
+    Q_INVOKABLE void chooseEmojiFont(QQuickItem* from);
+
+    // The Keyboard page's list.
+    Q_INVOKABLE void selectKeyBindings(const QString& name);
+    Q_INVOKABLE bool canResetKeyBindings(const QString& name) const;
+    Q_INVOKABLE bool isKeyBindingsDeletable(const QString& name) const;
+    Q_INVOKABLE void removeKeyBindings(const QString& name);
+    Q_INVOKABLE void resetKeyBindings(const QString& name);
+    // The QML Key Binding Editor on name (the default scheme if empty).
+    Q_INVOKABLE void editKeyBindings(const QString& name, bool isNewTranslator, QQuickItem* from);
+
+    // The Colour Scheme Editor's OK and Apply: stores the scheme and chooses it.
+    void saveColorScheme(const ColorScheme& scheme, bool isNewScheme);
+
 Q_SIGNALS:
     void changed();
     void messageChanged();
+    void colorSchemesChanged();
+    void colorSchemeMessageChanged();
+    void keyBindingsChanged();
+    // The list selects name (after an edit, a reset or a removal).
+    void colorSchemeChosen(const QString& name);
+    void keyBindingsChosen(const QString& name);
     // A refused name was set back to the profile's: the field shows it, selected.
     void nameReverted();
 
@@ -107,7 +170,10 @@ private:
     void updateTempProfileProperty(Profile::Property property, const QVariant& value);
     void updateButtonApply();
     void preview(Profile::Property property, const QVariant& value);
+    void unpreview(Profile::Property property);
     void unpreviewAll();
+    void showFontDialog(bool emoji, QQuickItem* from);
+    void gotNewColorSchemes(const QList<KNSCore::Entry>& changedEntries);
     void save();
     bool isProfileNameValid();
     void refuseName(const QString& message);
@@ -121,5 +187,10 @@ private:
     bool _setAsDefault = false;
     bool _applyEnabled = false;
     QString _message;
+    QString _colorSchemeMessage;
+    QPointer<QQuickWindow> _colorSchemeEditor;
+    QPointer<KNSWidgets::Dialog> _getNewDialog;
+    QPointer<FontDialog> _fontDialog;
+    QPointer<FontDialog> _emojiFontDialog;
 };
 }

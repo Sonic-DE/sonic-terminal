@@ -83,7 +83,7 @@ set(widget_settings_pages
     ../settings/TemporaryFilesSettings.cpp
     ../settings/ThumbnailsSettings.cpp
 )
-target_sources(DialogContentTest PRIVATE ${widget_settings_pages} ../settings/ProfileSettings.cpp ../delegates/ProfileShortcutDelegate.cpp)
+target_sources(DialogContentTest PRIVATE ${widget_settings_pages} ../settings/ProfileSettings.cpp ../delegates/ProfileShortcutDelegate.cpp ../KeyBindingEditor.cpp)
 target_sources(ConfigureDialogTest PRIVATE ${widget_settings_pages})
 # testPartDialog loads the part from the build tree.
 add_dependencies(ConfigureDialogTest konsolepart)

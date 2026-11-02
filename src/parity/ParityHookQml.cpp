@@ -16,6 +16,7 @@
 #include <QQmlEngine>
 #include <QQuickItem>
 #include <QQuickWindow>
+#include <QTimer>
 
 namespace Konsole::ParityHook {
 QWindow* qmlWindow(const MainWindow* window)
@@ -231,6 +232,28 @@ bool selectQmlRow(QWindow* dialog, const QString& object, int row, const QString
     if (list->inherits("QQuickComboBox")) {
         QMetaObject::invokeMethod(list, "activated", Q_ARG(int, row));
     }
+    return true;
+}
+
+bool setQmlText(QWindow* dialog, const QString& object, const QString& text)
+{
+    auto* field = dialog->findChild<QQuickItem*>(object);
+    if (!field || !field->inherits("QQuickTextInput")) {
+        return false;
+    }
+    field->setProperty("text", text);
+    return true;
+}
+
+bool clickQmlItem(QWindow* dialog, const QString& object, int row, int column)
+{
+    auto* table = dialog->findChild<QQuickItem*>(object);
+    if (!table || table->metaObject()->indexOfMethod("clickItem(QVariant,QVariant)") < 0) {
+        return false;
+    }
+    QTimer::singleShot(0, table, [table, row, column] {
+        QMetaObject::invokeMethod(table, "clickItem", Q_ARG(QVariant, row), Q_ARG(QVariant, column));
+    });
     return true;
 }
 }
