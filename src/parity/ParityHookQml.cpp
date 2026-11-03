@@ -120,18 +120,20 @@ QObject* qmlDialogButton(QWindow* dialog, const QString& object, const QString& 
         return quick->findChild<QQuickItem*>(object);
     }
     if (standardButton) {
-        // DialogButtonBox::standardButton(), through the engine (its return type is private).
-        QQuickItem* box = nullptr;
+        // DialogButtonBox::standardButton(), through the engine (its return type is private), of
+        // each box: DialogWindow has one on each side.
         const auto items = quick->findChildren<QQuickItem*>();
-        for (QQuickItem* item : items) {
-            box = box ? box : (item->inherits("QQuickDialogButtonBox") ? item : nullptr);
+        for (QQuickItem* box : items) {
+            QQmlEngine* engine = box->inherits("QQuickDialogButtonBox") ? qmlEngine(box) : nullptr;
+            if (!engine) {
+                continue;
+            }
+            QJSValue boxValue = engine->toScriptValue(box);
+            if (QObject* button = boxValue.property(QStringLiteral("standardButton")).callWithInstance(boxValue, {QJSValue(standardButton)}).toQObject()) {
+                return button;
+            }
         }
-        QQmlEngine* engine = box ? qmlEngine(box) : nullptr;
-        if (!engine) {
-            return nullptr;
-        }
-        QJSValue boxValue = engine->toScriptValue(box);
-        return boxValue.property(QStringLiteral("standardButton")).callWithInstance(boxValue, {QJSValue(standardButton)}).toQObject();
+        return nullptr;
     }
     QList<QQuickItem*> items = {quick->contentItem()};
     while (!items.isEmpty()) {

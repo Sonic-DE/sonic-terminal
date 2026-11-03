@@ -34,6 +34,8 @@ public:
         EditableRole,
         DeletableRole,
         DefaultRole,
+        // The Shortcut column's text, as the profile tree view shows it.
+        ShortcutTextRole,
     };
 
     explicit ProfileListModel(QObject* parent = nullptr);
@@ -52,6 +54,10 @@ public:
     Q_INVOKABLE void deleteProfile(int row);
     Q_INVOKABLE void setDefault(int row);
     Q_INVOKABLE void setShortcut(int row, const QKeySequence& shortcut);
+    // The Shortcut column's editor (ShortcutItemDelegate's FilteredKeySequenceEdit): the
+    // chords pressed, as key | modifiers values, as a sequence and as its text.
+    Q_INVOKABLE void setShortcutChords(int row, const QList<int>& chords);
+    Q_INVOKABLE QString chordsText(const QList<int>& chords) const;
     // OK in the Configure dialog.
     Q_INVOKABLE void save();
 

@@ -39,8 +39,6 @@ DialogWindow {
 
     title: i18n("Copy Input")
     standardButtons: QQC2.DialogButtonBox.Ok | QQC2.DialogButtonBox.Cancel
-    width: Kirigami.Units.gridUnit * 22
-    height: Kirigami.Units.gridUnit * 20
 
     RowLayout {
         Layout.fillWidth: true
@@ -66,6 +64,9 @@ DialogWindow {
     QQC2.ScrollView {
         Layout.fillWidth: true
         Layout.fillHeight: true
+        // QListView's size hint, which sizes the widget dialog.
+        Layout.preferredWidth: 256
+        Layout.preferredHeight: 192
         Kirigami.Theme.colorSet: Kirigami.Theme.View
         Kirigami.Theme.inherit: false
         background: Rectangle {

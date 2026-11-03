@@ -412,6 +412,49 @@ void ConfigureDialogTest::testProfilesPage()
     model->setShortcut(model->rowOf(QStringLiteral("ConfigureTest")), shortcut);
     QCOMPARE(ProfileManager::instance()->shortcut(profile), shortcut);
     QCOMPARE(model->index(model->rowOf(QStringLiteral("ConfigureTest")), 0).data(ProfileListModel::ShortcutRole).value<QKeySequence>(), shortcut);
+    // As the tree view: the column shows the shortcut as text; a double click on it records a
+    // new one (ShortcutItemDelegate's editor), and the editor goes once it's recorded.
+    {
+        // Keys go to the active window (the Edit Profile windows opened above took it).
+        dialog->requestActivate();
+        QVERIFY(QTest::qWaitForWindowActive(dialog));
+        // The row's delegate, made again after a reset of the list.
+        QQuickItem* rowItem = nullptr;
+        QTRY_VERIFY(QMetaObject::invokeMethod(list, "itemAtIndex", Q_RETURN_ARG(QQuickItem*, rowItem), Q_ARG(int, model->rowOf(QStringLiteral("ConfigureTest"))))
+            && rowItem);
+        // A delegate's items have no QObject parent to findChild() through.
+        const auto recorder = [rowItem]() -> QQuickItem* {
+            QList<QQuickItem*> pending{rowItem};
+            while (!pending.isEmpty()) {
+                QQuickItem* child = pending.takeFirst();
+                if (child->objectName() == QLatin1String("shortcut")) {
+                    return child;
+                }
+                pending += child->childItems();
+            }
+            return nullptr;
+        };
+        QVERIFY(!recorder());
+        const QPoint shortcutCell = rowItem->mapToScene(QPointF(rowItem->width() - 20, rowItem->height() / 2)).toPoint();
+        QTest::mouseDClick(dialog, Qt::LeftButton, Qt::NoModifier, shortcutCell);
+        QTRY_VERIFY(recorder());
+        // A key without modifiers isn't a shortcut; a chord with them is recorded.
+        QTest::keyClick(dialog, Qt::Key_A);
+        QTest::keyClick(dialog, Qt::Key_F8, Qt::ControlModifier | Qt::AltModifier);
+        QTRY_COMPARE(ProfileManager::instance()->shortcut(profile), QKeySequence(QStringLiteral("Ctrl+Alt+F8")));
+        QTRY_VERIFY(!recorder());
+        // Esc leaves it as it was; Backspace clears it.
+        QTest::mouseDClick(dialog, Qt::LeftButton, Qt::NoModifier, shortcutCell);
+        QTRY_VERIFY(recorder());
+        QTest::keyClick(dialog, Qt::Key_Escape);
+        QTRY_VERIFY(!recorder());
+        QCOMPARE(ProfileManager::instance()->shortcut(profile), QKeySequence(QStringLiteral("Ctrl+Alt+F8")));
+        QTest::mouseDClick(dialog, Qt::LeftButton, Qt::NoModifier, shortcutCell);
+        QTRY_VERIFY(recorder());
+        QTest::keyClick(dialog, Qt::Key_Backspace);
+        QTRY_VERIFY(!recorder());
+        QVERIFY(ProfileManager::instance()->shortcut(profile).isEmpty());
+    }
 
     // Set as Default: the default can't be removed or set again. The change resets the
     // list (ProfileManager reports it as a profile change), which clears the selection.

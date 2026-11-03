@@ -256,12 +256,17 @@ DialogPage {
             QQC2.Label {
                 objectName: "fontPreview"
                 Layout.fillWidth: true
+                Layout.horizontalStretchFactor: 1
                 text: root.editor.fontText
                 font: root.editor.previewFont
                 elide: Text.ElideRight
             }
             QQC2.Button {
                 objectName: "chooseFontButton"
+                // As wide as the scheme buttons' column, which takes no spare width: the
+                // expanding list beside them does.
+                Layout.fillWidth: true
+                Layout.horizontalStretchFactor: 0
                 text: i18n("Choose...")
                 icon.name: "preferences-desktop-font"
                 onClicked: root.editor.chooseFont(this)
@@ -411,6 +416,7 @@ DialogPage {
             }
 
             MnemonicLabel {
+                Layout.alignment: Qt.AlignRight
                 label: i18n("Blinking:")
                 buddy: enableBlinkingCursorButton
             }
@@ -661,7 +667,7 @@ DialogPage {
             }
             QQC2.Button {
                 objectName: "emojiFontPreview"
-                Layout.alignment: Qt.AlignLeft
+                Layout.fillWidth: true
                 text: root.editor.emojiFontText
                 font: root.editor.previewFont
                 onClicked: root.editor.chooseEmojiFont(this)

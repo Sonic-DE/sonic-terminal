@@ -127,7 +127,7 @@ DialogPage {
             id: selectEncodingButton
 
             objectName: "selectEncodingButton"
-            Layout.alignment: Qt.AlignLeft
+            Layout.fillWidth: true
             text: root.editor.value("DefaultEncoding")
             onClicked: {
                 root.editor.chooseEncoding(selectEncodingButton);
@@ -153,6 +153,7 @@ DialogPage {
             readonly property string suffix: i18n(" ms")
 
             objectName: "autoSaveIntervalWidget"
+            // Next to its label (Joseph's decision for this page); the .ui right-aligned it.
             editable: true
             from: 0
             to: 3600000

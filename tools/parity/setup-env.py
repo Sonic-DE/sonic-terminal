@@ -4,7 +4,7 @@
 """Build the parity test environment: its own build, prefix and Qt search paths.
 
 Nothing is built into, installed into or loaded from the live system: the builder prefix
-(<builder>/build) is only read, for the SonicDE frameworks to build and run against; Qt sees
+(<builder>/state/install-stage/usr) is only read, for the SonicDE frameworks to build and run against; Qt sees
 only the plugins and QML modules of the dev-qt packages, never the installed SonicDE
 packages under /usr. Layout of --env:
     build/           sonic-terminal built with KONSOLE_PARITY_HOOKS=ON (binaries run from here)
@@ -71,7 +71,7 @@ def write_qt_conf(directory, paths, env):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--env", required=True, type=Path, help="environment directory (e.g. <builder>/state/parity/env)")
-    parser.add_argument("--prefix", required=True, type=Path, help="builder prefix, read only (<builder>/build)")
+    parser.add_argument("--prefix", required=True, type=Path, help="builder prefix, read only (<builder>/state/install-stage/usr)")
     parser.add_argument("--jobs", default=str(os.cpu_count()))
     parser.add_argument("--build", default="build",
                         help="build directory name inside --env; a second tree (the phase 0 copy) uses build-phase0")
@@ -83,7 +83,8 @@ def main():
     env.mkdir(parents=True, exist_ok=True)
 
     build = env / args.build
-    subprocess.run(["cmake", "-G", "Ninja", "-S", str(SOURCE), "-B", str(build), "-DCMAKE_BUILD_TYPE=Debug",
+    # Fresh: packages found in another prefix stay cached otherwise.
+    subprocess.run(["cmake", "--fresh", "-G", "Ninja", "-S", str(SOURCE), "-B", str(build), "-DCMAKE_BUILD_TYPE=Debug",
                     f"-DCMAKE_PREFIX_PATH={prefix}", f"-DCMAKE_INSTALL_PREFIX={env / 'prefix'}",
                     "-DKDE_INSTALL_USE_QT_SYS_PATHS=OFF", "-DBUILD_TESTING=OFF", "-DKONSOLE_PARITY_HOOKS=ON"],
                    check=True, stdout=subprocess.DEVNULL)
@@ -96,11 +97,13 @@ def main():
     mirror_qt(paths["QT_INSTALL_PLUGINS"], env / "qt/plugins")
     mirror_qt(paths["QT_INSTALL_QML"], env / "qt/qml")
 
-    # The builder prefix's plugins, minus the ones sonic-terminal installs (we provide fresh ones).
-    ours = {line.split(" ", 1)[0] for line in (HERE / "baseline-install.txt").read_text().splitlines()}
-    builder_plugins = prefix / "lib64/plugins"
+    # The builder prefix's plugins, minus the ones sonic-terminal installs (we provide fresh ones):
+    # lib64/qt6/plugins in the builder's stage, lib64/plugins in an older prefix.
+    ours = {line.split(" ", 1)[0].removeprefix("lib64/plugins/")
+            for line in (HERE / "baseline-install.txt").read_text().splitlines() if line.startswith("lib64/plugins/")}
+    builder_plugins = next(p for p in (prefix / "lib64/qt6/plugins", prefix / "lib64/plugins") if p.is_dir())
     for path in builder_plugins.rglob("*"):
-        if path.is_file() and f"lib64/plugins/{path.relative_to(builder_plugins)}" not in ours:
+        if path.is_file() and str(path.relative_to(builder_plugins)) not in ours:
             link = env / "builder-plugins" / path.relative_to(builder_plugins)
             link.parent.mkdir(parents=True, exist_ok=True)
             link.symlink_to(path)

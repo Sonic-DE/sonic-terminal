@@ -15,8 +15,7 @@ Window {
     id: root
 
     default property alias content: contentColumn.data
-    property alias standardButtons: buttonBox.standardButtons
-    property alias buttonBox: buttonBox
+    property int standardButtons: QQC2.DialogButtonBox.NoButton
     // Asked on OK; false keeps the dialog open (an overridden QDialog::accept() refusing).
     property var acceptCheck: () => true
     // The button Return presses (QPushButton::setDefault): OK, or Cancel.
@@ -26,8 +25,15 @@ Window {
     signal rejected
     signal applied
     signal defaultsRequested
+    signal helpRequested
 
     property bool done: false
+    // QDialogButtonBox's KDE layout puts the Help and Reset roles on the left, the others on the right.
+    readonly property int leftButtons: QQC2.DialogButtonBox.Help | QQC2.DialogButtonBox.Reset | QQC2.DialogButtonBox.RestoreDefaults
+
+    function standardButton(button) {
+        return (button & leftButtons) ? leftBox.standardButton(button) : buttonBox.standardButton(button);
+    }
 
     function accept() {
         if (done || !acceptCheck()) {
@@ -78,21 +84,38 @@ Window {
             Layout.fillHeight: true
         }
 
-        QQC2.DialogButtonBox {
-            id: buttonBox
-
+        RowLayout {
             Layout.fillWidth: true
-            padding: 0
-            visible: standardButtons !== QQC2.DialogButtonBox.NoButton
-            onAccepted: root.accept()
-            onRejected: root.reject()
-            onApplied: root.applied()
-            onReset: root.defaultsRequested()
-            // The default button is drawn as such.
-            Component.onCompleted: {
-                const button = standardButton(root.defaultButton);
-                if (button) {
-                    button.Accessible.defaultButton = true;
+            spacing: Kirigami.Units.mediumSpacing
+            visible: root.standardButtons !== QQC2.DialogButtonBox.NoButton
+
+            QQC2.DialogButtonBox {
+                id: leftBox
+
+                padding: 0
+                alignment: Qt.AlignLeft
+                standardButtons: root.standardButtons & root.leftButtons
+                visible: standardButtons !== QQC2.DialogButtonBox.NoButton
+                onHelpRequested: root.helpRequested()
+                onReset: root.defaultsRequested()
+            }
+
+            QQC2.DialogButtonBox {
+                id: buttonBox
+
+                Layout.fillWidth: true
+                padding: 0
+                alignment: Qt.AlignRight
+                standardButtons: root.standardButtons & ~root.leftButtons
+                onAccepted: root.accept()
+                onRejected: root.reject()
+                onApplied: root.applied()
+                // The default button is drawn as such.
+                Component.onCompleted: {
+                    const button = standardButton(root.defaultButton);
+                    if (button) {
+                        button.Accessible.defaultButton = true;
+                    }
                 }
             }
         }

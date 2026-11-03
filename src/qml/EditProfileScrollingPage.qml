@@ -176,6 +176,9 @@ DialogPage {
             Layout.fillWidth: true
             from: 0
             to: 200
+            stepSize: 1
+            // QSlider's default: no tick marks.
+            Kirigami.StyleHints.tickMarkStepSize: -1
             Component.onCompleted: value = root.editor.value("SearchLineOpacity")
             onMoved: root.editor.setValue("SearchLineOpacity", Math.round(value))
         }

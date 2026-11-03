@@ -179,6 +179,7 @@ DialogPage {
                     id: textEditorCombo
 
                     objectName: "textEditorCombo"
+                    Layout.fillWidth: true
                     model: root.editor.textEditors
                     textRole: "text"
                     Component.onCompleted: currentIndex = root.editor.value("TextEditorCmd")

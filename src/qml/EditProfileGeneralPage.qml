@@ -296,6 +296,7 @@ DialogPage {
             Gap {}
 
             MnemonicLabel {
+                Layout.alignment: Qt.AlignRight
                 label: i18n("Initial terminal si&ze:")
                 buddy: terminalColumnsEntry
             }
@@ -344,6 +345,7 @@ DialogPage {
             }
 
             MnemonicLabel {
+                Layout.alignment: Qt.AlignRight
                 label: i18n("&Terminal bell mode:")
                 buddy: terminalBellCombo
             }
@@ -351,11 +353,12 @@ DialogPage {
                 id: terminalBellCombo
 
                 objectName: "terminalBellCombo"
-                Layout.columnSpan: 2
+                Layout.fillWidth: true
                 model: [i18n("System Bell"), i18n("System Notifications"), i18n("Visual Bell"), i18n("Ignore Bell Events")]
                 Component.onCompleted: currentIndex = root.editor.value("BellMode")
                 onActivated: index => root.editor.setValue("BellMode", index)
             }
+            Item {}
 
             Item {
                 Layout.fillHeight: true

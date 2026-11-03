@@ -323,6 +323,40 @@ void QmlWindowTest::testChromeFollowsTheWidgets()
     QVERIFY(QMetaObject::invokeMethod(_widgetWindow.data(), "saveNewToolbarConfig"));
     QCOMPARE(_widgetWindow->findChildren<QToolBar*>(Qt::FindDirectChildrenOnly).size(), 1);
     QCOMPARE(leading(), fixed);
+    // A tab opened and closed again (its session's actions replace the first's in the
+    // toolbar, then the first's come back) leaves the toolbar as it was.
+    {
+        const auto order = [this] {
+            QStringList names;
+            for (QAction* action : _widgetWindow->findChild<QToolBar*>(QStringLiteral("mainToolBar"))->actions()) {
+                names.append(action->objectName());
+            }
+            return names;
+        };
+        const auto sessionClient = [this]() -> SessionController* {
+            for (KXMLGUIClient* client : _widgetWindow->guiFactory()->clients()) {
+                if (auto controller = dynamic_cast<SessionController*>(client)) {
+                    return controller;
+                }
+            }
+            return nullptr;
+        };
+        // A tab's client is plugged when its view takes the focus.
+        _widgetWindow->activateWindow();
+        QVERIFY(QTest::qWaitForWindowActive(_widgetWindow));
+        const QStringList before = order();
+        SessionController* first = sessionClient();
+        QVERIFY(first);
+        _widgetWindow->newTab();
+        SessionController* opened = nullptr;
+        QTRY_VERIFY((opened = sessionClient()) && opened != first);
+        QCOMPARE(leading(), fixed);
+        QAction* close = opened->actionCollection()->action(QStringLiteral("close-session"));
+        QVERIFY(close);
+        close->trigger();
+        QTRY_COMPARE(sessionClient(), first);
+        QCOMPARE(order(), before);
+    }
     QStringList qmlActions;
     QTRY_VERIFY(!chrome->topLines().isEmpty());
     for (const QVariant& line : chrome->topLines()) {

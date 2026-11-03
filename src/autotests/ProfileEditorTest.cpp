@@ -47,6 +47,8 @@
 #include <QTimer>
 #include <QToolButton>
 
+#include <algorithm>
+
 using namespace Konsole;
 
 namespace {
@@ -793,20 +795,22 @@ void ProfileEditorTest::testColorSchemeEditor()
     // The Color, Intense color and Faint color columns are equally wide (headers and cells).
     {
         const QStringList colorHeaders{QStringLiteral("Color"), QStringLiteral("Intense color"), QStringLiteral("Faint color")};
-        QSet<qreal> widths;
+        QSet<int> widths;
         int columnItems = 0;
         QList<QQuickItem*> pending{item(schemeEditor, QStringLiteral("colorTable"))};
         while (!pending.isEmpty()) {
             QQuickItem* child = pending.takeLast();
             pending += child->childItems();
             if (child->property("column").isValid() || colorHeaders.contains(child->property("text").toString())) {
-                widths.insert(child->width());
+                widths.insert(qRound(child->width()));
                 ++columnItems;
             }
         }
         QCOMPARE(columnItems, colorHeaders.size() + 3 * backend->colorNames().size());
-        QCOMPARE(widths.size(), 1);
-        QVERIFY(*widths.cbegin() > 0);
+        // Equal up to the pixel the layout rounds off when the width doesn't divide by three.
+        const auto [narrowest, widest] = std::minmax_element(widths.cbegin(), widths.cend());
+        QVERIFY2(*widest - *narrowest <= 1, qPrintable(QStringLiteral("column widths %1 to %2").arg(*narrowest).arg(*widest)));
+        QVERIFY(*narrowest > 0);
     }
     item(schemeEditor, QStringLiteral("descriptionEdit"))->setProperty("text", QStringLiteral("ProfileEditorTest edited"));
     backend->setColor(1, 2, QColor(1, 2, 3));
@@ -918,6 +922,63 @@ void ProfileEditorTest::testKeyBindings()
     backend->removeEntries({rows});
     QCOMPARE(backend->rowCount(), rows);
     QVERIFY(backend->translator()->findEntry(Qt::Key_F30, Qt::NoModifier).isNull());
+
+    // Cells are edited in place as QTableWidget's (DoubleClicked|AnyKeyPressed): a double
+    // click opens an editor and Return stores it; a key typed in the current cell opens one
+    // starting with that key, and Esc leaves the cell as it was.
+    {
+        QVERIFY(QTest::qWaitForWindowExposed(keys));
+        QQuickItem* entries = item(keys, QStringLiteral("keyBindingEntries"));
+        const auto rowItem = [entries](int row) {
+            QQuickItem* found = nullptr;
+            QMetaObject::invokeMethod(entries, "itemAtIndex", Q_RETURN_ARG(QQuickItem*, found), Q_ARG(int, row));
+            return found;
+        };
+        const auto cellPoint = [](QQuickItem* row, int column) {
+            return row->mapToScene(QPointF(row->width() * (column == 0 ? 0.25 : 0.75), row->height() / 2)).toPoint();
+        };
+        const auto cellEditor = [](QQuickItem* row) -> QQuickItem* {
+            QList<QQuickItem*> pending{row};
+            while (!pending.isEmpty()) {
+                QQuickItem* child = pending.takeFirst();
+                if (child->inherits("QQuickTextInput") && child->isVisible()) {
+                    return child;
+                }
+                pending += child->childItems();
+            }
+            return nullptr;
+        };
+        QQuickItem* first = rowItem(0);
+        QVERIFY(first);
+        QVERIFY(!cellEditor(first));
+        const QModelIndex firstIndex = backend->index(0);
+        const QString condition = firstIndex.data(KeyBindingEditorBackend::ConditionRole).toString();
+
+        QTest::mouseDClick(keys, Qt::LeftButton, Qt::NoModifier, cellPoint(first, 1));
+        QQuickItem* edit = nullptr;
+        QTRY_VERIFY((edit = cellEditor(first)));
+        edit->setProperty("text", QStringLiteral("\"edited\""));
+        QTest::keyClick(keys, Qt::Key_Return);
+        QTRY_VERIFY(!cellEditor(first));
+        QCOMPARE(backend->index(0).data(KeyBindingEditorBackend::ResultRole).toString(), QStringLiteral("\"edited\""));
+        QCOMPARE(backend->index(0).data(KeyBindingEditorBackend::ConditionRole).toString(), condition);
+
+        QQuickItem* second = rowItem(1);
+        QVERIFY(second);
+        const QString secondCondition = backend->index(1).data(KeyBindingEditorBackend::ConditionRole).toString();
+        QTest::mouseClick(keys, Qt::LeftButton, Qt::NoModifier, cellPoint(second, 0));
+        QTest::keyClick(keys, 'x');
+        QTRY_VERIFY((edit = cellEditor(second)));
+        QCOMPARE(edit->property("text").toString(), QStringLiteral("x"));
+        QTest::keyClick(keys, Qt::Key_Escape);
+        QTRY_VERIFY(!cellEditor(second));
+        QCOMPARE(backend->index(1).data(KeyBindingEditorBackend::ConditionRole).toString(), secondCondition);
+
+        // Rows are selected whole; Ctrl adds one to the selection.
+        QCOMPARE(keys->property("selectedRows").toList(), QVariantList{1});
+        QTest::mouseClick(keys, Qt::LeftButton, Qt::ControlModifier, cellPoint(first, 1));
+        QTRY_COMPARE(keys->property("selectedRows").toList().size(), 2);
+    }
 
     // An empty description is refused with a message box over the editor.
     QQuickItem* description = item(keys, QStringLiteral("descriptionEdit"));

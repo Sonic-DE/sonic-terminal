@@ -69,10 +69,12 @@ ecm_add_tests(
     QmlWindowTest.cpp
     QmlDialogsTest.cpp
     DialogContentTest.cpp
+    DialogLayoutTest.cpp
     SmallDialogsTest.cpp
     SettingsEditorTest.cpp
     ConfigureDialogTest.cpp
     ProfileEditorTest.cpp
+    ToolbarEditorTest.cpp
     LINK_LIBRARIES ${KONSOLE_TEST_LIBS} KF6::Parts
 )
 # The widget settings pages the tests compare with aren't exported by konsoleapp.
@@ -84,11 +86,16 @@ set(widget_settings_pages
     ../settings/ThumbnailsSettings.cpp
 )
 target_sources(DialogContentTest PRIVATE ${widget_settings_pages} ../settings/ProfileSettings.cpp ../delegates/ProfileShortcutDelegate.cpp ../KeyBindingEditor.cpp)
+target_sources(DialogLayoutTest PRIVATE ${widget_settings_pages} ../settings/ProfileSettings.cpp ../delegates/ProfileShortcutDelegate.cpp ../KeyBindingEditor.cpp)
 target_sources(ConfigureDialogTest PRIVATE ${widget_settings_pages})
 # testPartDialog loads the part from the build tree.
 add_dependencies(ConfigureDialogTest konsolepart)
-set_tests_properties(QmlDialogsTest DialogContentTest SmallDialogsTest ConfigureDialogTest ProfileEditorTest PROPERTIES ENVIRONMENT
+# Once with the parity runs' theme, once with a large font and large icons.
+add_test(NAME DialogLayoutTestLarge COMMAND DialogLayoutTest)
+set_tests_properties(QmlDialogsTest DialogContentTest DialogLayoutTest SmallDialogsTest ConfigureDialogTest ProfileEditorTest ToolbarEditorTest PROPERTIES ENVIRONMENT
     "QT_QPA_PLATFORMTHEME=kde;QT_STYLE_OVERRIDE=Silver;QT_QUICK_CONTROLS_STYLE=org.kde.desktop")
+set_tests_properties(DialogLayoutTestLarge PROPERTIES ENVIRONMENT
+    "QT_QPA_PLATFORMTHEME=kde;QT_STYLE_OVERRIDE=Silver;QT_QUICK_CONTROLS_STYLE=org.kde.desktop;DIALOG_LAYOUT_SETUP=large")
 set_tests_properties(QmlWindowTest PROPERTIES ENVIRONMENT
     "QT_QPA_PLATFORMTHEME=kde;QT_STYLE_OVERRIDE=Silver;QT_QUICK_CONTROLS_STYLE=org.kde.desktop")
 # As the parity runs: widgets and the desktop style's QML items read one colour scheme.

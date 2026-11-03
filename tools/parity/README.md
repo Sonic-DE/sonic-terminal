@@ -13,7 +13,7 @@ data files, and gives Qt only the dev-qt packages' own plugins and QML modules (
 `qt.conf`); the builder prefix is only read, for the frameworks.
 
 ```sh
-tools/parity/setup-env.py --env <builder>/state/parity/env --prefix <builder>/build
+tools/parity/setup-env.py --env <builder>/state/parity/env --prefix <builder>/state/install-stage/usr
 ```
 
 Every run uses the real SonicWin compositor on a private X server, with a private
@@ -23,7 +23,7 @@ D-Bus, `HOME` and XDG directories, no CUPS and no PulseAudio. It fails if `konso
 ## Running
 
 ```sh
-tools/parity/run-all.py --env <env> --prefix <builder>/build \
+tools/parity/run-all.py --env <env> --prefix <builder>/state/install-stage/usr \
     --plugin-baseline <builder>/state/parity/plugin-baseline --output <dir> \
     [--baseline <builder>/state/parity/baseline] [--only <scenario> ...]
 ```
@@ -44,7 +44,7 @@ Other checks:
 
 - `abicheck.sh <baseline dir> <new lib dir>`: plugin-facing classes keep their ABI.
 - `filescheck.py --staged <prefix>`: installed files and integration file contents.
-- `ctest-isolated.py --build <build dir> --prefix <builder>/build`: the autotests,
+- `ctest-isolated.py --build <build dir> --prefix <builder>/state/install-stage/usr`: the autotests,
   including `PartCompatTest` (label `compat`), on a private X server and D-Bus.
 
 ## Comparison rules

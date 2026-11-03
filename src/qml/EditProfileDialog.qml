@@ -27,7 +27,7 @@ PageDialog {
     onRejected: editor.reject()
     onApplied: editor.apply()
 
-    Component.onCompleted: buttonBox.standardButton(QQC2.DialogButtonBox.Apply).enabled = Qt.binding(() => editor.applyEnabled)
+    Component.onCompleted: standardButton(QQC2.DialogButtonBox.Apply).enabled = Qt.binding(() => editor.applyEnabled)
 
     Connections {
         target: root.editor

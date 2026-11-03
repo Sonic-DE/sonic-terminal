@@ -18,17 +18,10 @@ TabbedPageDialog {
     standardButtons: QQC2.DialogButtonBox.RestoreDefaults | QQC2.DialogButtonBox.Ok | QQC2.DialogButtonBox.Apply | QQC2.DialogButtonBox.Cancel | QQC2.DialogButtonBox.Help
 
     Component.onCompleted: {
-        buttonBox.standardButton(QQC2.DialogButtonBox.Apply).enabled = false;
-        buttonBox.standardButton(QQC2.DialogButtonBox.RestoreDefaults).enabled = false;
+        standardButton(QQC2.DialogButtonBox.Apply).enabled = false;
+        standardButton(QQC2.DialogButtonBox.RestoreDefaults).enabled = false;
     }
-
-    Connections {
-        target: root.buttonBox
-
-        function onHelpRequested() {
-            DialogHelpers.showHelp();
-        }
-    }
+    onHelpRequested: DialogHelpers.showHelp()
 
     ConfigureProfilesPage {
         profiles: root.profiles

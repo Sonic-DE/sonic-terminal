@@ -8,14 +8,19 @@
 #include "widgets/TabTitleFormatButton.h"
 
 #include <KHelpClient>
+#include <KIconDialog>
+#include <KLocalizedString>
 #include <KMessageBox>
+#include <KStandardGuiItem>
 
 #include <QColorDialog>
 #include <QCursor>
+#include <QDialogButtonBox>
 #include <QFileDialog>
 #include <QGuiApplication>
 #include <QMenu>
 #include <QPalette>
+#include <QPushButton>
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QStandardPaths>
@@ -103,6 +108,50 @@ void DialogHelpers::enableAllMessages()
 void DialogHelpers::showHelp()
 {
     KHelpClient::invokeHelp();
+}
+
+namespace {
+    void setTransientFor(QWidget* dialog, QQuickItem* from)
+    {
+        if (from && from->window()) {
+            dialog->winId();
+            dialog->windowHandle()->setTransientParent(from->window());
+        }
+    }
+}
+
+QString DialogHelpers::chooseToolBarIcon(QQuickItem* from)
+{
+    // KIconDialog::getIcon() as KEditToolBar calls it.
+    KIconDialog dialog;
+    dialog.setup(KIconLoader::Toolbar, KIconLoader::Action, false, 0, false);
+    dialog.setWindowTitle(i18nd("kxmlgui6", "Change Icon"));
+    setTransientFor(&dialog, from);
+    return dialog.openDialog();
+}
+
+bool DialogHelpers::confirmToolBarReset(QQuickItem* from)
+{
+    // KMessageBox::warningContinueCancel()'s box, as KEditToolBar's Defaults asks.
+    auto* dialog = new QDialog;
+    dialog->setWindowTitle(i18nd("kxmlgui6", "Reset Toolbars"));
+    dialog->setObjectName(QStringLiteral("warningYesNo"));
+    auto* buttonBox = new QDialogButtonBox(dialog);
+    buttonBox->setStandardButtons(QDialogButtonBox::Yes | QDialogButtonBox::No);
+    KGuiItem::assign(buttonBox->button(QDialogButtonBox::Yes), KGuiItem(i18nd("kxmlgui6", "Reset")));
+    KGuiItem::assign(buttonBox->button(QDialogButtonBox::No), KStandardGuiItem::cancel());
+    dialog->setModal(true);
+    setTransientFor(dialog, from);
+    const int result = KMessageBox::createKMessageBox(dialog,
+        buttonBox,
+        QMessageBox::Warning,
+        i18nd("kxmlgui6",
+            "Do you really want to reset all toolbars of this application to their default? The changes will be applied immediately."),
+        QStringList(),
+        QString(),
+        nullptr,
+        KMessageBox::Notify);
+    return result == QDialogButtonBox::Yes;
 }
 }
 

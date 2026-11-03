@@ -26,16 +26,19 @@
 #include <KActionMenu>
 #include <KColorSchemeManager>
 #include <KColorSchemeMenu>
+#include <KConfigGroup>
 #include <KCrash>
 #include <KHamburgerMenu>
 #include <KIconUtils>
 #include <KLocalizedString>
 #include <KMessageBox>
 #include <KNotifyConfigWidget>
+#include <KSharedConfig>
 #include <KShortcutsDialog>
 #include <KStandardAction>
 #include <KStandardGuiItem>
 #include <KToolBar>
+#include <KToolBarEditor>
 #include <KWindowConfig>
 #include <KWindowEffects>
 #include <KXMLGUIFactory>
@@ -70,11 +73,46 @@
 #include "quick/QmlDialogs.h"
 #include "quick/WindowController.h"
 
+#include <QHash>
+#include <QPointer>
 #include <QQuickWindow>
 
 #include <konsoledebug.h>
 
 using namespace Konsole;
+
+namespace {
+// KXmlGuiWindow::configureToolbars() with the QML dialog: one per window, not modal. A
+// function of its own, as MainWindow's ABI is frozen.
+void openToolBarEditor(MainWindow* window)
+{
+    static QHash<const MainWindow*, QPointer<QQuickWindow>> dialogs;
+    QPointer<QQuickWindow>& dialog = dialogs[window];
+
+    KConfigGroup cg(KSharedConfig::openConfig(), QString());
+    window->saveMainWindowSettings(cg);
+    if (dialog == nullptr) {
+        auto* editor = new KToolBarEditor;
+        editor->load(window->guiFactory());
+        dialog = QmlDialogs::open(QStringLiteral("ConfigureToolbarsDialog"), window, {{QStringLiteral("editor"), QVariant::fromValue(editor)}}, Qt::NonModal);
+        if (dialog == nullptr) {
+            delete editor;
+            return;
+        }
+        editor->setParent(dialog);
+        QObject::connect(dialog, SIGNAL(newToolBarConfig()), window, SLOT(saveNewToolbarConfig()));
+        // As KEditToolBar while it is shown.
+        KToolBar::setToolBarsEditable(true);
+        QObject::connect(dialog, &QObject::destroyed, [] {
+            KToolBar::setToolBarsEditable(false);
+        });
+        QObject::connect(window, &QObject::destroyed, dialog, [window] {
+            dialogs.remove(window);
+        });
+    }
+    dialog->show();
+}
+}
 
 MainWindow::MainWindow()
     : KXmlGuiWindow()
@@ -123,10 +161,14 @@ MainWindow::MainWindow()
     // The "Create" flag will make it call createGUI()
     setupGUI(guiOpts, xmlFile);
     connect(guiFactory(), &KXMLGUIFactory::makingChanges, this, [this](bool changing) {
-        if (!changing) {
-            insertFixedToolBarActions();
-        }
+        setFixedToolBarActions(!changing);
     });
+    if (QAction* configureToolbars = actionCollection()->action(QStringLiteral("options_configure_toolbars"))) {
+        disconnect(configureToolbars, &QAction::triggered, this, nullptr);
+        connect(configureToolbars, &QAction::triggered, this, [this] {
+            openToolBarEditor(this);
+        });
+    }
 
     // Hamburger menu for when the menubar is hidden
     _hamburgerMenu = KStandardAction::hamburgerMenu(nullptr, nullptr, actionCollection());
@@ -559,10 +601,11 @@ void MainWindow::updateHamburgerMenu()
     _hamburgerMenu->hideActionsOf(toolBar());
 }
 
-void MainWindow::insertFixedToolBarActions()
+void MainWindow::setFixedToolBarActions(bool shown)
 {
     // New Tab and Split View always lead the toolbar; they aren't in the XML, so
-    // Configure Toolbars can't remove them. The toolbar is rebuilt on every GUI change.
+    // Configure Toolbars can't remove them. The factory places a tab's actions by counting
+    // its own, so they are taken out while it changes the toolbar.
     auto* bar = findChild<KToolBar*>(QStringLiteral("mainToolBar"), Qt::FindDirectChildrenOnly);
     if (!bar) {
         return;
@@ -570,7 +613,11 @@ void MainWindow::insertFixedToolBarActions()
     QAction* first = bar->actions().value(0);
     for (const QString& name : {QStringLiteral("new-tab"), QStringLiteral("split-view")}) {
         QAction* action = actionCollection()->action(name);
-        if (action && !bar->actions().contains(action)) {
+        if (!action) {
+            continue;
+        }
+        bar->removeAction(action);
+        if (shown) {
             bar->insertAction(first, action);
         }
     }

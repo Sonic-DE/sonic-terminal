@@ -47,8 +47,8 @@ PageDialog {
     Component.onCompleted: {
         const pages = Array.prototype.filter.call(root.pages, page => page.available);
         editor.names = pages.reduce((names, page) => names.concat(settingNames(page)), []);
-        buttonBox.standardButton(QQC2.DialogButtonBox.Apply).enabled = Qt.binding(() => editor.hasChanged);
-        buttonBox.standardButton(QQC2.DialogButtonBox.RestoreDefaults).enabled = Qt.binding(() => !editor.isDefault);
+        standardButton(QQC2.DialogButtonBox.Apply).enabled = Qt.binding(() => editor.hasChanged);
+        standardButton(QQC2.DialogButtonBox.RestoreDefaults).enabled = Qt.binding(() => !editor.isDefault);
     }
 
     SettingsEditor {

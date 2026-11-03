@@ -15,6 +15,7 @@
 #include <QStandardPaths>
 
 #include <memory>
+#include <utility>
 
 namespace TestTheme {
 // What the colour and style settings pages write: the scheme's groups plus its name.
@@ -37,5 +38,18 @@ inline void setUp()
 {
     QStandardPaths::setTestModeEnabled(true);
     writeGlobals(QStringLiteral("SilverLight"), QStringLiteral("Silver"));
+}
+
+// As setUp(), with a large font and large icons: a layout that only fits the default sizes
+// shows here.
+inline void setUpLarge()
+{
+    setUp();
+    KConfig globals(QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) + QStringLiteral("/kdeglobals"), KConfig::SimpleConfig);
+    globals.group(QStringLiteral("General")).writeEntry("font", QStringLiteral("Noto Sans,14,-1,5,400,0,0,0,0,0,0,0,0,0,0,1"));
+    for (const auto& [group, size] : {std::pair{"SmallIcons", 32}, {"ToolbarIcons", 32}, {"MainToolbarIcons", 48}, {"DialogIcons", 64}, {"DesktopIcons", 64}}) {
+        globals.group(QLatin1String(group)).writeEntry("Size", size);
+    }
+    globals.sync();
 }
 }

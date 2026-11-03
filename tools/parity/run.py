@@ -195,7 +195,7 @@ def main():
     parser.add_argument("--scenario", required=True, help="scenario .jsonl file")
     parser.add_argument("--output", required=True, help="directory for captures and traces")
     parser.add_argument("--env", required=True, help="environment made by setup-env.py")
-    parser.add_argument("--prefix", required=True, help="builder install prefix, read only (<builder>/build)")
+    parser.add_argument("--prefix", required=True, help="builder install prefix, read only (<builder>/state/install-stage/usr)")
     parser.add_argument("--hide-text", action="store_true", help="text-hidden color scheme, for the text mask")
     parser.add_argument("--scheme-set", action="append", default=[], metavar="KEY=VALUE",
                         help="terminal color scheme [General] override, e.g. Opacity=0.8 or Blur=true")
@@ -228,13 +228,16 @@ def main():
     runtime = Path(tempfile.mkdtemp(prefix="konsole-parity-", dir="/tmp"))
     runtime.chmod(0o700)
     prepare_home(home, prefix, args.hide_text, args.scheme_set)
-    # No LD_LIBRARY_PATH: it would override the binaries' RUNPATH into the parity build.
+    # The parity build's libraries before the prefix's: the stage's binaries (sonic-win) and QML
+    # plugins are configured for /usr and would otherwise load the system's.
     env = {key: os.environ[key] for key in ("LANG",) if key in os.environ}
     env.update(
+        LD_LIBRARY_PATH=f"{environment / args.build / 'bin'}:{prefix}/lib64",
         PATH=f"{environment}/bin:/usr/bin:/bin",
         QT_PLUGIN_PATH=":".join(filter(None, [args.plugin_path and str(Path(args.plugin_path).resolve()),
                                               str(environment / args.build / "bin"), str(environment / "builder-plugins")])),
-        QML_IMPORT_PATH=f"{prefix}/lib64/qml",
+        # The builder's stage keeps QML modules in lib64/qt6/qml, an older prefix in lib64/qml.
+        QML_IMPORT_PATH=f"{prefix}/lib64/qt6/qml:{prefix}/lib64/qml",
         XDG_DATA_DIRS=f"{stage_share}:{prefix}/share:{environment}/xdg", XDG_CONFIG_DIRS="/etc/xdg",
         HOME=str(home), XDG_CONFIG_HOME=str(home / ".config"), XDG_DATA_HOME=str(home / ".local/share"),
         XDG_CACHE_HOME=str(home / ".cache"), XDG_STATE_HOME=str(home / ".local/state"),

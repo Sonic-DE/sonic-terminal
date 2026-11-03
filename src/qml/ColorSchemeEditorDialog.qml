@@ -67,6 +67,9 @@ DialogWindow {
 
         Layout.fillWidth: true
         Layout.fillHeight: true
+        // QTableWidget's size hint: the dialog opens with the table scrolling.
+        Layout.preferredWidth: 256
+        Layout.preferredHeight: 192
         padding: 0
         Kirigami.Theme.colorSet: Kirigami.Theme.View
         Kirigami.Theme.inherit: false
@@ -194,9 +197,10 @@ DialogWindow {
         onToggled: root.editor.blur = checked
     }
 
-    GridLayout {
+    // Each row is its own QHBoxLayout in the .ui: a label at its width, then an expanding
+    // slider, line edit or (Preferred, sharing the rest with the label) combo box.
+    RowLayout {
         Layout.fillWidth: true
-        columns: 3
 
         RowLabel {
             text: i18n("Background color transparency:")
@@ -209,6 +213,8 @@ DialogWindow {
             from: 0
             to: 100
             stepSize: 1
+            // QSlider's default: no tick marks.
+            Kirigami.StyleHints.tickMarkStepSize: -1
             value: root.editor.transparency
             onMoved: root.editor.transparency = Math.round(value)
         }
@@ -216,6 +222,10 @@ DialogWindow {
             objectName: "transparencyPercentLabel"
             percent: transparencySlider.value
         }
+    }
+
+    RowLayout {
+        Layout.fillWidth: true
 
         RowLabel {
             text: i18n("Wallpaper transparency:")
@@ -229,6 +239,7 @@ DialogWindow {
             from: 0
             to: 100
             stepSize: 1
+            Kirigami.StyleHints.tickMarkStepSize: -1
             value: root.editor.wallpaperTransparency
             onMoved: root.editor.wallpaperTransparency = Math.round(value)
         }
@@ -249,6 +260,15 @@ DialogWindow {
 
             objectName: "wallpaperPath"
             Layout.fillWidth: true
+            // QLineEdit's size hint (17 'x's), not the desktop style's 200 px minimum.
+            Layout.preferredWidth: lineEditMetrics.advanceWidth + leftPadding + rightPadding
+
+            TextMetrics {
+                id: lineEditMetrics
+
+                font: wallpaperPath.font
+                text: "xxxxxxxxxxxxxxxxx"
+            }
             Component.onCompleted: text = root.editor.wallpaperPath
             onTextChanged: root.editor.wallpaperPath = text
             QQC2.ToolTip.text: i18n("Edit the path of the background image")
@@ -272,33 +292,42 @@ DialogWindow {
         }
     }
 
-    GridLayout {
+    RowLayout {
         Layout.fillWidth: true
-        columns: 3
 
         QQC2.Label {
+            Layout.fillWidth: true
             text: i18n("Wallpaper scaling:")
         }
         QQC2.ComboBox {
             objectName: "wallpaperScalingType"
-            Layout.columnSpan: 2
+            Layout.fillWidth: true
             enabled: root.editor.wallpaperEnabled
             model: [i18n("Tile"), i18n("Stretch"), i18n("Crop"), i18n("Adapt"), i18n("NoScaling")]
             currentIndex: root.editor.wallpaperScaling
             onActivated: index => root.editor.wallpaperScaling = index
         }
+    }
+
+    RowLayout {
+        Layout.fillWidth: true
 
         QQC2.Label {
+            Layout.fillWidth: true
             text: i18n("Wallpaper flip:")
         }
         QQC2.ComboBox {
             objectName: "wallpaperFlipType"
-            Layout.columnSpan: 2
+            Layout.fillWidth: true
             enabled: root.editor.wallpaperEnabled
             model: [i18n("NoFlip"), i18n("Horizontal"), i18n("Vertical"), i18n("Both")]
             currentIndex: root.editor.wallpaperFlip
             onActivated: index => root.editor.wallpaperFlip = index
         }
+    }
+
+    RowLayout {
+        Layout.fillWidth: true
 
         QQC2.Label {
             text: i18n("Horizontal Anchor:")
@@ -320,6 +349,10 @@ DialogWindow {
             objectName: "wallpaperHorizontalAnchorPosition"
             text: ["Left", "Center", "Right"][Math.round(horizontalAnchorSlider.value)]
         }
+    }
+
+    RowLayout {
+        Layout.fillWidth: true
 
         QQC2.Label {
             text: i18n("Vertical Anchor:")

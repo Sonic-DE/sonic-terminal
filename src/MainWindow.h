@@ -230,7 +230,7 @@ private:
     // with the same name in 'source' (see QAction::ActiveShortcut)
     static void syncActiveShortcuts(KActionCollection *dest, const KActionCollection *source);
     void updateHamburgerMenu();
-    void insertFixedToolBarActions();
+    void setFixedToolBarActions(bool shown);
 
 private:
     ViewManager *_viewManager;

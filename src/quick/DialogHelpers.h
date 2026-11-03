@@ -41,5 +41,9 @@ public:
     Q_INVOKABLE static void enableAllMessages();
     // KConfigDialog's Help button.
     Q_INVOKABLE static void showHelp();
+    // KEditToolBar's Change Icon and Defaults dialogs, transient for the item's window: the
+    // chosen icon's name (empty when cancelled), and whether the reset was confirmed.
+    Q_INVOKABLE static QString chooseToolBarIcon(QQuickItem* from);
+    Q_INVOKABLE static bool confirmToolBarReset(QQuickItem* from);
 };
 }

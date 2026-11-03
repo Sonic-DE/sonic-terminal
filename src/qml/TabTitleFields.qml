@@ -102,9 +102,10 @@ GridLayout {
         id: tabColorCombo
 
         objectName: "tabColorCombo"
-        Layout.columnSpan: 2
+        Layout.fillWidth: true
         onColorActivated: color => root.tabColorChanged(color)
     }
+    Item {}
 
     MnemonicLabel {
         Layout.alignment: Qt.AlignRight
@@ -115,7 +116,8 @@ GridLayout {
         id: tabActivityColorCombo
 
         objectName: "tabActivityColorCombo"
-        Layout.columnSpan: 2
+        Layout.fillWidth: true
         onColorActivated: color => root.tabActivityColorChanged(color)
     }
+    Item {}
 }

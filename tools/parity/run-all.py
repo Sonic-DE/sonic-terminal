@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """Run every scenario in scenarios/list.txt (normal and text-hidden), then optionally compare.
 
-Usage: run-all.py --env <setup-env.py dir> --prefix <builder>/build --output <dir>
+Usage: run-all.py --env <setup-env.py dir> --prefix <builder>/state/install-stage/usr --output <dir>
                   [--baseline <dir>] [--only <name> ...]
 """
 

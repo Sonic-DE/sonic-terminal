@@ -43,7 +43,8 @@ QHash<int, QByteArray> ProfileListModel::roleNames() const
         {ShortcutToolTipRole, "shortcutToolTip"},
         {EditableRole, "editable"},
         {DeletableRole, "deletable"},
-        {DefaultRole, "isDefault"}});
+        {DefaultRole, "isDefault"},
+        {ShortcutTextRole, "shortcutText"}});
     return roles;
 }
 
@@ -69,6 +70,8 @@ QVariant ProfileListModel::data(const QModelIndex& index, int role) const
         return QKeySequence::fromString(source(ProfileModel::SHORTCUT, Qt::DisplayRole).toString());
     case ShortcutToolTipRole:
         return source(ProfileModel::SHORTCUT, Qt::ToolTipRole);
+    case ShortcutTextRole:
+        return source(ProfileModel::SHORTCUT, Qt::DisplayRole);
     case EditableRole:
         return profile && profile->isEditable();
     case DeletableRole:
@@ -134,6 +137,39 @@ void ProfileListModel::setDefault(int row)
 void ProfileListModel::setShortcut(int row, const QKeySequence& shortcut)
 {
     sourceModel()->setData(sourceModel()->index(row, ProfileModel::SHORTCUT), shortcut.toString(), Qt::DisplayRole);
+}
+
+namespace {
+    QKeySequence sequenceOf(const QList<int>& chords)
+    {
+        // QKeySequence holds four chords at most, as QKeySequenceEdit records them; an unused
+        // QKeyCombination would be an empty chord.
+        const auto chord = [&chords](int i) {
+            return QKeyCombination::fromCombined(chords.at(i));
+        };
+        switch (chords.size()) {
+        case 0:
+            return {};
+        case 1:
+            return QKeySequence(chord(0));
+        case 2:
+            return QKeySequence(chord(0), chord(1));
+        case 3:
+            return QKeySequence(chord(0), chord(1), chord(2));
+        default:
+            return QKeySequence(chord(0), chord(1), chord(2), chord(3));
+        }
+    }
+}
+
+void ProfileListModel::setShortcutChords(int row, const QList<int>& chords)
+{
+    setShortcut(row, sequenceOf(chords));
+}
+
+QString ProfileListModel::chordsText(const QList<int>& chords) const
+{
+    return sequenceOf(chords).toString(QKeySequence::NativeText);
 }
 
 void ProfileListModel::save()

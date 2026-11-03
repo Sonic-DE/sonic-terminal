@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """Run sonic-terminal's ctest suite on a private X server, D-Bus, HOME and XDG directories.
 
-Usage: ctest-isolated.py --build <build dir> --prefix <builder>/build [ctest arguments...]
+Usage: ctest-isolated.py --build <build dir> --prefix <builder>/state/install-stage/usr [ctest arguments...]
 Several autotests open windows or use D-Bus; this keeps them away from the desktop session.
 """
 
@@ -54,10 +54,13 @@ def main():
         runtime.mkdir(mode=0o700)
         # QT_MESSAGE_PATTERN and QT_LOGGING_RULES only for debugging (e.g. %{backtrace} on an assert).
         env = {key: os.environ[key] for key in ("LANG", "PATH", "QT_MESSAGE_PATTERN", "QT_LOGGING_RULES") if key in os.environ}
-        # No LD_LIBRARY_PATH: it would override the tests' RUNPATH into the build tree and load the
-        # prefix's installed konsole libraries, which can be older than the build.
-        env.update(QT_PLUGIN_PATH=f"{Path(args.build).resolve()}/bin:{prefix}/lib64/plugins",
-                   QML_IMPORT_PATH=f"{prefix}/lib64/qml", XDG_DATA_DIRS=f"{prefix}/share:/usr/share",
+        # The build tree's libraries before the prefix's: its konsole libraries can be newer than the
+        # prefix's, and libraries the prefix's QML plugins load (their RUNPATH doesn't reach the
+        # prefix's lib64) must be the prefix's, not older system ones.
+        env.update(LD_LIBRARY_PATH=f"{Path(args.build).resolve()}/bin:{prefix}/lib64",
+                   # The builder's stage keeps Qt plugins in lib64/qt6/plugins, an older prefix in lib64/plugins.
+                   QT_PLUGIN_PATH=f"{Path(args.build).resolve()}/bin:{prefix}/lib64/qt6/plugins:{prefix}/lib64/plugins",
+                   QML_IMPORT_PATH=f"{prefix}/lib64/qt6/qml:{prefix}/lib64/qml",XDG_DATA_DIRS=f"{prefix}/share:/usr/share",
                    XDG_CONFIG_DIRS="/etc/xdg", HOME=str(home), XDG_CONFIG_HOME=str(home / ".config"),
                    XDG_DATA_HOME=str(home / ".local/share"), XDG_CACHE_HOME=str(home / ".cache"),
                    XDG_STATE_HOME=str(home / ".local/state"), XDG_RUNTIME_DIR=str(runtime), QT_QPA_PLATFORM="xcb",
