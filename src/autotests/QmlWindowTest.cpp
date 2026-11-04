@@ -10,6 +10,7 @@
 #include "TestTheme.h"
 
 #include "../MainWindow.h"
+#include "../ShortcutStore.h"
 #include "../ViewManager.h"
 #include "../profile/ProfileManager.h"
 #include "../quick/ChromeAdapter.h"
@@ -29,6 +30,7 @@
 
 #include <KActionCollection>
 #include <KToolBar>
+#include <KXMLGUIClient>
 #include <KXMLGUIFactory>
 
 #include <QDialog>
@@ -91,6 +93,7 @@ private Q_SLOTS:
     void testUnlockedToolBarDragsToAnEdge();
     void testGeometryFollows();
     void testFocusBridge();
+    void testShortcutClientsAreDistinct();
     void testCloseClosesTheCompatWindow();
 
 private:
@@ -817,6 +820,19 @@ void QmlWindowTest::testFocusBridge()
     display->clearFocus();
     display->setFocus();
     QTRY_VERIFY(view->hasActiveFocus());
+}
+
+void QmlWindowTest::testShortcutClientsAreDistinct()
+{
+    // [ActionShortcuts] keys are <client>/<action>: each client of a window needs its own.
+    QSet<QString> names;
+    const auto clients = _compatWindow->guiFactory()->clients();
+    QVERIFY(clients.size() >= 2);
+    for (KXMLGUIClient* client : clients) {
+        const QString name = ShortcutStore::clientName(client->actionCollection());
+        QVERIFY2(!names.contains(name), qPrintable(QStringLiteral("%1 (%2, %3 actions)").arg(name, client->xmlFile()).arg(client->actionCollection()->count())));
+        names.insert(name);
+    }
 }
 
 void QmlWindowTest::testCloseClosesTheCompatWindow()

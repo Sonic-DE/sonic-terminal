@@ -30,6 +30,7 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
+#include <QDockWidget>
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -40,6 +41,7 @@
 #include <QMenuBar>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPlainTextEdit>
 #include <QPointer>
 #include <QProcess>
 #include <QPushButton>
@@ -103,13 +105,17 @@ static bool setQmlText(QWindow*, const QString&, const QString&)
 {
     return false;
 }
-static bool clickQmlItem(QWindow*, const QString&, int, int)
+static bool clickQmlItem(QWindow*, const QString&, int, int, const QString&)
 {
     return false;
 }
 static bool allowedWidget(const QWidget*)
 {
     return true;
+}
+static QWidget* dockContent(const QDockWidget*)
+{
+    return nullptr;
 }
 }
 #endif
@@ -535,6 +541,10 @@ namespace {
             if (QWindow* qml = target ? qmlWindow(qobject_cast<MainWindow*>(target->window())) : nullptr) {
                 handle = qml;
             }
+            // A focused QML dialog (its key recorder, its fields).
+            if (QWindow* dialog = qmlDialog(QString())) {
+                handle = dialog;
+            }
             if (!handle) {
                 return fail(QStringLiteral("key: no window"));
             }
@@ -607,10 +617,31 @@ namespace {
             return nullptr;
         }
 
+        // A step's "panel" names a side panel (dock) by title instead of a dialog.
+        QWidget* targetRoot() const
+        {
+            if (_targetPanel.isEmpty()) {
+                return visibleDialog();
+            }
+            const auto widgets = QApplication::allWidgets();
+            for (QWidget* widget : widgets) {
+                auto* dock = qobject_cast<QDockWidget*>(widget);
+                // KAcceleratorManager adds mnemonics to dock titles.
+                if (dock && dock->isVisible() && KLocalizedString::removeAcceleratorMarker(dock->windowTitle()) == _targetPanel) {
+                    QWidget* content = dockContent(dock);
+                    return content ? content : dock;
+                }
+            }
+            return nullptr;
+        }
+
         // The QML dialog a step acts on: the focused or named one, else any shown while no
         // widget dialog is.
         QWindow* frontQmlDialog() const
         {
+            if (!_targetPanel.isEmpty()) {
+                return nullptr;
+            }
             if (QWindow* dialog = qmlDialog(_targetTitle)) {
                 return dialog;
             }
@@ -700,8 +731,25 @@ namespace {
         template <typename T>
         T* dialogChild(const QString& object, const QString& text = QString())
         {
-            QDialog* dialog = visibleDialog();
+            QWidget* dialog = targetRoot();
             if (!dialog) {
+                return nullptr;
+            }
+            // "@Class": the first visible widget of that class, or the T inside it.
+            if (object.startsWith(u'@')) {
+                const QByteArray className = object.mid(1).toLatin1();
+                const auto widgets = dialog->findChildren<QWidget*>();
+                for (QWidget* widget : widgets) {
+                    if (!widget->isVisible() || !widget->inherits(className.constData())) {
+                        continue;
+                    }
+                    if (auto* match = qobject_cast<T*>(widget)) {
+                        return match;
+                    }
+                    if (auto* inner = widget->findChild<T*>()) {
+                        return inner;
+                    }
+                }
                 return nullptr;
             }
             if (!object.isEmpty()) {
@@ -783,7 +831,7 @@ namespace {
                 QModelIndex index = itemView->model()->index(row, 0, itemView->rootIndex());
                 if (!text.isEmpty()) {
                     const QModelIndexList found = itemView->model()->match(itemView->model()->index(0, 0, itemView->rootIndex()), Qt::DisplayRole, text, 1,
-                        Qt::MatchStartsWith);
+                        Qt::MatchStartsWith | Qt::MatchRecursive);
                     index = found.value(0);
                 }
                 if (!index.isValid()) {
@@ -1066,8 +1114,12 @@ namespace {
         void menuItem(const QJsonObject& step)
         {
             const QString name = step.value(QStringLiteral("menu")).toString();
-            QAction* rootAction = findAction(name);
-            QMenu* menu = rootAction ? rootAction->menu() : nullptr;
+            MainWindow* mainWindow = window();
+            auto* menu = mainWindow ? qobject_cast<QMenu*>(mainWindow->guiFactory()->container(name, mainWindow)) : nullptr;
+            if (!menu) {
+                QAction* rootAction = findAction(name);
+                menu = rootAction ? rootAction->menu() : nullptr;
+            }
             if (!menu) {
                 return fail(QStringLiteral("menuItem: no menu ") + name);
             }
@@ -1095,6 +1147,20 @@ namespace {
             }
             Q_EMIT menu->customContextMenuRequested(menu->actionGeometry(action).center());
             clickPopupItem(context, delay, 2000);
+        }
+
+        // "text" finds the item anywhere in the tree, else "row"/"column" at the top level.
+        static QModelIndex clickItemIndex(QAbstractItemView* itemView, const QJsonObject& step)
+        {
+            if (!itemView) {
+                return {};
+            }
+            QAbstractItemModel* model = itemView->model();
+            const QString text = step.value(QStringLiteral("text")).toString();
+            if (text.isEmpty()) {
+                return model->index(step.value(QStringLiteral("row")).toInt(), step.value(QStringLiteral("column")).toInt());
+            }
+            return model->match(model->index(0, 0), Qt::DisplayRole, text, 1, Qt::MatchExactly | Qt::MatchRecursive).value(0);
         }
 
         void clickPopupItem(const QString& text, int delay, int remainingMs)
@@ -1176,6 +1242,7 @@ namespace {
             const QJsonObject step = _steps.at(_index++);
             const QString op = step.value(QStringLiteral("op")).toString();
             _targetTitle = step.value(QStringLiteral("in")).toString();
+            _targetPanel = step.value(QStringLiteral("panel")).toString();
             sonicDebug() << "parity: step" << _index << op;
 
             if (op == QLatin1String("output")) {
@@ -1434,24 +1501,50 @@ namespace {
             if (op == QLatin1String("clickItem")) {
                 const QString object = step.value(QStringLiteral("object")).toString();
                 if (QWindow* qml = frontQmlDialog()) {
-                    if (!clickQmlItem(qml, object, step.value(QStringLiteral("row")).toInt(), step.value(QStringLiteral("column")).toInt())) {
+                    if (!clickQmlItem(qml, object, step.value(QStringLiteral("row")).toInt(), step.value(QStringLiteral("column")).toInt(),
+                            step.value(QStringLiteral("text")).toString())) {
                         return fail(QStringLiteral("clickItem: no item in ") + object);
                     }
                     return next(step.value(QStringLiteral("delay")).toInt(800));
                 }
                 auto* itemView = dialogChild<QAbstractItemView>(object);
-                const QModelIndex index = itemView ? itemView->model()->index(step.value(QStringLiteral("row")).toInt(), step.value(QStringLiteral("column")).toInt())
-                                                   : QModelIndex();
+                const QModelIndex index = clickItemIndex(itemView, step);
                 if (!index.isValid()) {
                     return fail(QStringLiteral("clickItem: no item in ") + object);
                 }
+                itemView->scrollTo(index);
+                const QPoint point = itemView->visualRect(index).center();
+                const int delay = step.value(QStringLiteral("delay")).toInt(800);
+                if (!step.value(QStringLiteral("context")).toString().isEmpty()) {
+                    // A right click makes the row current, as the user's does; Qt makes no context
+                    // menu event from a synthetic click, so the request follows it.
+                    QTimer::singleShot(0, itemView, [itemView = QPointer<QAbstractItemView>(itemView), point] {
+                        if (!itemView) {
+                            return;
+                        }
+                        QTest::lastMouseTimestamp += 10000;
+                        QTest::mouseClick(itemView->viewport(), Qt::RightButton, Qt::NoModifier, point);
+                        if (itemView && !QApplication::activePopupWidget()) {
+                            Q_EMIT itemView->customContextMenuRequested(point);
+                        }
+                    });
+                    return clickPopupItem(step.value(QStringLiteral("context")).toString(), delay, 2000);
+                }
                 // Deferred, like click(): the item may open a modal dialog.
-                QTimer::singleShot(0, itemView, [viewport = QPointer<QWidget>(itemView->viewport()), point = itemView->visualRect(index).center()] {
-                    if (viewport) {
+                QTimer::singleShot(0, itemView, [viewport = QPointer<QWidget>(itemView->viewport()), point, twice = step.value(QStringLiteral("double")).toBool()] {
+                    if (!viewport) {
+                        return;
+                    }
+                    // QTest's synthetic clock: keep an earlier click from pairing with this one.
+                    QTest::lastMouseTimestamp += 10000;
+                    // mouseDClick() sends the first click too.
+                    if (twice) {
+                        QTest::mouseDClick(viewport, Qt::LeftButton, Qt::NoModifier, point);
+                    } else {
                         QTest::mouseClick(viewport, Qt::LeftButton, Qt::NoModifier, point);
                     }
                 });
-                return next(step.value(QStringLiteral("delay")).toInt(800));
+                return next(delay);
             }
             if (op == QLatin1String("setText")) {
                 if (QWindow* qml = frontQmlDialog()) {
@@ -1460,12 +1553,16 @@ namespace {
                     }
                     return next(300);
                 }
-                auto* edit = dialogChild<QLineEdit>(step.value(QStringLiteral("object")).toString());
-                if (!edit) {
-                    return fail(QStringLiteral("setText: no line edit ") + step.value(QStringLiteral("object")).toString());
+                const QString object = step.value(QStringLiteral("object")).toString();
+                if (auto* edit = dialogChild<QLineEdit>(object)) {
+                    edit->setText(step.value(QStringLiteral("text")).toString());
+                    return next(300);
                 }
-                edit->setText(step.value(QStringLiteral("text")).toString());
-                return next(300);
+                if (auto* edit = dialogChild<QPlainTextEdit>(object)) {
+                    edit->setPlainText(step.value(QStringLiteral("text")).toString());
+                    return next(300);
+                }
+                return fail(QStringLiteral("setText: no line edit ") + object);
             }
             if (op == QLatin1String("clipboard")) {
                 QGuiApplication::clipboard()->setText(step.value(QStringLiteral("text")).toString().repeated(step.value(QStringLiteral("repeat")).toInt(1)));
@@ -1518,6 +1615,7 @@ namespace {
         bool _failed = false;
         bool _checkWidgets = false;
         QString _targetTitle;
+        QString _targetPanel;
         // QML dialogs already shown when the last click happened: not the dialog it opens.
         QList<QPointer<QWindow>> _shownBeforeClick;
         int _index = 0;

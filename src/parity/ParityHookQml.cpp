@@ -73,6 +73,34 @@ QPixmap grabQmlWindow(const MainWindow* window)
 }
 
 namespace {
+    // A step's "@Class" names a QML item by the widget class it replaces, as its objectName.
+    QString objectName(const QString& object)
+    {
+        return object.startsWith(u'@') ? object.mid(1) : object;
+    }
+
+    // By object name: QObject children, then the item tree (view delegates have no QObject parent).
+    QQuickItem* findItem(QWindow* dialog, const QString& object)
+    {
+        const QString name = objectName(object);
+        if (auto* found = dialog->findChild<QQuickItem*>(name)) {
+            return found;
+        }
+        auto* quick = qobject_cast<QQuickWindow*>(dialog);
+        QList<QQuickItem*> items = {quick ? quick->contentItem() : nullptr};
+        while (!items.isEmpty()) {
+            QQuickItem* item = items.takeFirst();
+            if (!item) {
+                continue;
+            }
+            if (item->objectName() == name) {
+                return item;
+            }
+            items += item->childItems();
+        }
+        return nullptr;
+    }
+
     bool isDialog(const QWindow* window)
     {
         for (const QMetaObject* meta = window->metaObject(); meta; meta = meta->superClass()) {
@@ -120,7 +148,20 @@ QObject* qmlDialogButton(QWindow* dialog, const QString& object, const QString& 
         return nullptr;
     }
     if (!object.isEmpty()) {
-        return quick->findChild<QQuickItem*>(object);
+        QQuickItem* found = findItem(quick, object);
+        if (!found || found->inherits("QQuickAbstractButton")) {
+            return found;
+        }
+        // A control made of buttons (KeySequenceItem): its first one.
+        QList<QQuickItem*> items = found->childItems();
+        while (!items.isEmpty()) {
+            QQuickItem* item = items.takeFirst();
+            if (item->inherits("QQuickAbstractButton") && item->isVisible()) {
+                return item;
+            }
+            items += item->childItems();
+        }
+        return nullptr;
     }
     if (standardButton) {
         // DialogButtonBox::standardButton(), through the engine (its return type is private), of
@@ -209,7 +250,7 @@ bool showQmlDialogPage(QWindow* dialog, const QString& title)
 
 bool selectQmlRow(QWindow* dialog, const QString& object, int row, const QString& text)
 {
-    auto* list = dialog->findChild<QQuickItem*>(object);
+    auto* list = findItem(dialog, object);
     if (!list || !list->property("currentIndex").isValid()) {
         return false;
     }
@@ -242,7 +283,7 @@ bool selectQmlRow(QWindow* dialog, const QString& object, int row, const QString
 
 bool setQmlText(QWindow* dialog, const QString& object, const QString& text)
 {
-    auto* field = dialog->findChild<QQuickItem*>(object);
+    auto* field = findItem(dialog, object);
     if (!field || !field->inherits("QQuickTextInput")) {
         return false;
     }
@@ -250,11 +291,19 @@ bool setQmlText(QWindow* dialog, const QString& object, const QString& text)
     return true;
 }
 
-bool clickQmlItem(QWindow* dialog, const QString& object, int row, int column)
+bool clickQmlItem(QWindow* dialog, const QString& object, int row, int column, const QString& text)
 {
-    auto* table = dialog->findChild<QQuickItem*>(object);
+    auto* table = findItem(dialog, object);
     if (!table || table->metaObject()->indexOfMethod("clickItem(QVariant,QVariant)") < 0) {
         return false;
+    }
+    if (!text.isEmpty()) {
+        auto* model = table->property("model").value<QAbstractItemModel*>();
+        const QModelIndexList found = model ? model->match(model->index(0, 0), Qt::DisplayRole, text, 1, Qt::MatchExactly) : QModelIndexList();
+        if (found.isEmpty()) {
+            return false;
+        }
+        row = found.first().row();
     }
     QTimer::singleShot(0, table, [table, row, column] {
         QMetaObject::invokeMethod(table, "clickItem", Q_ARG(QVariant, row), Q_ARG(QVariant, column));
@@ -294,5 +343,10 @@ bool allowedWidget(const QWidget* widget)
         }
     }
     return false;
+}
+
+QWidget* dockContent(const QDockWidget* dock)
+{
+    return DockAdapter::dockContent(dock);
 }
 }

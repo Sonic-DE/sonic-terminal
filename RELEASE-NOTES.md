@@ -8,6 +8,8 @@ SonicDE's terminal app, with tabs, split views and profiles for working on the c
 - The terminal window is now drawn with QML; it looks and works as before.
 - The tab bar's "Use user-defined stylesheet" option has been removed.
 - ZModem file transfers are no longer supported.
+- Keyboard shortcuts are now saved in `konsolerc`; your existing shortcuts are moved there
+  the first time the terminal starts.
 
 ## 26.08.2 (2026-10-20)
 

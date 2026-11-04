@@ -1,0 +1,34 @@
+# Configure Keyboard Shortcuts: search, expand a row, a conflict, a letter without a
+# modifier, record a key, Defaults, Manage Schemes, OK, and the new shortcut in use.
+{"op": "waitWindow"}
+{"op": "geometry", "x": 100, "y": 80, "width": 1000, "height": 600}
+{"op": "waitText", "text": "$"}
+{"op": "action", "id": "options_configure_keybinding", "delay": 800}
+{"op": "dialog", "name": "shortcuts-open", "close": false}
+{"op": "setText", "object": "@KTreeWidgetSearchLine", "text": "New Window"}
+{"op": "dialog", "name": "shortcuts-search", "close": false}
+{"op": "clickItem", "object": "list", "text": "New Window"}
+{"op": "dialog", "name": "shortcuts-expanded", "close": false}
+{"op": "click", "object": "@KKeySequenceWidget", "delay": 300}
+{"op": "key", "sequence": "Ctrl+Shift+T"}
+{"op": "wait", "ms": 500}
+{"op": "dialog", "name": "shortcuts-conflict", "close": false}
+{"op": "click", "text": "Cancel"}
+{"op": "click", "object": "@KKeySequenceWidget", "delay": 300}
+{"op": "key", "sequence": "Q"}
+{"op": "wait", "ms": 500}
+{"op": "dialog", "name": "shortcuts-letter", "close": false}
+{"op": "key", "sequence": "Ctrl+Alt+F7"}
+{"op": "wait", "ms": 500}
+{"op": "dialog", "name": "shortcuts-recorded", "close": false}
+{"op": "click", "text": "Defaults"}
+{"op": "dialog", "name": "shortcuts-defaults", "close": false}
+{"op": "click", "object": "@KKeySequenceWidget", "delay": 300}
+{"op": "key", "sequence": "Ctrl+Alt+F8"}
+{"op": "wait", "ms": 500}
+{"op": "click", "text": "Manage Schemes >>"}
+{"op": "dialog", "name": "shortcuts-schemes", "close": false}
+{"op": "button", "role": "ok"}
+{"op": "key", "sequence": "Ctrl+Alt+F8"}
+{"op": "waitWindow", "window": 1}
+{"op": "quit"}

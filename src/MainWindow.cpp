@@ -35,7 +35,6 @@
 #include <KMessageBox>
 #include <KNotifyConfigWidget>
 #include <KSharedConfig>
-#include <KShortcutsDialog>
 #include <KStandardAction>
 #include <KStandardGuiItem>
 #include <KToolBar>
@@ -51,6 +50,7 @@
 // Konsole
 #include "BookmarkHandler.h"
 #include "KonsoleSettings.h"
+#include "ShortcutStore.h"
 #include "ViewManager.h"
 #include "WindowSystemInfo.h"
 
@@ -73,6 +73,7 @@
 #include "quick/FrameworkDialogScope.h"
 #include "quick/ProfileListModel.h"
 #include "quick/QmlDialogs.h"
+#include "quick/ShortcutsEditorModel.h"
 #include "quick/WindowController.h"
 
 #include <QHash>
@@ -188,6 +189,7 @@ MainWindow::MainWindow()
     const QString xmlFile = componentName() + QLatin1String("ui.rc"); // Typically "konsoleui.rc"
     // The "Create" flag will make it call createGUI()
     setupGUI(guiOpts, xmlFile);
+    ShortcutStore::instance()->attach(guiFactory());
     connect(guiFactory(), &KXMLGUIFactory::makingChanges, this, [this](bool changing) {
         setFixedToolBarActions(!changing);
         if (!changing) {
@@ -1019,36 +1021,21 @@ void MainWindow::syncActiveShortcuts(KActionCollection *dest, const KActionColle
 
 void MainWindow::showShortcutsDialog()
 {
-    FrameworkDialogScope scope(QStringLiteral("shortcuts"));
-    KShortcutsDialog dialog(KShortcutsEditor::AllActions, KShortcutsEditor::LetterShortcutsDisallowed, this);
-
     // add actions from this window and the current session controller
     const QList<KXMLGUIClient *> clientsList = guiFactory()->clients();
+    QList<KActionCollection*> collections;
     for (KXMLGUIClient *client : clientsList) {
-        dialog.addCollection(client->actionCollection());
+        collections.append(client->actionCollection());
     }
-
-    if (dialog.configure()) {
-        // sync shortcuts for non-session actions (defined in "konsoleui.rc") in other main windows
-        const QList<QWidget *> widgets = QApplication::topLevelWidgets();
-        for (QWidget *mainWindowWidget : widgets) {
-            auto *mainWindow = qobject_cast<MainWindow *>(mainWindowWidget);
-            if ((mainWindow != nullptr) && mainWindow != this) {
-                syncActiveShortcuts(mainWindow->actionCollection(), actionCollection());
-            }
-        }
-        // sync shortcuts for session actions (defined in "sessionui.rc") in other session controllers.
-        // Controllers which are currently plugged in (ie. their actions are part of the current menu)
-        // must be updated immediately via syncActiveShortcuts().  Other controllers will be updated
-        // when they are plugged into a main window.
-        const QSet<SessionController *> allControllers = SessionController::allControllers();
-        for (SessionController *controller : allControllers) {
-            controller->reloadXML();
-            if ((controller->factory() != nullptr) && controller != _pluggedController) {
-                syncActiveShortcuts(controller->actionCollection(), _pluggedController->actionCollection());
-            }
-        }
+    // OK saves them through ShortcutStore: every window applies them, other session
+    // controllers when they're plugged in.
+    auto* editor = new ShortcutsEditorModel(collections);
+    QQuickWindow* dialog = QmlDialogs::open(QStringLiteral("ShortcutsDialog"), this, {{QStringLiteral("editor"), QVariant::fromValue(editor)}});
+    if (!dialog) {
+        delete editor;
+        return;
     }
+    editor->setParent(dialog);
 }
 
 void MainWindow::newFromProfile(const Profile::Ptr &profile)

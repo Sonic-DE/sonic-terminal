@@ -5,8 +5,8 @@
 the framework dialogs opened inside a FrameworkDialogScope.
 
 Runs the dialog scenarios, the bookmark menu's (no-widgets-bookmarks.jsonl) and Configure
-Shortcuts' (shortcuts-sync.jsonl, which also checks the other window's shortcuts) with the
-hook's widget check after every step, then a scenario
+Shortcuts' (shortcuts-editor.jsonl, and shortcuts-sync.jsonl, which also checks the other
+window's shortcuts) with the hook's widget check after every step, then a scenario
 that creates a stray dialog and label, which must fail naming both.
 Usage: no-widgets.py --env <setup-env.py dir> --prefix <builder>/state/install-stage/usr --output <dir>
 """
@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-SCENARIOS = ["dialogs", "dialogs-extra", "no-widgets-bookmarks", "shortcuts-sync"]
+SCENARIOS = ["dialogs", "dialogs-extra", "no-widgets-bookmarks", "shortcuts-editor", "shortcuts-sync"]
 
 
 def run(args, name):

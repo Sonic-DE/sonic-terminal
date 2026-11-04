@@ -1,0 +1,55 @@
+# The Quick Commands side panel: add (with both validation errors), select, run, run by
+# double click, filter, edit, duplicate, Quick Access and delete.
+{"op": "waitWindow"}
+{"op": "geometry", "x": 100, "y": 80, "width": 1000, "height": 600}
+{"op": "waitText", "text": "$"}
+{"op": "menuItem", "menu": "plugins", "text": "Show Quick Commands"}
+{"op": "capture", "name": "qc-empty"}
+{"op": "click", "panel": "Quick Commands", "object": "btnAdd"}
+{"op": "capture", "name": "qc-add"}
+{"op": "click", "panel": "Quick Commands", "object": "btnSave", "delay": 300}
+{"op": "dialog", "name": "qc-empty-title"}
+{"op": "setText", "panel": "Quick Commands", "object": "name", "text": "Say hello"}
+{"op": "setText", "panel": "Quick Commands", "object": "tooltip", "text": "Prints a greeting"}
+{"op": "click", "panel": "Quick Commands", "object": "btnSave", "delay": 300}
+{"op": "dialog", "name": "qc-empty-command"}
+{"op": "setText", "panel": "Quick Commands", "object": "command", "text": "echo qc-ran"}
+{"op": "click", "panel": "Quick Commands", "object": "btnSave"}
+{"op": "capture", "name": "qc-saved"}
+{"op": "clickItem", "panel": "Quick Commands", "object": "commandsTreeView", "text": "Say hello"}
+{"op": "capture", "name": "qc-selected"}
+# Without shellcheck the Warnings tab isn't empty: Run asks first, a double click refuses.
+{"op": "click", "panel": "Quick Commands", "object": "btnRun", "delay": 300}
+{"op": "dialog", "name": "qc-run-question", "close": false}
+{"op": "click", "text": "Run"}
+{"op": "waitText", "text": "qc-ran\n"}
+{"op": "capture", "name": "qc-run"}
+{"op": "clickItem", "panel": "Quick Commands", "object": "commandsTreeView", "text": "Say hello", "double": true, "delay": 300}
+{"op": "dialog", "name": "qc-invoke-warnings"}
+{"op": "setText", "panel": "Quick Commands", "object": "filterLine", "text": "zzz"}
+{"op": "capture", "name": "qc-filtered"}
+{"op": "click", "panel": "Quick Commands", "object": "invertFilter"}
+{"op": "capture", "name": "qc-inverted"}
+{"op": "click", "panel": "Quick Commands", "object": "invertFilter"}
+{"op": "setText", "panel": "Quick Commands", "object": "filterLine", "text": ""}
+{"op": "clickItem", "panel": "Quick Commands", "object": "commandsTreeView", "text": "Say hello", "context": "Edit"}
+{"op": "capture", "name": "qc-edit"}
+{"op": "setText", "panel": "Quick Commands", "object": "tooltip", "text": "Edited greeting"}
+{"op": "click", "panel": "Quick Commands", "object": "btnUpdate"}
+{"op": "capture", "name": "qc-updated"}
+{"op": "click", "panel": "Quick Commands", "object": "btnAdd"}
+{"op": "setText", "panel": "Quick Commands", "object": "name", "text": "Say hello"}
+{"op": "setText", "panel": "Quick Commands", "object": "command", "text": "echo duplicate"}
+{"op": "click", "panel": "Quick Commands", "object": "btnSave", "delay": 300}
+{"op": "dialog", "name": "qc-duplicate"}
+{"op": "click", "panel": "Quick Commands", "object": "btnCancel"}
+{"op": "key", "sequence": "Ctrl+Alt+G"}
+{"op": "wait", "ms": 500}
+{"op": "capture", "name": "qc-quick-access"}
+{"op": "key", "sequence": "Escape"}
+{"op": "wait", "ms": 300}
+{"op": "clickItem", "panel": "Quick Commands", "object": "commandsTreeView", "text": "Say hello", "context": "Delete", "delay": 300}
+{"op": "dialog", "name": "qc-delete", "close": false}
+{"op": "click", "text": "Delete"}
+{"op": "capture", "name": "qc-deleted"}
+{"op": "quit"}

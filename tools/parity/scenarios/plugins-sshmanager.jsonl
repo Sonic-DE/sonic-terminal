@@ -1,0 +1,45 @@
+# The SSH Manager side panel: new entry (with its validation errors), select, edit,
+# connect by double click, filter, Quick Access and delete.
+{"op": "waitWindow"}
+{"op": "geometry", "x": 100, "y": 80, "width": 1000, "height": 600}
+{"op": "waitText", "text": "$"}
+{"op": "menuItem", "menu": "plugins", "text": "Show SSH Manager"}
+{"op": "capture", "name": "ssh-empty"}
+{"op": "click", "panel": "SSH Manager", "object": "newSSHConfig"}
+{"op": "capture", "name": "ssh-new"}
+{"op": "click", "panel": "SSH Manager", "object": "btnAdd"}
+{"op": "capture", "name": "ssh-errors"}
+{"op": "setText", "panel": "SSH Manager", "object": "name", "text": "Parity host"}
+{"op": "setText", "panel": "SSH Manager", "object": "hostname", "text": "localhost"}
+{"op": "setText", "panel": "SSH Manager", "object": "port", "text": "1"}
+{"op": "setText", "panel": "SSH Manager", "object": "username", "text": "parity"}
+{"op": "click", "panel": "SSH Manager", "object": "btnAdd"}
+{"op": "capture", "name": "ssh-added"}
+{"op": "clickItem", "panel": "SSH Manager", "object": "treeView", "text": "Parity host"}
+{"op": "capture", "name": "ssh-selected"}
+{"op": "click", "panel": "SSH Manager", "object": "btnEdit"}
+{"op": "setText", "panel": "SSH Manager", "object": "port", "text": "2"}
+{"op": "capture", "name": "ssh-edit"}
+{"op": "click", "panel": "SSH Manager", "object": "btnAdd"}
+{"op": "capture", "name": "ssh-updated"}
+# Connect before filtering: after a filter text change, the synthetic double click doesn't
+# connect in the widget build either (cause not found).
+{"op": "clickItem", "panel": "SSH Manager", "object": "treeView", "text": "Parity host", "double": true}
+{"op": "waitText", "text": "Connection refused", "timeout": 10000}
+{"op": "capture", "name": "ssh-connect"}
+{"op": "setText", "panel": "SSH Manager", "object": "filterText", "text": "zzz"}
+{"op": "capture", "name": "ssh-filtered"}
+{"op": "click", "panel": "SSH Manager", "object": "btnInvertFilter"}
+{"op": "capture", "name": "ssh-inverted"}
+{"op": "click", "panel": "SSH Manager", "object": "btnInvertFilter"}
+{"op": "setText", "panel": "SSH Manager", "object": "filterText", "text": ""}
+{"op": "key", "sequence": "Ctrl+Alt+H"}
+{"op": "wait", "ms": 500}
+{"op": "capture", "name": "ssh-quick-access"}
+{"op": "key", "sequence": "Escape"}
+{"op": "wait", "ms": 300}
+{"op": "clickItem", "panel": "SSH Manager", "object": "treeView", "text": "Parity host", "context": "Delete", "delay": 300}
+{"op": "dialog", "name": "ssh-delete", "close": false}
+{"op": "click", "text": "Delete"}
+{"op": "capture", "name": "ssh-deleted"}
+{"op": "quit"}

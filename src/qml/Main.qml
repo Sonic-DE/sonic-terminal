@@ -47,6 +47,9 @@ Kirigami.AbstractApplicationWindow {
         function onMenuBarActivated() {
             adapter.popupMenu(0);
         }
+        function onCommandBarRequested(model) {
+            commandBar.show(model);
+        }
     }
 
     // The menu bar heads the header: Kirigami's window leaves room for header only, not
@@ -139,6 +142,12 @@ Kirigami.AbstractApplicationWindow {
         Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
+
+            // Find Action and the plugins' quick access, in the room between the bars.
+            CommandBar {
+                id: commandBar
+                controller: root.controller
+            }
         }
 
         Repeater {

@@ -7,6 +7,7 @@
 
 #include "config-konsole.h"
 
+#include "CommandBarModel.h"
 #include "CompatWindows.h"
 #include "MainWindow.h"
 #include "QmlDialogs.h"
@@ -339,6 +340,16 @@ void WindowController::createQmlWindow()
         connect(factory, &KXMLGUIFactory::shortcutsSaved, this, &WindowController::scheduleShortcuts);
     }
     scheduleShortcuts();
+
+    // Find Action: KXmlGuiWindow's KCommandBar would open in the hidden compat window.
+    if (QAction* findAction = _window->actionCollection()->action(QStringLiteral("open_kcommand_bar"))) {
+        disconnect(findAction, &QAction::triggered, _window, nullptr);
+        connect(findAction, &QAction::triggered, this, [this] {
+            if (_window && _window->isCommandBarEnabled()) {
+                openCommandBar(CommandBarModel::windowGroups(_window->guiFactory()));
+            }
+        });
+    }
 }
 
 void WindowController::scheduleShortcuts()
@@ -444,6 +455,23 @@ void WindowController::requestClose()
 {
     if (_window) {
         _window->close();
+    }
+}
+
+void WindowController::openCommandBar(const QList<KCommandBar::ActionGroup>& groups)
+{
+    commandBarClosed();
+    auto* model = new CommandBarModel(this);
+    model->setActions(groups);
+    _commandBar = model;
+    sonicDebug() << "command bar opened," << model->rowCount() << "rows";
+    Q_EMIT commandBarRequested(model);
+}
+
+void WindowController::commandBarClosed()
+{
+    if (_commandBar) {
+        _commandBar->deleteLater();
     }
 }
 

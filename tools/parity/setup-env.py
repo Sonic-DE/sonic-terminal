@@ -89,8 +89,10 @@ def main():
                     f"-DCMAKE_PREFIX_PATH={prefix}", f"-DCMAKE_INSTALL_PREFIX={env / 'prefix'}",
                     "-DKDE_INSTALL_USE_QT_SYS_PATHS=OFF", "-DBUILD_TESTING=OFF", "-DKONSOLE_PARITY_HOOKS=ON"],
                    check=True, stdout=subprocess.DEVNULL)
-    subprocess.run(["cmake", "--build", str(build), "--parallel", args.jobs], check=True)
-    subprocess.run(["cmake", "--build", str(build), "--target", "konsole_compatplugin", "--parallel", args.jobs], check=True)
+    # The prefix's tools (meinproc6 for the docs) need its libraries.
+    build_env = {**os.environ, "LD_LIBRARY_PATH": ":".join(filter(None, [str(prefix / "lib64"), os.environ.get("LD_LIBRARY_PATH")]))}
+    subprocess.run(["cmake", "--build", str(build), "--parallel", args.jobs], env=build_env, check=True)
+    subprocess.run(["cmake", "--build", str(build), "--target", "konsole_compatplugin", "--parallel", args.jobs], env=build_env, check=True)
     subprocess.run(["cmake", "--install", str(build)], env={**os.environ, "DESTDIR": str(stage)}, check=True,
                    stdout=subprocess.DEVNULL)
 

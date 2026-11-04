@@ -12,6 +12,9 @@ translucent-80-blur | transparency.jsonl | --scheme-set Opacity=0.8 --scheme-set
 translucent-50-blur | transparency.jsonl | --scheme-set Opacity=0.5 --scheme-set Blur=true
 compat | compat.jsonl |
 plugins | plugins.jsonl | --plugin-path {plugin_baseline}
+plugins-quickcommands | plugins-quickcommands.jsonl |
+plugins-sshmanager | plugins-sshmanager.jsonl |
+shortcuts-editor | shortcuts-editor.jsonl |
 cli-plain | cli.jsonl |
 cli-profile | cli.jsonl | "--konsole-args=--profile Parity"
 cli-builtin-profile | cli.jsonl | --konsole-args=--builtin-profile

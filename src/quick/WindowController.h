@@ -7,6 +7,8 @@
 
 #include "konsoleapp_export.h"
 
+#include <KCommandBar>
+
 #include <QObject>
 #include <QPointer>
 
@@ -49,9 +51,15 @@ public:
     void activateMenuBar();
 
     Q_INVOKABLE void requestClose();
+    // The command bar over the QML window (KCommandBar there), with these actions: Find
+    // Action's from the window's clients, or a plugin's.
+    void openCommandBar(const QList<KCommandBar::ActionGroup>& groups);
+    // The QML bar closed: its model goes.
+    Q_INVOKABLE void commandBarClosed();
 
 Q_SIGNALS:
     void menuBarActivated();
+    void commandBarRequested(QObject* model);
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
@@ -76,6 +84,7 @@ private:
     // The compat window's action shortcuts, on the QML window (its actions' own don't fire
     // while a QML window has focus).
     QList<QShortcut*> _shortcuts;
+    QPointer<QObject> _commandBar;
     bool _shortcutsScheduled = false;
     bool _syncing = false;
     bool _translucent = false;

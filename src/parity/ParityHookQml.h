@@ -7,6 +7,7 @@
 #include <QString>
 #include <QStringList>
 
+class QDockWidget;
 class QMenu;
 class QObject;
 class QPixmap;
@@ -44,11 +45,14 @@ namespace ParityHook {
     // Sets a text field's text by object name; false if there is none.
     bool setQmlText(QWindow* dialog, const QString& object, const QString& text);
     // Clicks a table's cell through its clickItem(row, column), after this returns (the cell
-    // may open a modal dialog); false if there is no such table.
-    bool clickQmlItem(QWindow* dialog, const QString& object, int row, int column);
+    // may open a modal dialog); the row whose text is `text` when given; false if there is
+    // no such table or row.
+    bool clickQmlItem(QWindow* dialog, const QString& object, int row, int column, const QString& text);
 
     // A widget the QML application may have (NoWidgetsTest): in a compat window, a plugin
     // dock's content, in a menu, or opened inside a FrameworkDialogScope.
     bool allowedWidget(const QWidget* widget);
+    // A plugin dock's content, which the QML window embeds outside the dock; null if none.
+    QWidget* dockContent(const QDockWidget* dock);
 }
 }

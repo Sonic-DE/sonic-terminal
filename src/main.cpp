@@ -12,6 +12,7 @@
 #include "Application.h"
 #include "KonsoleSettings.h"
 #include "MainWindow.h"
+#include "ShortcutStore.h"
 #include "ViewManager.h"
 #include "config-konsole.h"
 #include "widgets/ViewContainer.h"
@@ -246,6 +247,9 @@ int main(int argc, char *argv[])
 
     // If we reach this location, there was no existing copy of Konsole
     // running, so create a new instance.
+    // Before the first window: shortcuts saved by KXmlGui move to konsolerc once.
+    Konsole::ShortcutStore::instance()->migrate(QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + QStringLiteral("/kxmlgui5/")
+        + QCoreApplication::applicationName());
     Application konsoleApp(parser, customCommand);
 
 #if HAVE_DBUS

@@ -208,6 +208,7 @@ set(konsoleprivate_SRCS ${windowadaptors_SRCS}
                         ScreenWindow.cpp
                         ScrollState.cpp
                         SearchHistoryTask.cpp
+                        ShortcutStore.cpp
                         ShouldApplyProperty.cpp
                         UnixProcessInfo.cpp
                         ViewManager.cpp
@@ -268,6 +269,8 @@ set(konsoleprivate_SRCS ${windowadaptors_SRCS}
                         quick/ToolBarEditorForeign.h
                         quick/ColorSchemeEditorBackend.cpp
                         quick/KeyBindingEditorBackend.cpp
+                        quick/ShortcutsEditorModel.cpp
+                        quick/CommandBarModel.cpp
                         quick/ProfileEditor.cpp
                         quick/ProfileListModel.cpp
                         quick/SettingsEditor.cpp
@@ -366,6 +369,7 @@ qt_add_qml_module(konsoleprivate
         qml/ColorButton.qml
         qml/ColorComboBox.qml
         qml/ColorSchemeEditorDialog.qml
+        qml/CommandBar.qml
         qml/ConfigureDialog.qml
         qml/ConfigureGeneralPage.qml
         qml/ConfigureMemoryPage.qml
@@ -400,6 +404,7 @@ qt_add_qml_module(konsoleprivate
         qml/SettingCheckBox.qml
         qml/SettingRadioButton.qml
         qml/SettingSpinBox.qml
+        qml/ShortcutsDialog.qml
         qml/TabbedPageDialog.qml
         qml/TabTitleFields.qml
         qml/TextInputDialog.qml

@@ -15,6 +15,8 @@ Window {
     id: root
 
     default property alias content: contentColumn.data
+    // QDialogButtonBox's ActionRole buttons: right-aligned, before OK and Cancel.
+    property alias actionButtons: actionRow.data
     property int standardButtons: QQC2.DialogButtonBox.NoButton
     // Asked on OK; false keeps the dialog open (an overridden QDialog::accept() refusing).
     property var acceptCheck: () => true
@@ -100,10 +102,20 @@ Window {
                 onReset: root.defaultsRequested()
             }
 
+            Item {
+                Layout.fillWidth: true
+            }
+
+            RowLayout {
+                id: actionRow
+
+                spacing: Kirigami.Units.mediumSpacing
+                visible: children.length > 0
+            }
+
             QQC2.DialogButtonBox {
                 id: buttonBox
 
-                Layout.fillWidth: true
                 padding: 0
                 alignment: Qt.AlignRight
                 standardButtons: root.standardButtons & ~root.leftButtons

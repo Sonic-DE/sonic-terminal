@@ -60,6 +60,9 @@ endif()
 ecm_add_tests(
     HistoryTest.cpp
     SessionTest.cpp
+    ShortcutStoreTest.cpp
+    ShortcutsEditorModelTest.cpp
+    CommandBarModelTest.cpp
     TerminalInterfaceTest.cpp
     TerminalTest.cpp
     ViewManagerTest.cpp

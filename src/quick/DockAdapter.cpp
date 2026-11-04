@@ -10,7 +10,6 @@
 #include <QDockWidget>
 #include <QEvent>
 #include <QRegularExpression>
-#include <QSet>
 #include <QTimer>
 #include <QWindow>
 
@@ -41,16 +40,22 @@ namespace {
         QSize _minimum;
     };
 
-    QSet<const QWidget*>& dockContents()
+    // Content → its dock.
+    QHash<const QWidget*, const QDockWidget*>& dockContents()
     {
-        static QSet<const QWidget*> set;
-        return set;
+        static QHash<const QWidget*, const QDockWidget*> contents;
+        return contents;
     }
 }
 
 bool DockAdapter::isDockContent(const QWidget* widget)
 {
     return dockContents().contains(widget);
+}
+
+QWidget* DockAdapter::dockContent(const QDockWidget* dock)
+{
+    return const_cast<QWidget*>(dockContents().key(dock));
 }
 
 DockAdapter::DockAdapter(QObject* parent)
@@ -126,7 +131,7 @@ void DockAdapter::adopt(QDockWidget* dock)
     // WindowContainer embeds it by reparenting the native window.
     content->windowHandle()->installEventFilter(this);
     _contents.insert(dock, content);
-    dockContents().insert(content);
+    dockContents().insert(content, dock);
     connect(content, &QObject::destroyed, content, [content] {
         dockContents().remove(content);
     });
