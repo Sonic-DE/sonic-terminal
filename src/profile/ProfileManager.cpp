@@ -27,6 +27,7 @@
 #include "ProfileModel.h"
 #include "ProfileReader.h"
 #include "ProfileWriter.h"
+#include "quick/FrameworkDialogScope.h"
 
 Q_LOGGING_CATEGORY(KonsoleProfileDebug, "org.kde.konsole.profile", QtDebugMsg)
 
@@ -291,6 +292,7 @@ QString ProfileManager::saveProfile(const Profile::Ptr &profile)
     QString newPath = writer.getPath(profile);
 
     if (!writer.writeProfile(newPath, profile)) {
+        FrameworkDialogScope scope(QStringLiteral("profile save error"));
         KMessageBox::error(nullptr, i18n("Konsole does not have permission to save this profile to %1", newPath));
     }
 

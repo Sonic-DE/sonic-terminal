@@ -37,6 +37,8 @@ public:
     QObject* window() const;
     void setWindow(QObject* window);
     QVariantList docks() const;
+    // A plugin dock's content, embedded in a QML window as a top-level widget of its own.
+    static bool isDockContent(const QWidget* widget);
 
     // The QML title's close button: the real dock closes (the plugin's toggle follows).
     Q_INVOKABLE void closeDock(QObject* dock);

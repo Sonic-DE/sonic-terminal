@@ -5,6 +5,7 @@
 
 #include "DialogHelpers.h"
 
+#include "FrameworkDialogScope.h"
 #include "widgets/TabTitleFormatButton.h"
 
 #include <KHelpClient>
@@ -54,6 +55,7 @@ QColor DialogHelpers::noneColor()
 QVariant DialogHelpers::chooseColor(const QColor& initial, QQuickItem* from)
 {
     // As QColorDialog::getColor(): the colour set once the dialog is built.
+    FrameworkDialogScope scope(QStringLiteral("color"));
     QColorDialog dialog;
     dialog.setCurrentColor(initial);
     if (from && from->window()) {
@@ -90,6 +92,7 @@ QString DialogHelpers::cacheDirectory()
 
 QString DialogHelpers::chooseDirectory(const QString& start, QQuickItem* from)
 {
+    FrameworkDialogScope scope(QStringLiteral("directory"));
     QFileDialog dialog(nullptr, QString(), start);
     dialog.setFileMode(QFileDialog::Directory);
     dialog.setOption(QFileDialog::ShowDirsOnly);
@@ -123,6 +126,7 @@ namespace {
 QString DialogHelpers::chooseToolBarIcon(QQuickItem* from)
 {
     // KIconDialog::getIcon() as KEditToolBar calls it.
+    FrameworkDialogScope scope(QStringLiteral("toolbar icon"));
     KIconDialog dialog;
     dialog.setup(KIconLoader::Toolbar, KIconLoader::Action, false, 0, false);
     dialog.setWindowTitle(i18nd("kxmlgui6", "Change Icon"));
@@ -133,6 +137,7 @@ QString DialogHelpers::chooseToolBarIcon(QQuickItem* from)
 bool DialogHelpers::confirmToolBarReset(QQuickItem* from)
 {
     // KMessageBox::warningContinueCancel()'s box, as KEditToolBar's Defaults asks.
+    FrameworkDialogScope scope(QStringLiteral("toolbar reset"));
     auto* dialog = new QDialog;
     dialog->setWindowTitle(i18nd("kxmlgui6", "Reset Toolbars"));
     dialog->setObjectName(QStringLiteral("warningYesNo"));

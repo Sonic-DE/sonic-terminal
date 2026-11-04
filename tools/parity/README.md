@@ -46,6 +46,15 @@ Other checks:
 - `filescheck.py --staged <prefix>`: installed files and integration file contents.
 - `ctest-isolated.py --build <build dir> --prefix <builder>/state/install-stage/usr`: the autotests,
   including `PartCompatTest` (label `compat`), on a private X server and D-Bus.
+- `no-widgets.py --env <env> --prefix <builder>/state/install-stage/usr --output <dir>`: the
+  dialog scenarios and `scenarios/no-widgets-bookmarks.jsonl` (every bookmark menu dialog, at
+  the top level, in a folder and from the context menu) and `scenarios/shortcuts-sync.jsonl`
+  (Configure Shortcuts in one window changes another window's shortcuts) with `run.py --check-widgets` (no
+  widgets but the compat windows', plugin docks', menus' and framework dialogs opened inside a
+  `FrameworkDialogScope`), and `scenarios/no-widgets-stray.jsonl`, which must fail. The
+  environment's `bin/keditbookmarks` is a stub that can't start, so Edit Bookmarks shows its
+  error box. ctest `NoWidgetsTest` runs it when the
+  build is configured with `KONSOLE_PARITY_ENV=<env>` and `KONSOLE_PARITY_PREFIX=<prefix>`.
 
 ## Comparison rules
 
@@ -102,6 +111,7 @@ active dialog, then the active modal dialog, is used.
 | `action` | `id`, `delay` | triggers an action by its name (`listActions` lists them) |
 | `menu` | `name` | opens a menu by its KXmlGui container or action name, captures it |
 | `popup` | `name` | captures the popup menu that is open |
+| `menuItem` | `menu` (action name), `path` (submenu texts), `text`, `context` | triggers an item of a (sub)menu, or with `context` clicks that entry of its context menu |
 | `contextMenu` | `name`, `column`, `line` | opens the terminal's context menu at a cell and captures it |
 | `dialog` | `name`, `close`, `sortColumn`, `image` (`false`: opening only), `timeout` | captures the visible dialog, every page of a page dialog |
 | `click` | `object` or `text` | clicks a button in the dialog |
@@ -121,4 +131,7 @@ active dialog, then the active modal dialog, is used.
 | `describe` | `name` | windows, tabs, profiles and directories |
 | `homeFile` | `file` | copies a file from the private HOME into the output |
 | `listActions` | | writes every action name to the trace |
+| `shortcut` | `id`, `keys` or `expect` | sets an action's shortcut, or writes it to the trace (and fails if it isn't `expect`) |
+| `checkWidgets` | | from now on, fails before a step when a widget no rule allows exists (`run.py --check-widgets` adds it) |
+| `strayWidgets` | | shows a parentless dialog and label (the widget check's negative case) |
 | `quit` | | ends the run |

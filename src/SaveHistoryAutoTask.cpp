@@ -21,10 +21,20 @@
 
 #include "Emulation.h"
 #include "quick/CompatWindows.h"
+#include "quick/FrameworkDialogScope.h"
 #include "session/SessionManager.h"
+#include "terminalDisplay/TerminalDisplay.h"
 
 namespace Konsole
 {
+namespace {
+    // The parent for the task's message boxes: a view in the session's window.
+    QWidget* viewOf(const Session* session)
+    {
+        return session ? session->views().value(0) : nullptr;
+    }
+}
+
 QString SaveHistoryAutoTask::_saveDialogRecentURL;
 
 SaveHistoryAutoTask::SaveHistoryAutoTask(QObject *parent)
@@ -39,6 +49,7 @@ SaveHistoryAutoTask::~SaveHistoryAutoTask() = default;
 
 bool SaveHistoryAutoTask::execute()
 {
+    FrameworkDialogScope scope(QStringLiteral("autosave output"));
     QFileDialog* dialog = new QFileDialog(CompatWindows::activeWindow());
     dialog->setAcceptMode(QFileDialog::AcceptSave);
 
@@ -73,7 +84,7 @@ bool SaveHistoryAutoTask::execute()
 
     if (!url.isValid()) {
         // UI:  Can we make this friendlier?
-        KMessageBox::error(nullptr, i18n("%1 is an invalid URL, the output could not be saved.", url.url()));
+        KMessageBox::error(viewOf(session()), i18n("%1 is an invalid URL, the output could not be saved.", url.url()));
         return false;
     }
 
@@ -86,7 +97,7 @@ bool SaveHistoryAutoTask::execute()
     _destinationFile.setFileName(path);
 
     if (!_destinationFile.open(QFile::ReadWrite)) {
-        KMessageBox::error(nullptr, i18n("Failed to create autosave file at %1.", url.url()));
+        KMessageBox::error(viewOf(session()), i18n("Failed to create autosave file at %1.", url.url()));
         return false;
     }
 
@@ -100,7 +111,8 @@ bool SaveHistoryAutoTask::execute()
     connect(session()->emulation(), &Emulation::imageSizeChanged, this, &SaveHistoryAutoTask::imageResized);
     connect(session()->emulation(), &Emulation::updateDroppedLines, this, &SaveHistoryAutoTask::linesDropped);
     connect(session()->emulation(), &Emulation::primaryScreenInUse, this, [&]() {
-        KMessageBox::error(nullptr, i18n("Stopping autosave due to switching of screens."));
+        FrameworkDialogScope scope(QStringLiteral("autosave stopped"));
+        KMessageBox::error(viewOf(session()), i18n("Stopping autosave due to switching of screens."));
         stop();
     });
 
@@ -114,7 +126,8 @@ bool SaveHistoryAutoTask::execute()
 void SaveHistoryAutoTask::fileModified()
 {
     stop();
-    KMessageBox::error(nullptr, i18n("Autosave file has been modified externally, preventing further autosaves."));
+    FrameworkDialogScope scope(QStringLiteral("autosave file modified"));
+    KMessageBox::error(viewOf(session()), i18n("Autosave file has been modified externally, preventing further autosaves."));
 }
 
 void SaveHistoryAutoTask::linesDropped(int linesDropped)
@@ -171,7 +184,8 @@ void SaveHistoryAutoTask::readLines()
 
     if (!updateArchive()) {
         stop();
-        KMessageBox::error(nullptr, i18n("Failed to update autosave state on output changes."));
+        FrameworkDialogScope scope(QStringLiteral("autosave failed"));
+        KMessageBox::error(viewOf(session()), i18n("Failed to update autosave state on output changes."));
         return;
     }
 

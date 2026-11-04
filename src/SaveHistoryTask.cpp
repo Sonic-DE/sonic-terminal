@@ -20,7 +20,9 @@
 
 #include "Emulation.h"
 #include "quick/CompatWindows.h"
+#include "quick/FrameworkDialogScope.h"
 #include "session/SessionManager.h"
+#include "terminalDisplay/TerminalDisplay.h"
 
 #include "../decoders/HTMLDecoder.h"
 #include "../decoders/PlainTextDecoder.h"
@@ -44,6 +46,7 @@ bool SaveHistoryTask::execute()
     //        three then providing a URL for each one will be tedious
 
     // TODO - show a warning ( preferably passive ) if saving the history output fails
+    FrameworkDialogScope scope(QStringLiteral("save output"));
     QFileDialog* dialog = new QFileDialog(CompatWindows::activeWindow());
     dialog->setAcceptMode(QFileDialog::AcceptSave);
 
@@ -81,7 +84,7 @@ bool SaveHistoryTask::execute()
 
         if (!url.isValid()) {
             // UI:  Can we make this friendlier?
-            KMessageBox::error(nullptr, i18n("%1 is an invalid URL, the output could not be saved.", url.url()));
+            KMessageBox::error(session->views().value(0), i18n("%1 is an invalid URL, the output could not be saved.", url.url()));
             continue;
         }
 
@@ -172,7 +175,9 @@ void SaveHistoryTask::jobDataRequested(KIO::Job *job, QByteArray &data)
 void SaveHistoryTask::jobResult(KJob *job)
 {
     if (job->error() != 0) {
-        KMessageBox::error(nullptr, i18n("A problem occurred when saving the output.\n%1", job->errorString()));
+        FrameworkDialogScope scope(QStringLiteral("save output error"));
+        const Session* session = _jobSession[job].session;
+        KMessageBox::error(session ? session->views().value(0) : nullptr, i18n("A problem occurred when saving the output.\n%1", job->errorString()));
     }
 
     TerminalCharacterDecoder *decoder = _jobSession[job].decoder;

@@ -4,6 +4,7 @@
 */
 
 #include "KeyBindingEditorBackend.h"
+#include "FrameworkDialogScope.h"
 
 #include "keyboardtranslator/KeyboardTranslatorManager.h"
 #include "keyboardtranslator/KeyboardTranslatorReader.h"
@@ -145,6 +146,7 @@ bool KeyBindingEditorBackend::accept(QQuickItem* from)
     if (newTranslator->description().isEmpty()) {
         // KMessageBox::error()'s box, transient for the QML editor (errorWId() would make it
         // transient for a foreign window wrapper instead).
+        FrameworkDialogScope scope(QStringLiteral("key bindings error"));
         auto* dialog = new QDialog;
         dialog->setWindowTitle(QApplication::translate("KMessageBox", "Error"));
         dialog->setObjectName(QStringLiteral("error"));

@@ -18,6 +18,7 @@
 #include <QIcon>
 
 #include "UrlFilter.h"
+#include "quick/FrameworkDialogScope.h"
 #include "terminalDisplay/TerminalDisplay.h"
 // regexp matches:
 // full url:
@@ -76,6 +77,7 @@ void UrlFilterHotSpot::activate(QObject *object)
         }
 
         auto *job = new KIO::OpenUrlJob(QUrl(url));
+        FrameworkDialogScope::attach(job, QStringLiteral("open url"));
         job->start();
     }
 }

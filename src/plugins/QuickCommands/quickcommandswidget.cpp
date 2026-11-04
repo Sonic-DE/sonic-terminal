@@ -5,6 +5,7 @@
 #include "quickcommandswidget.h"
 #include "filtermodel.h"
 #include "konsoledebug.h"
+#include "quick/FrameworkDialogScope.h"
 #include "terminalDisplay/TerminalDisplay.h"
 
 #include <QMenu>
@@ -160,10 +161,12 @@ void QuickCommandsWidget::saveCommand()
 {
     if (!valid())
         return;
-    if (priv->model->addChildItem(data(), ui->group->currentText()))
+    if (priv->model->addChildItem(data(), ui->group->currentText())) {
         viewMode();
-    else
+    } else {
+        Konsole::FrameworkDialogScope scope(QStringLiteral("duplicate quick command"));
         KMessageBox::error(this, i18n("A duplicate item exists"));
+    }
 }
 
 void QuickCommandsWidget::updateCommand()
@@ -171,14 +174,17 @@ void QuickCommandsWidget::updateCommand()
     const auto sourceIdx = priv->filterModel->mapToSource(ui->commandsTreeView->currentIndex());
     if (!valid())
         return;
-    if (priv->model->editChildItem(data(), sourceIdx, ui->group->currentText()))
+    if (priv->model->editChildItem(data(), sourceIdx, ui->group->currentText())) {
         viewMode();
-    else
+    } else {
+        Konsole::FrameworkDialogScope scope(QStringLiteral("duplicate quick command"));
         KMessageBox::error(this, i18n("A duplicate item exists"));
+    }
 }
 
 void QuickCommandsWidget::invokeCommand(const QModelIndex &idx)
 {
+    Konsole::FrameworkDialogScope scope(QStringLiteral("quick command errors"));
     if (!ui->warning->toPlainText().isEmpty()) {
         QMessageBox::warning(this, QStringLiteral("Shell Errors"), i18n("Please fix all the warnings before trying to run this script"));
         return;
@@ -211,6 +217,7 @@ void QuickCommandsWidget::runCommand()
     }
 
     if (!ui->warning->toPlainText().isEmpty()) {
+        Konsole::FrameworkDialogScope scope(QStringLiteral("run quick command"));
         auto choice = KMessageBox::questionTwoActions(this,
                                                       i18n("There are some errors on the script, do you really want to run it?"),
                                                       i18n("Shell Errors"),
@@ -242,6 +249,7 @@ void QuickCommandsWidget::triggerDelete()
         ? i18n("You are about to delete the group %1,\n with multiple configurations, are you sure?", text)
         : i18n("You are about to delete %1, are you sure?", text);
 
+    Konsole::FrameworkDialogScope scope(QStringLiteral("delete quick commands"));
     int result =
         KMessageBox::warningTwoActions(this, dialogMessage, i18n("Delete Quick Commands Configurations"), KStandardGuiItem::del(), KStandardGuiItem::cancel());
     if (result != KMessageBox::PrimaryAction)
@@ -272,6 +280,7 @@ void QuickCommandsWidget::setCurrentController(Konsole::SessionController *contr
 
 bool QuickCommandsWidget::valid()
 {
+    Konsole::FrameworkDialogScope scope(QStringLiteral("invalid quick command"));
     if (ui->name->text().isEmpty() || ui->name->text().trimmed().isEmpty()) {
         KMessageBox::error(this, i18n("Title can not be empty or blank"));
         return false;

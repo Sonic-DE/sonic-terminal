@@ -5,6 +5,8 @@
 
 #include "MainWindow.h"
 #include "quick/ChromeAdapter.h"
+#include "quick/DockAdapter.h"
+#include "quick/FrameworkDialogScope.h"
 #include "quick/WindowController.h"
 
 #include <QAbstractItemModel>
@@ -17,6 +19,7 @@
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QTimer>
+#include <QWidgetAction>
 
 namespace Konsole::ParityHook {
 QWindow* qmlWindow(const MainWindow* window)
@@ -257,5 +260,39 @@ bool clickQmlItem(QWindow* dialog, const QString& object, int row, int column)
         QMetaObject::invokeMethod(table, "clickItem", Q_ARG(QVariant, row), Q_ARG(QVariant, column));
     });
     return true;
+}
+
+bool allowedWidget(const QWidget* widget)
+{
+    // A popup (a combo box's list) belongs to the window of the widget it pops up from.
+    const QWidget* window = widget->window();
+    while (window->windowType() == Qt::Popup && window->parentWidget()) {
+        window = window->parentWidget()->window();
+    }
+    if (WindowController::controllerOf(window) || DockAdapter::isDockContent(window) || !FrameworkDialogScope::owner(widget).isEmpty()) {
+        return true;
+    }
+    for (const QWidget* current = widget; current; current = current->parentWidget()) {
+        if (qobject_cast<const QMenu*>(current)) {
+            return true;
+        }
+    }
+    // A toolbar's widget action (KXmlGui's <Spacer/>) keeps its widget, unparented by
+    // QWidgetAction::releaseWidget(), while its client is unplugged.
+    if (!widget->parentWidget()) {
+        const QWidgetList windows = QApplication::topLevelWidgets();
+        for (const QWidget* compat : windows) {
+            if (!WindowController::controllerOf(compat)) {
+                continue;
+            }
+            const auto actions = compat->findChildren<QWidgetAction*>();
+            for (const QWidgetAction* action : actions) {
+                if (action->defaultWidget() == widget) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
 }
 }

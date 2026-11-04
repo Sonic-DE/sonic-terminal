@@ -11,6 +11,7 @@
 
 // Konsole
 #include "PrintOptions.h"
+#include "quick/FrameworkDialogScope.h"
 
 // Qt
 #include <QFont>
@@ -43,6 +44,7 @@ void KonsolePrintManager::printRequest(pPrintContent pContent, QWidget *parent)
 
     QPrinter printer;
 
+    FrameworkDialogScope scope(QStringLiteral("print"));
     QPointer<QPrintDialog> dialog = new QPrintDialog(&printer, parent);
     auto options = new PrintOptions();
 

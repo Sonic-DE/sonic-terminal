@@ -34,6 +34,7 @@
 #include "konsoledebug.h"
 #include "profile/Profile.h"
 #include "quick/CompatWindows.h"
+#include "quick/FrameworkDialogScope.h"
 #include "session/SessionManager.h"
 #include "terminalDisplay/TerminalDisplay.h"
 
@@ -126,6 +127,7 @@ void FileFilterHotSpot::activate(QObject *)
 void FileFilterHotSpot::openWithSysDefaultApp(const QString &filePath) const
 {
     auto *job = new KIO::OpenUrlJob(QUrl::fromLocalFile(filePath));
+    FrameworkDialogScope::attach(job, QStringLiteral("open file"));
     job->setUiDelegate(KIO::createDefaultJobUiDelegate(KJobUiDelegate::AutoHandlingEnabled, CompatWindows::activeWindow()));
     job->setRunExecutables(false); // Always open scripts, shell/python/perl... etc, as text
     job->start();
@@ -155,6 +157,7 @@ void FileFilterHotSpot::openWithEditorFromProfile(const QString &fullCmd, const 
     connect(job, &KJob::result, this, [this, path, job]() {
         if (job->error() != 0) {
             // TODO: use KMessageWidget (like the "terminal is read-only" message)
+            FrameworkDialogScope scope(QStringLiteral("text editor error"));
             KMessageBox::information(CompatWindows::activeWindow(),
                 i18n("Could not open file with the text editor specified in the profile settings;\n"
                      "it will be opened with the system default editor."));

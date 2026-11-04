@@ -262,6 +262,7 @@ set(konsoleprivate_SRCS ${windowadaptors_SRCS}
                         quick/ChromeAdapter.cpp
                         quick/CompatWindows.cpp
                         quick/QmlDialogs.cpp
+                        quick/FrameworkDialogScope.cpp
                         quick/CopyInputModel.cpp
                         quick/DialogHelpers.cpp
                         quick/ToolBarEditorForeign.h

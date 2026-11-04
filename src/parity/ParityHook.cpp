@@ -12,6 +12,7 @@
 
 #include <KAcceleratorManager>
 #include <KActionCollection>
+#include <KLocalizedString>
 #include <KPageDialog>
 #include <KPageView>
 #include <KXMLGUIFactory>
@@ -33,6 +34,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QKeyEvent>
+#include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
 #include <QMenuBar>
@@ -104,6 +106,10 @@ static bool setQmlText(QWindow*, const QString&, const QString&)
 static bool clickQmlItem(QWindow*, const QString&, int, int)
 {
     return false;
+}
+static bool allowedWidget(const QWidget*)
+{
+    return true;
 }
 }
 #endif
@@ -803,11 +809,16 @@ namespace {
             QWindow* qml = frontQmlDialog();
             // A dialog the click opens (KNewStuff's, a widget dialog) can take a moment to show:
             // wait for it rather than take the dialog the click was made in, until the timeout.
-            if (qml && _shownBeforeClick.contains(qml) && !visibleDialog() && remainingMs > 0) {
-                QTimer::singleShot(100, this, [this, name, close, remainingMs, image] {
-                    captureDialog(name, close, remainingMs - 100, image);
-                });
-                return;
+            // Shown, it is the one, even before it has the focus.
+            if (qml && _shownBeforeClick.contains(qml)) {
+                if (visibleDialog()) {
+                    qml = nullptr;
+                } else if (remainingMs > 0) {
+                    QTimer::singleShot(100, this, [this, name, close, remainingMs, image] {
+                        captureDialog(name, close, remainingMs - 100, image);
+                    });
+                    return;
+                }
             }
             if (qml) {
                 _shownBeforeClick.clear();
@@ -1027,6 +1038,88 @@ namespace {
             next();
         }
 
+        static QAction* actionByText(QMenu* menu, const QString& text)
+        {
+            const auto actions = menu->actions();
+            for (QAction* action : actions) {
+                if (KLocalizedString::removeAcceleratorMarker(action->text()) == text) {
+                    return action;
+                }
+            }
+            return nullptr;
+        }
+
+        static QString actionTexts(QMenu* menu)
+        {
+            QStringList texts;
+            const auto actions = menu->actions();
+            for (QAction* action : actions) {
+                if (!action->isSeparator()) {
+                    texts.append(KLocalizedString::removeAcceleratorMarker(action->text()));
+                }
+            }
+            return texts.join(QStringLiteral(", "));
+        }
+
+        // Triggers "text" in a menu reached from "menu" through the submenus "path", or with
+        // "context", clicks that entry of the item's context menu.
+        void menuItem(const QJsonObject& step)
+        {
+            const QString name = step.value(QStringLiteral("menu")).toString();
+            QAction* rootAction = findAction(name);
+            QMenu* menu = rootAction ? rootAction->menu() : nullptr;
+            if (!menu) {
+                return fail(QStringLiteral("menuItem: no menu ") + name);
+            }
+            const QStringList path = step.value(QStringLiteral("path")).toVariant().toStringList();
+            const QString text = step.value(QStringLiteral("text")).toString();
+            // A KBookmarkMenu fills itself before it shows.
+            Q_EMIT menu->aboutToShow();
+            for (const QString& title : path) {
+                QAction* submenu = actionByText(menu, title);
+                if (!submenu || !submenu->menu()) {
+                    return fail(QStringLiteral("menuItem: no submenu %1 in %2 (%3)").arg(title, name, actionTexts(menu)));
+                }
+                menu = submenu->menu();
+                Q_EMIT menu->aboutToShow();
+            }
+            QAction* action = actionByText(menu, text);
+            if (!action) {
+                return fail(QStringLiteral("menuItem: no item %1 in %2 (%3)").arg(text, name, actionTexts(menu)));
+            }
+            const int delay = step.value(QStringLiteral("delay")).toInt(500);
+            const QString context = step.value(QStringLiteral("context")).toString();
+            if (context.isEmpty()) {
+                QTimer::singleShot(0, action, &QAction::trigger);
+                return next(delay);
+            }
+            Q_EMIT menu->customContextMenuRequested(menu->actionGeometry(action).center());
+            clickPopupItem(context, delay, 2000);
+        }
+
+        void clickPopupItem(const QString& text, int delay, int remainingMs)
+        {
+            auto* popup = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+            QAction* action = popup ? actionByText(popup, text) : nullptr;
+            if (!action) {
+                if (remainingMs <= 0) {
+                    return fail(QStringLiteral("menuItem: no context menu item %1 (%2)").arg(text, popup ? actionTexts(popup) : QStringLiteral("no popup")));
+                }
+                QTimer::singleShot(50, this, [this, text, delay, remainingMs] {
+                    clickPopupItem(text, delay, remainingMs - 50);
+                });
+                return;
+            }
+            // A click, as the user's: the menu closes, then the action triggers (and may open a
+            // modal dialog, so deferred).
+            QTimer::singleShot(0, popup, [popup = QPointer<QMenu>(popup), point = popup->actionGeometry(action).center()] {
+                if (popup) {
+                    QTest::mouseClick(popup, Qt::LeftButton, Qt::NoModifier, point);
+                }
+            });
+            next(delay);
+        }
+
         void fail(const QString& message)
         {
             sonicCritical() << "parity:" << message;
@@ -1040,9 +1133,39 @@ namespace {
             QCoreApplication::exit(3);
         }
 
+        // NoWidgetsTest: every widget but those allowedWidget() and the backdrops pass fails.
+        bool checkWidgets()
+        {
+            QStringList stray;
+            const QWidgetList widgets = QApplication::allWidgets();
+            for (const QWidget* widget : widgets) {
+                if (allowedWidget(widget) || _backdrops.contains(widget->window())) {
+                    continue;
+                }
+                QStringList chain;
+                for (const QWidget* current = widget; current; current = current->parentWidget()) {
+                    chain.append(QStringLiteral("%1(%2)").arg(QLatin1String(current->metaObject()->className()), current->objectName()));
+                }
+                QStringList children;
+                for (const QObject* child : widget->children()) {
+                    children.append(QLatin1String(child->metaObject()->className()));
+                }
+                stray.append(QStringLiteral("%1 [%2; children: %3]")
+                        .arg(chain.join(QStringLiteral(" < ")),
+                            widget->isVisible() ? QStringLiteral("shown") : QStringLiteral("hidden"),
+                            children.join(QStringLiteral(", "))));
+            }
+            if (stray.isEmpty()) {
+                return true;
+            }
+            stray.sort();
+            fail(QStringLiteral("stray widgets before step %1: %2").arg(_index + 1).arg(stray.join(QStringLiteral("; "))));
+            return false;
+        }
+
         void run()
         {
-            if (_failed) {
+            if (_failed || (_checkWidgets && !checkWidgets())) {
                 return;
             }
             if (_index >= _steps.size()) {
@@ -1081,6 +1204,20 @@ namespace {
             }
             if (op == QLatin1String("wait")) {
                 return next(step.value(QStringLiteral("ms")).toInt());
+            }
+            if (op == QLatin1String("checkWidgets")) {
+                _checkWidgets = true;
+                return next();
+            }
+            if (op == QLatin1String("strayWidgets")) {
+                // NoWidgetsTest's negative case: widgets no rule allows.
+                auto* dialog = new QDialog;
+                dialog->setObjectName(QStringLiteral("strayDialog"));
+                dialog->show();
+                auto* label = new QLabel(QStringLiteral("stray"));
+                label->setObjectName(QStringLiteral("strayLabel"));
+                label->show();
+                return next(300);
             }
             if (op == QLatin1String("geometry")) {
                 if (MainWindow* mainWindow = window()) {
@@ -1147,6 +1284,24 @@ namespace {
                 QTimer::singleShot(0, action, &QAction::trigger);
                 return next(step.value(QStringLiteral("delay")).toInt(500));
             }
+            if (op == QLatin1String("shortcut")) {
+                const QString id = step.value(QStringLiteral("id")).toString();
+                QAction* action = findAction(id);
+                if (!action) {
+                    return fail(QStringLiteral("no action ") + id);
+                }
+                if (step.contains(QStringLiteral("keys"))) {
+                    // As the shortcuts editor does when a key is recorded.
+                    action->setShortcut(QKeySequence(step.value(QStringLiteral("keys")).toString()));
+                } else {
+                    const QString keys = action->shortcut().toString();
+                    trace(QStringLiteral("shortcut %1 window %2: %3").arg(id).arg(_currentWindow).arg(keys));
+                    if (step.contains(QStringLiteral("expect")) && keys != step.value(QStringLiteral("expect")).toString()) {
+                        return fail(QStringLiteral("shortcut %1 is %2, expected %3").arg(id, keys, step.value(QStringLiteral("expect")).toString()));
+                    }
+                }
+                return next();
+            }
             if (op == QLatin1String("introspect")) {
                 return introspect(step.value(QStringLiteral("paths")).toVariant().toStringList());
             }
@@ -1212,6 +1367,9 @@ namespace {
                     menu->popup(mainWindow->menuBar()->isVisible() ? mainWindow->menuBar()->mapToGlobal(item.bottomLeft()) : mainWindow->mapToGlobal(QPoint(0, 0)));
                 }
                 return capturePopup(name, 2000);
+            }
+            if (op == QLatin1String("menuItem")) {
+                return menuItem(step);
             }
             if (op == QLatin1String("popup")) {
                 return capturePopup(step.value(QStringLiteral("name")).toString(), step.value(QStringLiteral("timeout")).toInt(2000));
@@ -1358,6 +1516,7 @@ namespace {
         QList<QPointer<MainWindow>> _windows;
         QList<Backdrop*> _backdrops;
         bool _failed = false;
+        bool _checkWidgets = false;
         QString _targetTitle;
         // QML dialogs already shown when the last click happened: not the dialog it opens.
         QList<QPointer<QWindow>> _shownBeforeClick;

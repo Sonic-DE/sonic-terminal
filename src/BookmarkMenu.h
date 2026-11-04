@@ -29,9 +29,20 @@ class KONSOLEPRIVATE_EXPORT BookmarkMenu : public KBookmarkMenu
 
 public:
     BookmarkMenu(KBookmarkManager *mgr, KBookmarkOwner *owner, QMenu *parentMenu, KActionCollection *collection);
+    // A folder's submenu.
+    BookmarkMenu(KBookmarkManager* mgr, KBookmarkOwner* owner, QMenu* parentMenu, const QString& parentAddress);
+
+protected:
+    void refill() override;
+    QAction* actionForBookmark(const KBookmark& bm) override;
+    QMenu* contextMenu(QAction* action) override;
 
 private Q_SLOTS:
     void maybeAddBookmark();
+
+private:
+    // KBookmarkMenu's dialogs (add bookmark, bookmark tabs, new folder) inside a FrameworkDialogScope.
+    void scopeDialogs();
 };
 
 #endif // BOOKMARKMENU_H

@@ -1,0 +1,16 @@
+# Configure Shortcuts in one window changes the other open windows' shortcuts at once
+# (MainWindow::showShortcutsDialog()); not compared with the widget baseline.
+{"op": "waitWindow"}
+{"op": "waitText", "text": "$"}
+{"op": "action", "id": "new-window", "delay": 1000}
+{"op": "waitWindow", "window": 1}
+{"op": "useWindow", "window": 0}
+{"op": "action", "id": "options_configure_keybinding"}
+{"op": "dialog", "name": "shortcuts", "image": false, "close": false}
+{"op": "shortcut", "id": "new-window", "keys": "Ctrl+Alt+F7"}
+{"op": "shortcut", "id": "clear-history", "keys": "Ctrl+Alt+F8"}
+{"op": "button", "role": "ok"}
+{"op": "useWindow", "window": 1}
+{"op": "shortcut", "id": "new-window", "expect": "Ctrl+Alt+F7"}
+{"op": "shortcut", "id": "clear-history", "expect": "Ctrl+Alt+F8"}
+{"op": "quit"}

@@ -1,0 +1,23 @@
+# The bookmark menu's dialogs, rewired at every level (no-widgets.py only: the widget
+# baseline has no captures of them).
+{"op": "waitWindow"}
+{"op": "geometry", "x": 100, "y": 80, "width": 900, "height": 560}
+{"op": "waitText", "text": "$"}
+{"op": "action", "id": "add_bookmark"}
+{"op": "action", "id": "add_bookmarks_list"}
+{"op": "dialog", "name": "bookmark-tabs-folder", "image": false, "close": false}
+{"op": "button", "role": "ok"}
+{"op": "action", "id": "new_bookmark_folder"}
+{"op": "dialog", "name": "bookmark-folder", "image": false}
+{"op": "action", "id": "edit_bookmarks"}
+{"op": "dialog", "name": "message-edit-bookmarks", "image": false}
+{"op": "menuItem", "menu": "bookmark", "path": ["New Folder"], "text": "Add Bookmark"}
+{"op": "menuItem", "menu": "bookmark", "path": ["New Folder"], "text": "New Bookmark Folder…"}
+{"op": "dialog", "name": "bookmark-subfolder", "image": false}
+{"op": "menuItem", "menu": "bookmark", "text": "New Folder", "context": "Open Folder in Bookmark Editor"}
+{"op": "dialog", "name": "message-edit-folder", "image": false}
+{"op": "menuItem", "menu": "bookmark", "text": "New Folder", "context": "Properties"}
+{"op": "dialog", "name": "bookmark-properties", "image": false}
+{"op": "menuItem", "menu": "bookmark", "text": "New Folder", "context": "Delete Folder"}
+{"op": "dialog", "name": "message-delete-folder", "image": false}
+{"op": "quit"}

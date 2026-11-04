@@ -10,6 +10,7 @@
 #include <QDockWidget>
 #include <QEvent>
 #include <QRegularExpression>
+#include <QSet>
 #include <QTimer>
 #include <QWindow>
 
@@ -39,6 +40,17 @@ namespace {
         QSize _hint;
         QSize _minimum;
     };
+
+    QSet<const QWidget*>& dockContents()
+    {
+        static QSet<const QWidget*> set;
+        return set;
+    }
+}
+
+bool DockAdapter::isDockContent(const QWidget* widget)
+{
+    return dockContents().contains(widget);
 }
 
 DockAdapter::DockAdapter(QObject* parent)
@@ -114,6 +126,10 @@ void DockAdapter::adopt(QDockWidget* dock)
     // WindowContainer embeds it by reparenting the native window.
     content->windowHandle()->installEventFilter(this);
     _contents.insert(dock, content);
+    dockContents().insert(content);
+    connect(content, &QObject::destroyed, content, [content] {
+        dockContents().remove(content);
+    });
     // The plugin deletes its dock, which no longer owns the content.
     connect(dock, &QObject::destroyed, content, &QObject::deleteLater);
     connect(dock, &QObject::destroyed, this, [this, dock] {

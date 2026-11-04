@@ -7,6 +7,7 @@
 */
 
 #include "TerminalView.h"
+#include "FrameworkDialogScope.h"
 #include "TerminalViewRegistry.h"
 
 #include "KonsoleSettings.h"
@@ -2827,6 +2828,7 @@ void TerminalView::doPaste(QString text, bool appendReturn)
     }
 
     if (text.length() > 8000) {
+        FrameworkDialogScope scope(QStringLiteral("confirm large paste"));
         if (KMessageBox::warningContinueCancel(
                 _display->window(),
                 i18np("Are you sure you want to paste %1 character?", "Are you sure you want to paste %1 characters?", text.length()),
@@ -2891,6 +2893,7 @@ void TerminalView::doPaste(QString text, bool appendReturn)
     unsafeCharacters.removeDuplicates();
 
     if (!unsafeCharacters.isEmpty()) {
+        FrameworkDialogScope scope(QStringLiteral("confirm control characters"));
         int result = KMessageBox::warningTwoActionsCancelList(_display->window(),
             i18n("The text you're trying to paste contains hidden control characters, "
                  "do you want to filter them out?"),
@@ -3656,6 +3659,7 @@ void TerminalView::dropEvent(QDropEvent* event)
             QUrl target = QUrl::fromLocalFile(_sessionController->currentDir());
 
             KIO::DropJob* job = KIO::drop(event, target);
+            FrameworkDialogScope::attach(job, QStringLiteral("drop"));
             KJobWidgets::setWindow(job, display);
             job->setApplicationActions(additionalActions);
             return;

@@ -11,6 +11,7 @@
 #include "profile/ProfileManager.h"
 #include "quick/CompatWindows.h"
 #include "quick/CopyInputModel.h"
+#include "quick/FrameworkDialogScope.h"
 #include "quick/QmlDialogs.h"
 
 #include "src/SearchHistoryTask.h"
@@ -461,6 +462,7 @@ void SessionController::openUrl(const QUrl &url)
     } else {
         // TODO Implement handling for other Url types
 
+        FrameworkDialogScope scope(QStringLiteral("bookmark error"));
         KMessageBox::error(view()->window(), i18n("Konsole does not know how to open the bookmark: ") + url.toDisplayString());
 
         qCDebug(KonsoleDebug) << "Unable to open bookmark at url" << url << ", I do not know"
@@ -577,6 +579,7 @@ void SessionController::handleWebShortcutAction(QAction *action)
         const QUrl url = filterData.uri();
 
         auto *job = new KIO::OpenUrlJob(url);
+        FrameworkDialogScope::attach(job, QStringLiteral("web search"));
         job->setUiDelegate(KIO::createDefaultJobUiDelegate(KJobUiDelegate::AutoHandlingEnabled, CompatWindows::activeWindow()));
         job->start();
     }
@@ -1149,6 +1152,7 @@ bool SessionController::confirmClose() const
                 title);
         }
 
+        FrameworkDialogScope scope(QStringLiteral("confirm close"));
         int result = KMessageBox::warningTwoActions(view()->window(),
                                                     question,
                                                     i18n("Confirm Close"),
@@ -1184,6 +1188,7 @@ bool SessionController::confirmForceClose() const
                 title);
         }
 
+        FrameworkDialogScope scope(QStringLiteral("confirm force close"));
         int result = KMessageBox::warningTwoActions(view()->window(),
                                                     question,
                                                     i18n("Confirm Close"),
@@ -1241,6 +1246,7 @@ void SessionController::openBrowser()
     } else {
         const QUrl currentUrl = url().isLocalFile() ? url() : QUrl::fromLocalFile(QDir::homePath());
         auto *job = new KIO::OpenUrlJob(currentUrl);
+        FrameworkDialogScope::attach(job, QStringLiteral("open file manager"));
         job->setUiDelegate(KIO::createDefaultJobUiDelegate(KJobUiDelegate::AutoHandlingEnabled, CompatWindows::activeWindow()));
         job->start();
     }

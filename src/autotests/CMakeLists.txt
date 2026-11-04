@@ -134,8 +134,20 @@ if(HAVE_DBUS)
     endif()
 endif()
 
+ecm_add_test(DialogSitesTest.cpp LINK_LIBRARIES Qt::Test)
+target_compile_definitions(DialogSitesTest PRIVATE KONSOLE_SOURCE_DIR="${CMAKE_SOURCE_DIR}/src")
+
 # The parity comparison must reject each kind of broken run (tools/parity/README.md).
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
     add_test(NAME ParityCompareSelfTest COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_SOURCE_DIR}/tools/parity/selftest.py)
+endif()
+
+# NoWidgetsTest drives the parity build (it has the hook) of tools/parity/setup-env.py.
+set(KONSOLE_PARITY_ENV "" CACHE PATH "Parity environment made by tools/parity/setup-env.py, for NoWidgetsTest")
+set(KONSOLE_PARITY_PREFIX "" CACHE PATH "Builder prefix the parity environment uses, for NoWidgetsTest")
+if(Python3_Interpreter_FOUND AND KONSOLE_PARITY_ENV AND KONSOLE_PARITY_PREFIX)
+    add_test(NAME NoWidgetsTest COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_SOURCE_DIR}/tools/parity/no-widgets.py
+        --env ${KONSOLE_PARITY_ENV} --prefix ${KONSOLE_PARITY_PREFIX} --output ${CMAKE_CURRENT_BINARY_DIR}/no-widgets)
+    set_tests_properties(NoWidgetsTest PROPERTIES TIMEOUT 900)
 endif()

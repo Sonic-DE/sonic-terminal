@@ -12,6 +12,7 @@ packages under /usr. Layout of --env:
     qt/plugins, qt/qml   symlinks to the dev-qt-owned files under Qt's own directories
     builder-plugins/ the builder prefix's plugins without the ones sonic-terminal installs
     bin/sonic-win    copy of the builder's compositor, next to its qt.conf
+    bin/keditbookmarks   a stub that fails to start (Edit Bookmarks' error box)
     xdg/mime         link to /usr/share/mime (shared-mime-info, an OS package)
     forbidden.txt    files of installed sonicde-* packages; loading any of them fails a run
 """
@@ -110,6 +111,11 @@ def main():
 
     (env / "bin").mkdir()
     shutil.copy2(prefix / "bin/sonic-win", env / "bin/sonic-win")
+    # A keditbookmarks that is found but can't start (missing interpreter), so Edit Bookmarks
+    # shows its error box whether or not keditbookmarks is installed.
+    stub = env / "bin/keditbookmarks"
+    stub.write_text("#!/nonexistent/parity-keditbookmarks\n")
+    stub.chmod(0o755)
     write_qt_conf(env / "bin", paths, env)
     write_qt_conf(build / "bin", paths, env)
     (env / "xdg").mkdir()

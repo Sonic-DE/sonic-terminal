@@ -154,7 +154,8 @@ def run_child(args):
             print("FAIL: compositor did not become active", flush=True)
             return 2
         script = output / "script.jsonl"
-        script.write_text('{"op": "output", "dir": "%s"}\n' % output + Path(args.scenario).read_text())
+        script.write_text('{"op": "output", "dir": "%s"}\n' % output + ('{"op": "checkWidgets"}\n' if args.check_widgets else "")
+                          + Path(args.scenario).read_text())
         command = [str(Path(args.env) / args.build / "bin/konsole"), "--separate", "--nofork"]
         # Before the scenario's own arguments: -e takes everything after it as the command.
         if not args.no_script:
@@ -202,6 +203,8 @@ def main():
     parser.add_argument("--konsole-args", default="", help="extra konsole arguments, space separated")
     parser.add_argument("--plugin-path", default="", help="extra plugin directory (holding konsoleplugins/)")
     parser.add_argument("--no-script", action="store_true", help="run konsole without a script (options that just print)")
+    parser.add_argument("--check-widgets", action="store_true",
+                        help="fail on a widget outside the compat windows, menus and framework dialogs (NoWidgetsTest)")
     parser.add_argument("--timeout", type=int, default=120)
     parser.add_argument("--build", default="build",
                         help="build directory inside --env (build-phase0 for the phase 0 copy); HOME stays the same")
@@ -252,7 +255,7 @@ def main():
              str(Path(args.scenario).resolve()), "--output", str(output), "--env", str(environment),
              "--prefix", str(prefix), "--timeout", str(args.timeout), "--build", args.build,
              f"--konsole-args={args.konsole_args}",
-             *(["--no-script"] if args.no_script else [])]
+             *(["--no-script"] if args.no_script else []), *(["--check-widgets"] if args.check_widgets else [])]
     result = subprocess.run(["dbus-run-session", f"--config-file={DBUS_CONFIG}", "--", *child], env=env,
                             timeout=args.timeout + 60)
     shutil.rmtree(runtime, ignore_errors=True)

@@ -1,0 +1,5 @@
+# no-widgets.py's negative case: a stray dialog and label must fail the widget check.
+{"op": "waitWindow"}
+{"op": "waitText", "text": "$"}
+{"op": "strayWidgets"}
+{"op": "quit"}

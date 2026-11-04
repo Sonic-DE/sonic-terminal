@@ -31,6 +31,7 @@
 #include <kcommandbar.h>
 
 #include "MainWindow.h"
+#include "quick/FrameworkDialogScope.h"
 #include "terminalDisplay/TerminalDisplay.h"
 
 K_PLUGIN_CLASS_WITH_JSON(SSHManagerPlugin, "konsole_sshmanager.json")
@@ -145,6 +146,7 @@ void SSHManagerPlugin::activeViewChanged(Konsole::SessionController *controller,
         {
             const QString feedbackMessage = i18n("No saved SSH config found. You can add one on Plugins -> SSH Manager");
             const QString feedbackTitle = i18n("Plugins - SSH Manager");
+            Konsole::FrameworkDialogScope scope(QStringLiteral("no ssh config"));
             KMessageBox::error(terminalDisplay->topLevelWidget(), feedbackMessage, feedbackTitle);
             return;
         }
@@ -175,11 +177,12 @@ void SSHManagerPlugin::requestConnection(QSortFilterProxyModel *filterModel,
     }
 
 #ifndef Q_OS_WIN
+    Konsole::FrameworkDialogScope scope(QStringLiteral("ssh command error"));
     Konsole::ProcessInfo *info = controller->session()->getProcessInfo();
     bool ok = false;
     QString processName = info->name(&ok);
     if (!ok) {
-        KMessageBox::error(nullptr, i18n("Could not get the process name, assume that we can't request a connection"), i18n("Error issuing SSH Command"));
+        KMessageBox::error(controller->view(), i18n("Could not get the process name, assume that we can't request a connection"), i18n("Error issuing SSH Command"));
         return;
     }
 
@@ -191,7 +194,7 @@ void SSHManagerPlugin::requestConnection(QSortFilterProxyModel *filterModel,
                            QStringLiteral("ksh"),
                            QStringLiteral("zsh")})
              .contains(processName)) {
-        KMessageBox::error(nullptr, i18n("Can't issue SSH command outside the shell application (eg, bash, zsh, sh)"), i18n("Error issuing SSH Command"));
+        KMessageBox::error(controller->view(), i18n("Can't issue SSH command outside the shell application (eg, bash, zsh, sh)"), i18n("Error issuing SSH Command"));
         return;
     }
 #else

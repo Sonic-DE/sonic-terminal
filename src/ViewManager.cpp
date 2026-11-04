@@ -52,6 +52,7 @@
 
 #include "model/PaneModel.h"
 #include "quick/CompatWindows.h"
+#include "quick/FrameworkDialogScope.h"
 #include "quick/TerminalView.h"
 #include "terminalDisplay/TerminalDisplay.h"
 #include "widgets/PaneWidgetView.h"
@@ -1296,6 +1297,7 @@ QJsonObject saveSessionsRecurse(const PaneNode* splitter)
 
 void ViewManager::saveLayoutFile()
 {
+    FrameworkDialogScope scope(QStringLiteral("save layout"));
     saveLayout(QFileDialog::getSaveFileName(this->widget(),
                                             i18nc("@title:window", "Save Tab Layout"),
                                             QStringLiteral("~/"),
@@ -1315,6 +1317,7 @@ void ViewManager::saveLayout(QString fileName)
 
     QFile file(fileName);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        FrameworkDialogScope scope(QStringLiteral("layout save error"));
         KMessageBox::error(this->widget(), i18nc("@label:textbox", "A problem occurred when saving the Layout.\n%1", file.fileName()));
     }
 
@@ -1408,6 +1411,7 @@ void ViewManager::loadLayout(QString file)
     QFile jsonFile(file);
 
     if (!jsonFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        FrameworkDialogScope scope(QStringLiteral("layout load error"));
         KMessageBox::error(this->widget(), i18nc("@label:textbox", "A problem occurred when loading the Layout.\n%1", jsonFile.fileName()));
     }
     auto json = QJsonDocument::fromJson(jsonFile.readAll());
@@ -1418,6 +1422,7 @@ void ViewManager::loadLayout(QString file)
 }
 void ViewManager::loadLayoutFile()
 {
+    FrameworkDialogScope scope(QStringLiteral("load layout"));
     loadLayout(QFileDialog::getOpenFileName(this->widget(),
                                             i18nc("@title:window", "Load Tab Layout"),
                                             QStringLiteral("~/"),

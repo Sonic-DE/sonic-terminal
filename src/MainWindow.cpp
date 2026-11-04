@@ -29,6 +29,7 @@
 #include <KConfigGroup>
 #include <KCrash>
 #include <KHamburgerMenu>
+#include <KHelpMenu>
 #include <KIconUtils>
 #include <KLocalizedString>
 #include <KMessageBox>
@@ -69,6 +70,7 @@
 
 #include "pluginsystem/IKonsolePlugin.h"
 
+#include "quick/FrameworkDialogScope.h"
 #include "quick/ProfileListModel.h"
 #include "quick/QmlDialogs.h"
 #include "quick/WindowController.h"
@@ -111,6 +113,31 @@ void openToolBarEditor(MainWindow* window)
         });
     }
     dialog->show();
+}
+
+// The help menu's dialogs, opened inside a FrameworkDialogScope. KXmlGuiWindow::createGUI()
+// builds a new KHelpMenu each time; reconnecting is idempotent (the old connections go first).
+void scopeHelpMenuDialogs(MainWindow* window)
+{
+    auto* helpMenu = window->findChild<KHelpMenu*>(QString(), Qt::FindDirectChildrenOnly);
+    if (helpMenu == nullptr) {
+        return;
+    }
+    const std::pair<KHelpMenu::MenuId, void (KHelpMenu::*)()> dialogs[] = {{KHelpMenu::menuAboutApp, &KHelpMenu::aboutApplication},
+        {KHelpMenu::menuAboutKDE, &KHelpMenu::aboutKDE},
+        {KHelpMenu::menuReportBug, &KHelpMenu::reportBug},
+        {KHelpMenu::menuSwitchLanguage, &KHelpMenu::switchApplicationLanguage}};
+    for (const auto& [id, open] : dialogs) {
+        QAction* action = helpMenu->action(id);
+        if (action == nullptr) {
+            continue;
+        }
+        QObject::disconnect(action, &QAction::triggered, helpMenu, nullptr);
+        QObject::connect(action, &QAction::triggered, helpMenu, [helpMenu, open, name = action->objectName()] {
+            FrameworkDialogScope scope(name);
+            (helpMenu->*open)();
+        });
+    }
 }
 }
 
@@ -156,13 +183,18 @@ MainWindow::MainWindow()
     // in terminal applications
     KAcceleratorManager::setNoAccel(menuBar());
 
-    constexpr KXmlGuiWindow::StandardWindowOptions guiOpts = ToolBar | Keys | Save | Create;
+    // No Keys: it would replace showShortcutsDialog() with KXMLGUIFactory's dialog.
+    constexpr KXmlGuiWindow::StandardWindowOptions guiOpts = ToolBar | Save | Create;
     const QString xmlFile = componentName() + QLatin1String("ui.rc"); // Typically "konsoleui.rc"
     // The "Create" flag will make it call createGUI()
     setupGUI(guiOpts, xmlFile);
     connect(guiFactory(), &KXMLGUIFactory::makingChanges, this, [this](bool changing) {
         setFixedToolBarActions(!changing);
+        if (!changing) {
+            scopeHelpMenuDialogs(this);
+        }
     });
+    scopeHelpMenuDialogs(this);
     if (QAction* configureToolbars = actionCollection()->action(QStringLiteral("options_configure_toolbars"))) {
         disconnect(configureToolbars, &QAction::triggered, this, nullptr);
         connect(configureToolbars, &QAction::triggered, this, [this] {
@@ -884,6 +916,7 @@ bool MainWindow::queryClose()
 #endif
 
     int result;
+    FrameworkDialogScope scope(QStringLiteral("confirm close window"));
 
     if (!processesRunning.isEmpty()) {
         if (openTabs == 1) {
@@ -986,6 +1019,7 @@ void MainWindow::syncActiveShortcuts(KActionCollection *dest, const KActionColle
 
 void MainWindow::showShortcutsDialog()
 {
+    FrameworkDialogScope scope(QStringLiteral("shortcuts"));
     KShortcutsDialog dialog(KShortcutsEditor::AllActions, KShortcutsEditor::LetterShortcutsDisallowed, this);
 
     // add actions from this window and the current session controller
@@ -1143,6 +1177,7 @@ void MainWindow::activateMenuBar()
 
 void MainWindow::configureNotifications()
 {
+    FrameworkDialogScope scope(QStringLiteral("notifications"));
     KNotifyConfigWidget::configure(this);
 }
 

@@ -8,6 +8,7 @@
 #include "ColorSchemeEditorBackend.h"
 #include "Enumeration.h"
 #include "FontDialog.h"
+#include "FrameworkDialogScope.h"
 #include "KeyBindingEditorBackend.h"
 #include "QmlDialogs.h"
 #include "ShellCommand.h"
@@ -542,6 +543,7 @@ bool ProfileEditor::isProfileNameValid()
 
 void ProfileEditor::chooseIcon(QQuickItem* from)
 {
+    FrameworkDialogScope scope(QStringLiteral("profile icon"));
     KIconDialog dialog;
     dialog.setup(KIconLoader::Desktop, KIconLoader::Application, false, 0, false);
     setTransientFor(&dialog, from);
@@ -554,6 +556,7 @@ void ProfileEditor::chooseIcon(QQuickItem* from)
 void ProfileEditor::chooseInitialDirectory(QQuickItem* from)
 {
     // QFileDialog::getExistingDirectoryUrl(), transient for the QML dialog.
+    FrameworkDialogScope scope(QStringLiteral("initial directory"));
     QFileDialog dialog(nullptr, i18n("Select Initial Directory"));
     dialog.setDirectoryUrl(QUrl::fromUserInput(value(QStringLiteral("Directory")).toString()));
     dialog.setFileMode(QFileDialog::Directory);
@@ -771,6 +774,7 @@ void ProfileEditor::saveColorScheme(const ColorScheme& scheme, bool isNewScheme)
 
 void ProfileEditor::getNewColorSchemes(QQuickItem* from)
 {
+    FrameworkDialogScope scope(QStringLiteral("get new color schemes"));
     if (!_getNewDialog) {
         // KNSWidgets::Button's dialog: titled after the button, reported when it closes.
         _getNewDialog = new KNSWidgets::Dialog(QStringLiteral(":/konsole/konsole.knsrc"));
@@ -848,6 +852,7 @@ void ProfileEditor::showFontDialog(bool emoji, QQuickItem* from)
 {
     QPointer<FontDialog>& dialog = emoji ? _emojiFontDialog : _fontDialog;
     const Profile::Property property = emoji ? Profile::EmojiFont : Profile::Font;
+    FrameworkDialogScope scope(emoji ? QStringLiteral("emoji font") : QStringLiteral("font"));
     if (!dialog) {
         dialog = emoji ? new FontDialog(nullptr, true, _profile->emojiFont()) : new FontDialog(nullptr);
         dialog->setModal(true);

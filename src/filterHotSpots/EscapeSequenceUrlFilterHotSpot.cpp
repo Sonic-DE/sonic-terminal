@@ -19,6 +19,7 @@
 #include <QMouseEvent>
 
 #include "quick/CompatWindows.h"
+#include "quick/FrameworkDialogScope.h"
 #include "terminalDisplay/TerminalDisplay.h"
 
 using namespace Konsole;
@@ -51,6 +52,7 @@ void EscapeSequenceUrlHotSpot::activate(QObject *object)
 
     if ((object == nullptr) || actionName == QLatin1String("open-action")) {
         auto *job = new KIO::OpenUrlJob(QUrl(_url));
+        FrameworkDialogScope::attach(job, QStringLiteral("open link"));
         job->setUiDelegate(KIO::createDefaultJobUiDelegate(KJobUiDelegate::AutoHandlingEnabled, CompatWindows::activeWindow()));
         job->start();
     }

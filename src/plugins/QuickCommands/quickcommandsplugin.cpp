@@ -13,6 +13,7 @@
 #include <QSettings>
 
 #include "MainWindow.h"
+#include "quick/FrameworkDialogScope.h"
 #include <KLocalizedString>
 #include <KMessageBox>
 
@@ -122,6 +123,7 @@ void QuickCommandsPlugin::activeViewChanged(Konsole::SessionController *controll
         {
             const QString feedbackMessage = i18n("No quick commands found. You can add one on Plugins -> Quick Commands");
             const QString feedbackTitle = i18n("Plugins - Quick Commands");
+            Konsole::FrameworkDialogScope scope(QStringLiteral("no quick commands"));
             KMessageBox::error(terminalDisplay->topLevelWidget(), feedbackMessage, feedbackTitle);
             return;
         }

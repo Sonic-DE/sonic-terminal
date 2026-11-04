@@ -10,6 +10,7 @@
 class QMenu;
 class QObject;
 class QPixmap;
+class QWidget;
 class QWindow;
 
 namespace Konsole {
@@ -45,5 +46,9 @@ namespace ParityHook {
     // Clicks a table's cell through its clickItem(row, column), after this returns (the cell
     // may open a modal dialog); false if there is no such table.
     bool clickQmlItem(QWindow* dialog, const QString& object, int row, int column);
+
+    // A widget the QML application may have (NoWidgetsTest): in a compat window, a plugin
+    // dock's content, in a menu, or opened inside a FrameworkDialogScope.
+    bool allowedWidget(const QWidget* widget);
 }
 }

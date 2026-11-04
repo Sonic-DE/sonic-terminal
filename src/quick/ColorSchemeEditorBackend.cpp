@@ -4,6 +4,7 @@
 */
 
 #include "ColorSchemeEditorBackend.h"
+#include "FrameworkDialogScope.h"
 
 #include "characters/CharacterColor.h"
 #include "colorscheme/ColorScheme.h"
@@ -236,6 +237,7 @@ void ColorSchemeEditorBackend::chooseWallpaper(QQuickItem* from)
     fileFormats += QLatin1String(")");
 
     // QFileDialog::getOpenFileName(), transient for the QML dialog.
+    FrameworkDialogScope scope(QStringLiteral("wallpaper"));
     QFileDialog dialog(nullptr,
         i18nc("@title:window", "Select wallpaper image file"),
         _shownWallpaperPath,

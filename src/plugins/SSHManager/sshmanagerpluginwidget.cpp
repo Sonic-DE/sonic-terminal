@@ -9,6 +9,7 @@
 
 #include "ProcessInfo.h"
 #include "konsoledebug.h"
+#include "quick/FrameworkDialogScope.h"
 #include "session/Session.h"
 #include "session/SessionController.h"
 
@@ -67,6 +68,7 @@ SSHManagerTreeWidget::SSHManagerTreeWidget(QWidget *parent)
 
     connect(ui->btnFindSshKey, &QPushButton::clicked, this, [this] {
         const QString homeFolder = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
+        Konsole::FrameworkDialogScope scope(QStringLiteral("ssh key"));
         const QString sshFile = QFileDialog::getOpenFileName(this, i18n("SSH Key"), homeFolder + QStringLiteral("/.ssh"));
         if (sshFile.isEmpty()) {
             return;
@@ -225,6 +227,7 @@ void SSHManagerTreeWidget::triggerDelete()
     const QString dontAskAgainKey =
         ui->treeView->model()->rowCount(selection.at(0)) ? QStringLiteral("remove_ssh_folder") : QStringLiteral("remove_ssh_config");
 
+    Konsole::FrameworkDialogScope scope(QStringLiteral("delete ssh configurations"));
     int result = KMessageBox::warningTwoActions(this,
                                                 dialogMessage,
                                                 i18nc("@title:window", "Delete SSH Configurations"),
