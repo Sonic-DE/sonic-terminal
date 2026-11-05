@@ -13,6 +13,8 @@
 #include "QmlDialogs.h"
 #include "TerminalView.h"
 #include "TerminalViewRegistry.h"
+#include "ViewManager.h"
+#include "session/SessionController.h"
 #include "terminalDisplay/TerminalDisplay.h"
 #if HAVE_DBUS
 #include "MainWindowInterface.h"
@@ -32,6 +34,8 @@
 #include <QApplication>
 #include <QDialog>
 #include <QMenu>
+#include <QMenuBar>
+#include <QSet>
 #include <QShortcut>
 
 #include <QEvent>
@@ -39,6 +43,8 @@
 #include <QPlatformSurfaceEvent>
 #include <QPointer>
 #include <QQmlComponent>
+#include <QQuickItem>
+#include <QQuickRenderControl>
 #include <QQuickWindow>
 #include <QScreen>
 #include <QSurfaceFormat>
@@ -71,7 +77,7 @@ namespace {
             connect(&_acceleratorTimer, &QTimer::timeout, this, [] {
                 // Active also while one of its menus (transient for it) has the focus.
                 for (auto it = controllers().cbegin(); it != controllers().cend(); ++it) {
-                    if (it.value()->qmlWindow() && it.value()->qmlWindow()->isActive()) {
+                    if (it.value()->shownWindow() && it.value()->shownWindow()->isActive()) {
                         KAcceleratorManager::manage(qobject_cast<QWidget*>(it.value()->compatWindow()));
                     }
                 }
@@ -85,8 +91,8 @@ namespace {
                 auto* widget = qobject_cast<QWidget*>(watched);
                 QWidget* parent = widget && widget->isWindow() ? widget->parentWidget() : nullptr;
                 WindowController* controller = parent ? WindowController::controllerOf(parent->window()) : nullptr;
-                if (controller && controller->qmlWindow() && widget->windowHandle()) {
-                    widget->windowHandle()->setTransientParent(controller->qmlWindow());
+                if (controller && controller->shownWindow() && widget->windowHandle()) {
+                    widget->windowHandle()->setTransientParent(controller->shownWindow());
                     sonicDebug() << "transient parent for" << widget->metaObject()->className();
                     if (qobject_cast<QDialog*>(widget) && !widget->testAttribute(Qt::WA_Moved)) {
                         placeDialog(widget, parent->window());
@@ -95,9 +101,9 @@ namespace {
                     if (qobject_cast<QMenu*>(widget)) {
                         QMetaObject::invokeMethod(
                             widget,
-                            [widget, qml = QPointer<QQuickWindow>(controller->qmlWindow())] {
-                                if (qml && widget->windowHandle()) {
-                                    widget->windowHandle()->setTransientParent(qml);
+                            [widget, shown = QPointer<QWindow>(controller->shownWindow())] {
+                                if (shown && widget->windowHandle()) {
+                                    widget->windowHandle()->setTransientParent(shown);
                                 }
                             },
                             Qt::QueuedConnection);
@@ -111,11 +117,11 @@ namespace {
                     const QWindow* transient = widget->windowHandle()->transientParent();
                     for (auto it = controllers().cbegin(); it != controllers().cend(); ++it) {
                         auto* compat = qobject_cast<QWidget*>(it.value()->compatWindow());
-                        QQuickWindow* qml = it.value()->qmlWindow();
+                        QWindow* shown = it.value()->shownWindow();
                         const bool ownWindow = transient && compat && transient == compat->windowHandle();
-                        const bool activeWindow = !transient && !QApplication::activeWindow() && qml && qml->isActive();
-                        if (qml && compat && (ownWindow || activeWindow)) {
-                            widget->windowHandle()->setTransientParent(qml);
+                        const bool activeWindow = !transient && !QApplication::activeWindow() && shown && shown->isActive();
+                        if (shown && compat && (ownWindow || activeWindow)) {
+                            widget->windowHandle()->setTransientParent(shown);
                             placeDialog(widget, compat);
                             break;
                         }
@@ -157,8 +163,8 @@ namespace {
                     continue;
                 }
                 WindowController* controller = shown ? WindowController::controllerOf(current) : nullptr;
-                const QMargins frame = controller && controller->qmlWindow()
-                    ? controller->qmlWindow()->frameMargins()
+                const QMargins frame = controller && controller->shownWindow()
+                    ? controller->shownWindow()->frameMargins()
                     : QMargins(current->geometry().x() - current->x(), current->geometry().y() - current->y(), 0, 0);
                 extraw = qMax(extraw, frame.left());
                 extrah = qMax(extrah, frame.top());
@@ -206,12 +212,6 @@ WindowController::WindowController(MainWindow* window)
     , _window(window)
     , _translucent(window->testAttribute(Qt::WA_TranslucentBackground))
 {
-    static auto* compatWindowsFilter = [] {
-        auto* filter = new CompatWindowsFilter(qApp);
-        qApp->installEventFilter(filter);
-        return filter;
-    }();
-    Q_UNUSED(compatWindowsFilter)
     // KMainWindow's constructor placed only the native window at the saved position
     // (kmainwindow.cpp applyMainWindowSettings(), QTBUG-40584); the widget takes it, so the
     // QML window does on its first show.
@@ -219,14 +219,52 @@ WindowController::WindowController(MainWindow* window)
         window->setGeometry(QRect(handle->position(), window->size()));
         sonicDebug() << "saved position" << handle->position();
     }
-    // Laid out and isVisible(), but never mapped or painted.
-    window->setAttribute(Qt::WA_DontShowOnScreen);
-    window->setUpdatesEnabled(false);
-    CompatWindows::add(window);
-    controllers().insert(window, this);
-    window->installEventFilter(this);
+    setUpCompatWindow();
     createQmlWindow();
     CompatWindows::setShownWindow(window, _qmlWindow);
+}
+
+WindowController::WindowController(MainWindow* window, QQuickItem* item)
+    : QObject(window)
+    , _window(window)
+    , _item(item)
+{
+    setUpCompatWindow();
+    connect(item, &QQuickItem::xChanged, this, &WindowController::followItem);
+    connect(item, &QQuickItem::yChanged, this, &WindowController::followItem);
+    connect(item, &QQuickItem::widthChanged, this, &WindowController::followItem);
+    connect(item, &QQuickItem::heightChanged, this, &WindowController::followItem);
+    // Each frame too: the window holding the item appears later, and the item's parents move
+    // without telling it.
+    const auto followFrames = [this](QQuickWindow* itemWindow) {
+        if (itemWindow) {
+            connect(itemWindow, &QQuickWindow::afterAnimating, this, &WindowController::followItem, Qt::UniqueConnection);
+        }
+    };
+    connect(item, &QQuickItem::windowChanged, this, [this, followFrames](QQuickWindow* itemWindow) {
+        followFrames(itemWindow);
+        followItem();
+    });
+    followFrames(item->window());
+    connect(item, &QQuickItem::activeFocusChanged, this, &WindowController::scheduleShortcuts);
+    watchActions();
+    followItem();
+}
+
+void WindowController::setUpCompatWindow()
+{
+    static auto* compatWindowsFilter = [] {
+        auto* filter = new CompatWindowsFilter(qApp);
+        qApp->installEventFilter(filter);
+        return filter;
+    }();
+    Q_UNUSED(compatWindowsFilter)
+    // Laid out and isVisible(), but never mapped or painted.
+    _window->setAttribute(Qt::WA_DontShowOnScreen);
+    _window->setUpdatesEnabled(false);
+    CompatWindows::add(_window);
+    controllers().insert(_window, this);
+    _window->installEventFilter(this);
 }
 
 WindowController::~WindowController()
@@ -249,6 +287,16 @@ QObject* WindowController::compatWindow() const
 QQuickWindow* WindowController::qmlWindow() const
 {
     return _qmlWindow;
+}
+
+QWindow* WindowController::shownWindow() const
+{
+    if (_qmlWindow || !_item) {
+        return _qmlWindow;
+    }
+    QQuickWindow* window = _item->window();
+    QWindow* renderWindow = window ? QQuickRenderControl::renderWindowFor(window) : nullptr;
+    return renderWindow ? renderWindow : window;
 }
 
 bool WindowController::translucent() const
@@ -332,14 +380,7 @@ void WindowController::createQmlWindow()
     sonicDebug() << "org.kde.KMainWindow at" << _window->dbusName() << "answered for the QML window";
 #endif
 
-    // Plugging a session's client (tab switches), plugins and Configure Shortcuts change
-    // the actions.
-    if (KXMLGUIFactory* factory = _window->guiFactory()) {
-        connect(factory, &KXMLGUIFactory::clientAdded, this, &WindowController::scheduleShortcuts);
-        connect(factory, &KXMLGUIFactory::clientRemoved, this, &WindowController::scheduleShortcuts);
-        connect(factory, &KXMLGUIFactory::shortcutsSaved, this, &WindowController::scheduleShortcuts);
-    }
-    scheduleShortcuts();
+    watchActions();
 
     // Find Action: KXmlGuiWindow's KCommandBar would open in the hidden compat window.
     if (QAction* findAction = _window->actionCollection()->action(QStringLiteral("open_kcommand_bar"))) {
@@ -349,6 +390,48 @@ void WindowController::createQmlWindow()
                 openCommandBar(CommandBarModel::windowGroups(_window->guiFactory()));
             }
         });
+    }
+}
+
+void WindowController::watchActions()
+{
+    // Plugging a session's client (tab switches), plugins and Configure Shortcuts change
+    // the actions.
+    if (KXMLGUIFactory* factory = _window->guiFactory()) {
+        connect(factory, &KXMLGUIFactory::clientAdded, this, &WindowController::scheduleShortcuts);
+        connect(factory, &KXMLGUIFactory::clientRemoved, this, &WindowController::scheduleShortcuts);
+        connect(factory, &KXMLGUIFactory::shortcutsSaved, this, &WindowController::scheduleShortcuts);
+    }
+    scheduleShortcuts();
+}
+
+void WindowController::followItem()
+{
+    if (!_window || !_item) {
+        return;
+    }
+    QWindow* shown = shownWindow();
+    if (shown != _itemWindow) {
+        if (_itemWindow) {
+            _itemWindow->removeEventFilter(this);
+            _itemWindow->disconnect(this);
+        }
+        _itemWindow = shown;
+        CompatWindows::setShownWindow(_window, shown);
+        if (shown) {
+            shown->installEventFilter(this);
+            connect(shown, &QWindow::activeChanged, this, [this, shown] {
+                CompatWindows::setActive(_window, shown->isActive());
+            });
+            CompatWindows::setActive(_window, shown->isActive());
+        }
+        scheduleShortcuts();
+    }
+    const QRect geometry(_item->mapToGlobal(QPointF(0, 0)).toPoint(), _item->size().toSize());
+    if (!geometry.isEmpty() && geometry != _window->geometry()) {
+        _syncing = true;
+        setCompatGeometry(geometry);
+        _syncing = false;
     }
 }
 
@@ -369,33 +452,64 @@ void WindowController::scheduleShortcuts()
 
 void WindowController::rebuildShortcuts()
 {
-    qDeleteAll(_shortcuts);
+    for (const QPointer<QShortcut>& shortcut : std::as_const(_shortcuts)) {
+        delete shortcut.data();
+    }
     _shortcuts.clear();
     KXMLGUIFactory* factory = _window ? _window->guiFactory() : nullptr;
-    if (!_qmlWindow || !factory) {
+    // On a host's top-level widget when it has one, whose context Qt checks as a widget's.
+    QObject* owner = _qmlWindow;
+    if (QWindow* shown = _item ? shownWindow() : nullptr) {
+        owner = shown;
+        const QWidgetList widgets = QApplication::topLevelWidgets();
+        for (QWidget* widget : widgets) {
+            if (widget->windowHandle() == shown) {
+                owner = widget;
+                break;
+            }
+        }
+    }
+    if (!owner || !factory) {
         return;
     }
+    QSet<QAction*> bound;
+    const auto bind = [this, &bound, owner](const QList<QAction*>& actions) {
+        for (QAction* action : actions) {
+            // Enabled, visible and key changes all come with changed().
+            connect(action, &QAction::changed, this, &WindowController::scheduleShortcuts, Qt::UniqueConnection);
+            if (action->shortcuts().isEmpty() || bound.contains(action)) {
+                continue;
+            }
+            bound.insert(action);
+            auto* shortcut = new QShortcut(owner);
+            shortcut->setKeys(action->shortcuts());
+            shortcut->setAutoRepeat(action->autoRepeat());
+            shortcut->setEnabled(action->isEnabled() && action->isVisible() && (!_item || _item->hasActiveFocus()));
+            connect(shortcut, &QShortcut::activated, action, &QAction::trigger);
+            _shortcuts.append(shortcut);
+        }
+    };
+    SessionController* activeController = _window->viewManager() ? _window->viewManager()->activeViewController() : nullptr;
     const QList<KXMLGUIClient*> clients = factory->clients();
     for (KXMLGUIClient* client : clients) {
         KActionCollection* collection = client->actionCollection();
-        if (!collection) {
+        // In a host, as with the part: only the session's. The window's would answer for the
+        // host's own keys.
+        if (!collection || (_item && client != activeController)) {
             continue;
         }
         connect(collection, &KActionCollection::inserted, this, &WindowController::scheduleShortcuts, Qt::UniqueConnection);
         connect(collection, &KActionCollection::changed, this, &WindowController::scheduleShortcuts, Qt::UniqueConnection);
-        const QList<QAction*> actions = collection->actions();
-        for (QAction* action : actions) {
-            // Enabled, visible and key changes all come with changed().
-            connect(action, &QAction::changed, this, &WindowController::scheduleShortcuts, Qt::UniqueConnection);
-            if (action->shortcuts().isEmpty()) {
-                continue;
-            }
-            auto* shortcut = new QShortcut(_qmlWindow);
-            shortcut->setKeys(action->shortcuts());
-            shortcut->setAutoRepeat(action->autoRepeat());
-            shortcut->setEnabled(action->isEnabled() && action->isVisible());
-            connect(shortcut, &QShortcut::activated, action, &QAction::trigger);
-            _shortcuts.append(shortcut);
+        bind(collection->actions());
+    }
+    // What else fires in the widget window: actions on the active view (the plugins' quick
+    // access), and the Plugins menu's while the menu bar shows.
+    if (activeController && activeController->view()) {
+        bind(activeController->view()->actions());
+    }
+    if (_window->menuBar()->isVisibleTo(_window)) {
+        if (auto* plugins = qobject_cast<QMenu*>(factory->container(QStringLiteral("plugins"), _window))) {
+            bind(plugins->actions());
         }
     }
     sonicDebug() << "shortcuts bound:" << _shortcuts.size();
@@ -498,11 +612,14 @@ void WindowController::bridgeFocus(QObject* object)
     auto* display = qobject_cast<TerminalDisplay*>(object);
     TerminalView* view = display ? TerminalViewRegistry::view(display) : nullptr;
     // A hidden facade (another tab's) gets no focus, as a hidden widget doesn't.
-    if (!view || !view->sceneMode() || !_qmlWindow || !display->isEnabled() || !display->isVisible()) {
+    if (!view || !view->sceneMode() || (!_qmlWindow && !_item) || !display->isEnabled() || !display->isVisible()) {
         return;
     }
     sonicDebug() << "focus bridge: session view" << display->id();
-    _qmlWindow->requestActivate();
+    // A host decides which of its windows is active.
+    if (_qmlWindow) {
+        _qmlWindow->requestActivate();
+    }
     // A new tab's view isn't in the scene yet; another view's focus since replaces it.
     if (_pendingFocus && _pendingFocus != display) {
         if (TerminalView* pending = TerminalViewRegistry::view(_pendingFocus)) {
@@ -519,6 +636,29 @@ bool WindowController::eventFilter(QObject* watched, QEvent* event)
         && static_cast<QPlatformSurfaceEvent*>(event)->surfaceEventType() == QPlatformSurfaceEvent::SurfaceCreated) {
         // A new native window starts without blur.
         QMetaObject::invokeMethod(this, &WindowController::applyBlur, Qt::QueuedConnection);
+    }
+    if (_item) {
+        const QEvent::Type type = event->type();
+        if ((watched == _itemWindow || watched == _window) && (type == QEvent::Move || type == QEvent::Resize)) {
+            // The host's window moved, or the program sized the compat window (first show).
+            if (!_syncing) {
+                followItem();
+            }
+        } else if (watched == _window && (type == QEvent::Show || type == QEvent::WinIdChange)) {
+            connectFocusBridge();
+            if (type == QEvent::Show) {
+                QMetaObject::invokeMethod(
+                    this,
+                    [this] {
+                        if (_window) {
+                            followItem();
+                            bridgeFocus(_window->focusWidget());
+                        }
+                    },
+                    Qt::QueuedConnection);
+            }
+        }
+        return QObject::eventFilter(watched, event);
     }
     if (watched != _window || !_qmlWindow) {
         return QObject::eventFilter(watched, event);

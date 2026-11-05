@@ -42,8 +42,11 @@
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QRegularExpression>
+#include <QShortcut>
+#include <QSignalSpy>
 #include <QTabBar>
 #include <QTabWidget>
+#include <QTemporaryDir>
 #include <QTest>
 #include <QToolBar>
 
@@ -84,6 +87,8 @@ private Q_SLOTS:
     void testChromeFollowsTheWidgets();
     void testKeys();
     void testSearchTabs();
+    void testQmlPanel();
+    void testShortcutsOutsideCollections();
     void testPluginDock();
     void testClosedDockRoomIsRepainted();
     void testDialogsAreTransientForTheQmlWindow();
@@ -505,6 +510,91 @@ void QmlWindowTest::testSearchTabs()
     TerminalView* active = TerminalViewRegistry::view(container->connectedViewManager()->activeViewController()->view());
     QVERIFY(active);
     QTRY_VERIFY(active->hasActiveFocus());
+}
+
+void QmlWindowTest::testQmlPanel()
+{
+    QTemporaryDir dir;
+    QFile file(dir.filePath(QStringLiteral("Panel.qml")));
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write("import QtQuick\nItem { required property string label; objectName: label; implicitWidth: 300; implicitHeight: 200 }\n");
+    file.close();
+
+    QQuickWindow* qml = _controller->qmlWindow();
+    QDockWidget* dock = DockAdapter::addQmlPanel(_compatWindow,
+        QStringLiteral("Panel title"),
+        QStringLiteral("PanelDock"),
+        QUrl::fromLocalFile(file.fileName()),
+        {{QStringLiteral("label"), QStringLiteral("panelContent")}});
+    QVERIFY(!dock->isVisible());
+    // In the item tree: a Repeater's delegates have no QObject parent.
+    const auto panelItem = [qml]() -> QQuickItem* {
+        QList<QQuickItem*> items = {qml->contentItem()};
+        while (!items.isEmpty()) {
+            QQuickItem* item = items.takeFirst();
+            if (item->objectName() == QLatin1String("panelContent")) {
+                return item;
+            }
+            items += item->childItems();
+        }
+        return nullptr;
+    };
+    // Loaded with its properties while hidden, so the dock's first layout has its size.
+    QTRY_VERIFY(panelItem());
+    QTRY_COMPARE(dock->widget()->sizeHint(), QSize(300, 200));
+
+    dock->show();
+    QTRY_VERIFY(panelItem()->isVisible());
+    // It fills the room the dock keeps in the compat window; no widget is embedded for it.
+    QVERIFY(!DockAdapter::dockContent(dock));
+    const QRect room(dock->widget()->mapTo(_compatWindow, QPoint(0, 0)), dock->widget()->size());
+    QTRY_VERIFY(room.width() >= 300);
+    QTRY_COMPARE(panelItem()->mapRectToScene(panelItem()->boundingRect()).toRect(), QRect(dock->widget()->mapTo(_compatWindow, QPoint(0, 0)), dock->widget()->size()));
+    QTRY_VERIFY(_compatWindow->centralWidget()->mapTo(_compatWindow, QPoint(0, 0)).x() >= 300);
+
+    auto* docks = qml->findChild<DockAdapter*>();
+    docks->closeDock(dock);
+    QTRY_VERIFY(!panelItem()->isVisible());
+    delete dock;
+}
+
+void QmlWindowTest::testShortcutsOutsideCollections()
+{
+    QQuickWindow* qml = _controller->qmlWindow();
+    qml->requestActivate();
+    QVERIFY(QTest::qWaitForWindowActive(qml));
+    KXMLGUIFactory* factory = _compatWindow->guiFactory();
+
+    // On the active view, as the plugins' quick access.
+    QAction onView;
+    onView.setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_F9));
+    QSignalSpy viewTriggered(&onView, &QAction::triggered);
+    displayOf(_compatWindow)->addAction(&onView);
+    Q_EMIT factory->shortcutsSaved();
+    QTRY_VERIFY(qml->findChildren<QShortcut*>().size() > 0);
+    QTest::qWait(50);
+    QTest::keyClick(qml, Qt::Key_F9, Qt::ControlModifier | Qt::AltModifier);
+    QTRY_COMPARE(viewTriggered.count(), 1);
+    displayOf(_compatWindow)->removeAction(&onView);
+
+    // In the Plugins menu: while the menu bar shows, as a menu bar's shortcuts in a widget window.
+    QAction inMenu;
+    inMenu.setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_F10));
+    QSignalSpy menuTriggered(&inMenu, &QAction::triggered);
+    _compatWindow->setPluginsActions({&inMenu});
+    _compatWindow->menuBar()->setVisible(true);
+    Q_EMIT factory->shortcutsSaved();
+    QTest::qWait(50);
+    QTest::keyClick(qml, Qt::Key_F10, Qt::ControlModifier | Qt::AltModifier);
+    QTRY_COMPARE(menuTriggered.count(), 1);
+
+    _compatWindow->menuBar()->setVisible(false);
+    Q_EMIT factory->shortcutsSaved();
+    QTest::qWait(50);
+    QTest::keyClick(qml, Qt::Key_F10, Qt::ControlModifier | Qt::AltModifier);
+    QTest::qWait(50);
+    QCOMPARE(menuTriggered.count(), 1);
+    _compatWindow->setPluginsActions({});
 }
 
 void QmlWindowTest::testPluginDock()

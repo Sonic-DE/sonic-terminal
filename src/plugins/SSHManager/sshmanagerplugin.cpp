@@ -7,17 +7,16 @@
 
 #include "sshmanagerplugin.h"
 
+#include "sshconfigurationdata.h"
+#include "sshmanagerbackend.h"
 #include "sshmanagermodel.h"
-#include "sshmanagerpluginwidget.h"
 
 #include "ProcessInfo.h"
 #include "konsoledebug.h"
+#include "quick/WindowController.h"
+#include "session/Session.h"
 #include "session/SessionController.h"
 
-#include <QDockWidget>
-#include <QListView>
-#include <QMainWindow>
-#include <QMenuBar>
 #include <QSortFilterProxyModel>
 #include <QStandardItemModel>
 #include <QTimer>
@@ -39,8 +38,8 @@ K_PLUGIN_CLASS_WITH_JSON(SSHManagerPlugin, "konsole_sshmanager.json")
 struct SSHManagerPluginPrivate {
     SSHManagerModel model;
 
-    QMap<Konsole::MainWindow *, SSHManagerTreeWidget *> widgetForWindow;
-    QMap<Konsole::MainWindow *, QDockWidget *> dockForWindow;
+    QMap<Konsole::MainWindow*, SSHManagerBackend*> backendForWindow;
+    QMap<Konsole::MainWindow*, QAction*> toggleForWindow;
     QAction *showQuickAccess = nullptr;
 };
 
@@ -60,25 +59,15 @@ SSHManagerPlugin::~SSHManagerPlugin()
 
 void SSHManagerPlugin::createWidgetsForMainWindow(Konsole::MainWindow *mainWindow)
 {
-    auto *sshDockWidget = new QDockWidget(mainWindow);
-    auto *managerWidget = new SSHManagerTreeWidget();
-    managerWidget->setModel(&d->model);
-    sshDockWidget->setWidget(managerWidget);
-    sshDockWidget->setWindowTitle(i18n("SSH Manager"));
-    sshDockWidget->setObjectName(QStringLiteral("SSHManagerDock"));
-    sshDockWidget->setVisible(false);
-    sshDockWidget->setAllowedAreas(Qt::DockWidgetArea::LeftDockWidgetArea | Qt::DockWidgetArea::RightDockWidgetArea);
+    Q_UNUSED(mainWindow)
+}
 
-    mainWindow->addDockWidget(Qt::LeftDockWidgetArea, sshDockWidget);
+QList<Konsole::QmlPanel> SSHManagerPlugin::panels(Konsole::MainWindow* mainWindow)
+{
+    auto* backend = new SSHManagerBackend(&d->model, mainWindow, mainWindow);
+    d->backendForWindow[mainWindow] = backend;
 
-    d->widgetForWindow[mainWindow] = managerWidget;
-    d->dockForWindow[mainWindow] = sshDockWidget;
-
-    connect(managerWidget, &SSHManagerTreeWidget::requestNewTab, this, [mainWindow] {
-        mainWindow->newTab();
-    });
-
-    connect(managerWidget, &SSHManagerTreeWidget::quickAccessShortcutChanged, this, [this, mainWindow](QKeySequence s) {
+    connect(backend, &SSHManagerBackend::quickAccessShortcutChanged, this, [this, mainWindow](const QKeySequence& s) {
         mainWindow->actionCollection()->setDefaultShortcut(d->showQuickAccess, s);
 
         QString sequenceText = s.toString();
@@ -88,19 +77,22 @@ void SSHManagerPlugin::createWidgetsForMainWindow(Konsole::MainWindow *mainWindo
         settings.setValue(QStringLiteral("ssh_shortcut"), sequenceText);
         settings.sync();
     });
-}
-
-QList<QAction *> SSHManagerPlugin::menuBarActions(Konsole::MainWindow *mainWindow) const
-{
-    Q_UNUSED(mainWindow)
 
     QAction *toggleVisibilityAction = new QAction(i18n("Show SSH Manager"), mainWindow);
     toggleVisibilityAction->setCheckable(true);
     mainWindow->actionCollection()->setDefaultShortcut(toggleVisibilityAction, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_F2));
-    connect(toggleVisibilityAction, &QAction::triggered, d->dockForWindow[mainWindow], &QDockWidget::setVisible);
-    connect(d->dockForWindow[mainWindow], &QDockWidget::visibilityChanged, toggleVisibilityAction, &QAction::setChecked);
+    d->toggleForWindow[mainWindow] = toggleVisibilityAction;
 
-    return {toggleVisibilityAction};
+    return {{i18n("SSH Manager"),
+        QStringLiteral("SSHManagerDock"),
+        QUrl(QStringLiteral("qrc:/org/sonicde/terminal/plugins/sshmanager/SSHManagerPanel.qml")),
+        {{QStringLiteral("backend"), QVariant::fromValue<QObject*>(backend)}},
+        toggleVisibilityAction}};
+}
+
+QList<QAction*> SSHManagerPlugin::menuBarActions(Konsole::MainWindow* mainWindow) const
+{
+    return {d->toggleForWindow[mainWindow]};
 }
 
 #include <iostream>
@@ -127,14 +119,14 @@ void SSHManagerPlugin::activeViewChanged(Konsole::SessionController *controller,
     mainWindow->actionCollection()->setDefaultShortcut(d->showQuickAccess, shortcutEntry);
     terminalDisplay->addAction(d->showQuickAccess);
 
-    connect(d->showQuickAccess, &QAction::triggered, this, [this, terminalDisplay, controller] {
-        auto bar = new KCommandBar(terminalDisplay->topLevelWidget());
+    QAction* quickAccess = d->showQuickAccess;
+    connect(d->showQuickAccess, &QAction::triggered, this, [this, quickAccess, mainWindow, controller] {
         QList<QAction *> actions;
         for (int i = 0; i < d->model.rowCount(); i++) {
             QModelIndex folder = d->model.index(i, 0);
             for (int e = 0; e < d->model.rowCount(folder); e++) {
                 QModelIndex idx = d->model.index(e, 0, folder);
-                QAction *act = new QAction(idx.data().toString());
+                QAction* act = new QAction(idx.data().toString(), quickAccess);
                 connect(act, &QAction::triggered, this, [this, idx, controller] {
                     requestConnection(nullptr, &d->model, controller, idx);
                 });
@@ -147,18 +139,17 @@ void SSHManagerPlugin::activeViewChanged(Konsole::SessionController *controller,
             const QString feedbackMessage = i18n("No saved SSH config found. You can add one on Plugins -> SSH Manager");
             const QString feedbackTitle = i18n("Plugins - SSH Manager");
             Konsole::FrameworkDialogScope scope(QStringLiteral("no ssh config"));
-            KMessageBox::error(terminalDisplay->topLevelWidget(), feedbackMessage, feedbackTitle);
+            KMessageBox::error(mainWindow, feedbackMessage, feedbackTitle);
             return;
         }
 
-        QVector<KCommandBar::ActionGroup> groups;
-        groups.push_back(KCommandBar::ActionGroup{i18n("SSH Entries"), actions});
-        bar->setActions(groups);
-        bar->show();
+        if (auto* windowController = Konsole::WindowController::controllerOf(mainWindow)) {
+            windowController->openCommandBar({KCommandBar::ActionGroup{i18n("SSH Entries"), actions}});
+        }
     });
 
     if (mainWindow) {
-        d->widgetForWindow[mainWindow]->setCurrentController(controller);
+        d->backendForWindow[mainWindow]->setCurrentController(controller);
     }
 }
 

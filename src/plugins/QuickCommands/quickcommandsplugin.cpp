@@ -3,30 +3,29 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "quickcommandsplugin.h"
-#include "konsoledebug.h"
+#include "quickcommanddata.h"
+#include "quickcommandsbackend.h"
 #include "quickcommandsmodel.h"
-#include "quickcommandswidget.h"
 
 #include <KActionCollection>
 #include <KCommandBar>
-#include <QMainWindow>
 #include <QSettings>
 
 #include "MainWindow.h"
 #include "quick/FrameworkDialogScope.h"
+#include "quick/WindowController.h"
+#include "session/Session.h"
+#include "session/SessionController.h"
 #include <KLocalizedString>
 #include <KMessageBox>
-
-#include <QDockWidget>
-#include <kcommandbar.h>
 
 K_PLUGIN_CLASS_WITH_JSON(QuickCommandsPlugin, "konsole_quickcommands.json")
 
 struct QuickCommandsPlugin::Private {
     QuickCommandsModel model;
     QAction *showQuickAccess = nullptr;
-    QMap<Konsole::MainWindow *, QuickCommandsWidget *> widgetForWindow;
-    QMap<Konsole::MainWindow *, QDockWidget *> dockForWindow;
+    QMap<Konsole::MainWindow*, QuickCommandsBackend*> backendForWindow;
+    QMap<Konsole::MainWindow*, QAction*> toggleForWindow;
 };
 
 QuickCommandsPlugin::QuickCommandsPlugin(QObject *object, const QVariantList &args)
@@ -41,17 +40,13 @@ QuickCommandsPlugin::~QuickCommandsPlugin() = default;
 
 void QuickCommandsPlugin::createWidgetsForMainWindow(Konsole::MainWindow *mainWindow)
 {
-    auto *qcDockWidget = new QDockWidget(mainWindow);
-    auto *qcWidget = new QuickCommandsWidget(mainWindow);
-    qcWidget->setModel(&priv->model);
-    qcDockWidget->setWindowTitle(i18n("Quick Commands"));
-    qcDockWidget->setWidget(qcWidget);
-    qcDockWidget->setObjectName(QStringLiteral("QuickCommandsDock"));
-    qcDockWidget->setVisible(false);
-    qcDockWidget->setAllowedAreas(Qt::DockWidgetArea::LeftDockWidgetArea | Qt::DockWidgetArea::RightDockWidgetArea);
+    Q_UNUSED(mainWindow)
+}
 
-    mainWindow->addDockWidget(Qt::LeftDockWidgetArea, qcDockWidget);
-    connect(qcWidget, &QuickCommandsWidget::quickAccessShortcutChanged, this, [this, mainWindow](QKeySequence s) {
+QList<Konsole::QmlPanel> QuickCommandsPlugin::panels(Konsole::MainWindow* mainWindow)
+{
+    auto* backend = new QuickCommandsBackend(&priv->model, mainWindow, mainWindow);
+    connect(backend, &QuickCommandsBackend::quickAccessShortcutChanged, this, [this, mainWindow](const QKeySequence& s) {
         mainWindow->actionCollection()->setDefaultShortcut(priv->showQuickAccess, s);
 
         QString sequenceText = s.toString();
@@ -61,9 +56,18 @@ void QuickCommandsPlugin::createWidgetsForMainWindow(Konsole::MainWindow *mainWi
         settings.setValue(QStringLiteral("shortcut"), sequenceText);
         settings.sync();
     });
+    priv->backendForWindow[mainWindow] = backend;
 
-    priv->widgetForWindow[mainWindow] = qcWidget;
-    priv->dockForWindow[mainWindow] = qcDockWidget;
+    auto* toggleVisibilityAction = new QAction(i18n("Show Quick Commands"), mainWindow);
+    toggleVisibilityAction->setCheckable(true);
+    mainWindow->actionCollection()->setDefaultShortcut(toggleVisibilityAction, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_F1));
+    priv->toggleForWindow[mainWindow] = toggleVisibilityAction;
+
+    return {{i18n("Quick Commands"),
+        QStringLiteral("QuickCommandsDock"),
+        QUrl(QStringLiteral("qrc:/org/sonicde/terminal/plugins/quickcommands/QuickCommandsPanel.qml")),
+        {{QStringLiteral("backend"), QVariant::fromValue<QObject*>(backend)}},
+        toggleVisibilityAction}};
 }
 
 void QuickCommandsPlugin::activeViewChanged(Konsole::SessionController *controller, Konsole::MainWindow *mainWindow)
@@ -94,17 +98,14 @@ void QuickCommandsPlugin::activeViewChanged(Konsole::SessionController *controll
     terminalDisplay->addAction(priv->showQuickAccess);
 
     QPointer<Konsole::SessionController> controllerPtr(controller);
-    connect(priv->showQuickAccess, &QAction::triggered, this, [this, terminalDisplay, controllerPtr] {
-        if (terminalDisplay == nullptr) {
-            return;
-        }
-        auto bar = new KCommandBar(terminalDisplay->topLevelWidget());
+    QAction* quickAccess = priv->showQuickAccess;
+    connect(priv->showQuickAccess, &QAction::triggered, this, [this, quickAccess, mainWindow, controllerPtr] {
         QList<QAction *> actions;
         for (int i = 0; i < priv->model.rowCount(); i++) {
             QModelIndex folder = priv->model.index(i, 0);
             for (int e = 0; e < priv->model.rowCount(folder); e++) {
                 QModelIndex idx = priv->model.index(e, 0, folder);
-                QAction *act = new QAction(idx.data().toString());
+                QAction* act = new QAction(idx.data().toString(), quickAccess);
                 connect(act, &QAction::triggered, this, [this, idx, controllerPtr] {
                     if (controllerPtr == nullptr) {
                         return;
@@ -124,28 +125,21 @@ void QuickCommandsPlugin::activeViewChanged(Konsole::SessionController *controll
             const QString feedbackMessage = i18n("No quick commands found. You can add one on Plugins -> Quick Commands");
             const QString feedbackTitle = i18n("Plugins - Quick Commands");
             Konsole::FrameworkDialogScope scope(QStringLiteral("no quick commands"));
-            KMessageBox::error(terminalDisplay->topLevelWidget(), feedbackMessage, feedbackTitle);
+            KMessageBox::error(mainWindow, feedbackMessage, feedbackTitle);
             return;
         }
 
-        QVector<KCommandBar::ActionGroup> groups;
-        groups.push_back(KCommandBar::ActionGroup{i18n("Quick Commands"), actions});
-        bar->setActions(groups);
-        bar->show();
+        if (auto* windowController = Konsole::WindowController::controllerOf(mainWindow)) {
+            windowController->openCommandBar({KCommandBar::ActionGroup{i18n("Quick Commands"), actions}});
+        }
     });
 
-    priv->widgetForWindow[mainWindow]->setCurrentController(controller);
+    priv->backendForWindow[mainWindow]->setCurrentController(controller);
 }
 
 QList<QAction *> QuickCommandsPlugin::menuBarActions(Konsole::MainWindow *mainWindow) const
 {
-    QAction *toggleVisibilityAction = new QAction(i18n("Show Quick Commands"), mainWindow);
-    toggleVisibilityAction->setCheckable(true);
-    mainWindow->actionCollection()->setDefaultShortcut(toggleVisibilityAction, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_F1));
-    connect(toggleVisibilityAction, &QAction::triggered, priv->dockForWindow[mainWindow], &QDockWidget::setVisible);
-    connect(priv->dockForWindow[mainWindow], &QDockWidget::visibilityChanged, toggleVisibilityAction, &QAction::setChecked);
-
-    return {toggleVisibilityAction};
+    return {priv->toggleForWindow[mainWindow]};
 }
 
 #include "moc_quickcommandsplugin.cpp"

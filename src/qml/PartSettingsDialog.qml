@@ -5,6 +5,7 @@
 
 import QtQuick
 import QtQuick.Controls as QQC2
+import org.kde.desktop as QQC2
 import org.sonicde.terminal
 
 // The KPart's settings dialog (a KConfigDialog with the Tabbed face): Profiles and Part

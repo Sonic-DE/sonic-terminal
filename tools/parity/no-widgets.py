@@ -17,7 +17,8 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-SCENARIOS = ["dialogs", "dialogs-extra", "no-widgets-bookmarks", "shortcuts-editor", "shortcuts-sync"]
+SCENARIOS = ["dialogs", "dialogs-extra", "no-widgets-bookmarks", "shortcuts-editor", "shortcuts-sync", "plugins-quickcommands",
+             "plugins-sshmanager"]
 
 
 def run(args, name):

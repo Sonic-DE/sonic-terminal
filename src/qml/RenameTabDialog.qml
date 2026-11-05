@@ -5,6 +5,7 @@
 
 import QtQuick
 import QtQuick.Controls as QQC2
+import org.kde.desktop as QQC2
 
 // RenameTabDialog ("Tab Properties"; SessionController::renameSession()).
 DialogWindow {

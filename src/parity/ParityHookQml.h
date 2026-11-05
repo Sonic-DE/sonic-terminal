@@ -54,5 +54,13 @@ namespace ParityHook {
     bool allowedWidget(const QWidget* widget);
     // A plugin dock's content, which the QML window embeds outside the dock; null if none.
     QWidget* dockContent(const QDockWidget* dock);
+
+    // A QML plugin panel by title, shown in the window's QML window; null if none.
+    QObject* qmlPanel(const MainWindow* window, const QString& title);
+    // A panel's button (or the first one in a control) by object name.
+    QObject* qmlPanelButton(QObject* panel, const QString& object);
+    bool setQmlPanelText(QObject* panel, const QString& object, const QString& text);
+    // Acts on a PanelTree's row by text after this returns: kind "click", "double", "context".
+    bool clickQmlPanelItem(QObject* panel, const QString& object, const QString& text, const QString& kind);
 }
 }

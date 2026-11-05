@@ -117,6 +117,22 @@ static QWidget* dockContent(const QDockWidget*)
 {
     return nullptr;
 }
+static QObject* qmlPanel(const MainWindow*, const QString&)
+{
+    return nullptr;
+}
+static QObject* qmlPanelButton(QObject*, const QString&)
+{
+    return nullptr;
+}
+static bool setQmlPanelText(QObject*, const QString&, const QString&)
+{
+    return false;
+}
+static bool clickQmlPanelItem(QObject*, const QString&, const QString&, const QString&)
+{
+    return false;
+}
 }
 #endif
 
@@ -633,6 +649,12 @@ namespace {
                 }
             }
             return nullptr;
+        }
+
+        // A step's "panel" when it is a QML plugin's.
+        QObject* targetQmlPanel()
+        {
+            return _targetPanel.isEmpty() ? nullptr : qmlPanel(window(), _targetPanel);
         }
 
         // The QML dialog a step acts on: the focused or named one, else any shown while no
@@ -1468,6 +1490,9 @@ namespace {
                 const QString object = step.value(QStringLiteral("object")).toString();
                 const QString text = step.value(QStringLiteral("text")).toString();
                 const int delay = step.value(QStringLiteral("delay")).toInt(800);
+                if (QObject* panel = targetQmlPanel()) {
+                    return clickQml(qmlPanelButton(panel, object), object, delay);
+                }
                 if (QWindow* qml = frontQmlDialog()) {
                     return clickQml(qmlDialogButton(qml, object, text, 0), object.isEmpty() ? text : object, delay);
                 }
@@ -1500,6 +1525,17 @@ namespace {
             }
             if (op == QLatin1String("clickItem")) {
                 const QString object = step.value(QStringLiteral("object")).toString();
+                if (QObject* panel = targetQmlPanel()) {
+                    const QString context = step.value(QStringLiteral("context")).toString();
+                    const QString kind = !context.isEmpty()             ? QStringLiteral("context")
+                        : step.value(QStringLiteral("double")).toBool() ? QStringLiteral("double")
+                                                                        : QStringLiteral("click");
+                    if (!clickQmlPanelItem(panel, object, step.value(QStringLiteral("text")).toString(), kind)) {
+                        return fail(QStringLiteral("clickItem: no item in ") + object);
+                    }
+                    const int delay = step.value(QStringLiteral("delay")).toInt(800);
+                    return context.isEmpty() ? next(delay) : clickPopupItem(context, delay, 2000);
+                }
                 if (QWindow* qml = frontQmlDialog()) {
                     if (!clickQmlItem(qml, object, step.value(QStringLiteral("row")).toInt(), step.value(QStringLiteral("column")).toInt(),
                             step.value(QStringLiteral("text")).toString())) {
@@ -1547,6 +1583,12 @@ namespace {
                 return next(delay);
             }
             if (op == QLatin1String("setText")) {
+                if (QObject* panel = targetQmlPanel()) {
+                    if (!setQmlPanelText(panel, step.value(QStringLiteral("object")).toString(), step.value(QStringLiteral("text")).toString())) {
+                        return fail(QStringLiteral("setText: no line edit ") + step.value(QStringLiteral("object")).toString());
+                    }
+                    return next(300);
+                }
                 if (QWindow* qml = frontQmlDialog()) {
                     if (!setQmlText(qml, step.value(QStringLiteral("object")).toString(), step.value(QStringLiteral("text")).toString())) {
                         return fail(QStringLiteral("setText: no line edit ") + step.value(QStringLiteral("object")).toString());

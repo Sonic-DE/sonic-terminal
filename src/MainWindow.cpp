@@ -74,6 +74,7 @@
 #include "quick/ProfileListModel.h"
 #include "quick/QmlDialogs.h"
 #include "quick/ShortcutsEditorModel.h"
+#include "quick/TerminalHost.h"
 #include "quick/WindowController.h"
 
 #include <QHash>
@@ -85,6 +86,13 @@
 using namespace Konsole;
 
 namespace {
+// In another program, behind a TerminalHost. While it is built it has no controller yet.
+bool isHosted(const MainWindow* window)
+{
+    const WindowController* controller = WindowController::controllerOf(window);
+    return controller ? !controller->qmlWindow() : TerminalHost::creatingWindow();
+}
+
 // KXmlGuiWindow::configureToolbars() with the QML dialog: one per window, not modal. A
 // function of its own, as MainWindow's ABI is frozen.
 void openToolBarEditor(MainWindow* window)
@@ -150,6 +158,12 @@ MainWindow::MainWindow()
     , _newTabMenuAction(nullptr)
     , _pluggedController(nullptr)
 {
+    if (isHosted(this)) {
+        // Konsole's XML, not <host>ui.rc; the host's quitting isn't this window's.
+        setComponentName(QStringLiteral("konsole"), i18n("Konsole"));
+        setAttribute(Qt::WA_QuitOnClose, false);
+    }
+
     // Set the WA_NativeWindow attribute to force the creation of the QWindow.
     // Without this QWidget::windowHandle() returns 0.
     // See https://phabricator.kde.org/D23108
@@ -185,7 +199,8 @@ MainWindow::MainWindow()
     KAcceleratorManager::setNoAccel(menuBar());
 
     // No Keys: it would replace showShortcutsDialog() with KXMLGUIFactory's dialog.
-    constexpr KXmlGuiWindow::StandardWindowOptions guiOpts = ToolBar | Save | Create;
+    // Save only for its own window: a host's "MainWindow" state group is the host's.
+    const KXmlGuiWindow::StandardWindowOptions guiOpts = isHosted(this) ? ToolBar | Create : ToolBar | Save | Create;
     const QString xmlFile = componentName() + QLatin1String("ui.rc"); // Typically "konsoleui.rc"
     // The "Create" flag will make it call createGUI()
     setupGUI(guiOpts, xmlFile);
@@ -871,6 +886,11 @@ void MainWindow::newWindow()
 
 bool MainWindow::queryClose()
 {
+    // A host's terminal closes when its session has ended.
+    if (isHosted(this)) {
+        return true;
+    }
+
     // Do not ask for confirmation during log out and power off
     // TODO: rework the dealing of this case to make it has its own confirmation
     // dialog.
@@ -1129,7 +1149,9 @@ void MainWindow::applyKonsoleSettings()
     _viewManager->activeContainer()->setNavigationBehavior(KonsoleSettings::newTabBehavior());
 
     // Save the toolbar/menu/dockwidget states and the window geometry
-    setAutoSaveSettings();
+    if (!isHosted(this)) {
+        setAutoSaveSettings();
+    }
 
     updateWindowCaption();
     updateProgress();

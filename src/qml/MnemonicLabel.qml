@@ -5,6 +5,7 @@
 
 import QtQuick
 import QtQuick.Controls as QQC2
+import org.kde.desktop as QQC2
 import org.kde.kirigami as Kirigami
 
 // A QLabel with a buddy: "&Name" underlines N while Alt is held and Alt+N focuses the buddy.

@@ -71,7 +71,7 @@ void ShortcutsEditorModelTest::cleanup()
 {
     delete _main;
     delete _session;
-    KSharedConfig::openConfig()->deleteGroup(QStringLiteral("ActionShortcuts"));
+    KSharedConfig::openConfig(QStringLiteral("konsolerc"))->deleteGroup(QStringLiteral("ActionShortcuts"));
 }
 
 int ShortcutsEditorModelTest::rowOf(const ShortcutsEditorModel& model, const QString& name) const
@@ -183,7 +183,7 @@ void ShortcutsEditorModelTest::testSave()
     // Kept after save: undo has nothing to restore.
     model.undo();
     QCOMPARE(_main->action(QStringLiteral("new-window"))->shortcut(), QKeySequence(QStringLiteral("Ctrl+Alt+F7")));
-    const KConfigGroup group(KSharedConfig::openConfig(), QStringLiteral("ActionShortcuts"));
+    const KConfigGroup group(KSharedConfig::openConfig(QStringLiteral("konsolerc")), QStringLiteral("ActionShortcuts"));
     QCOMPARE(group.readEntry(QStringLiteral("konsole/new-window"), QString()), QStringLiteral("Ctrl+Alt+F7"));
 }
 

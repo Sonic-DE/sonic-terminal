@@ -9,6 +9,7 @@
 
 #include <QDockWidget>
 #include <QEvent>
+#include <QMainWindow>
 #include <QRegularExpression>
 #include <QTimer>
 #include <QWindow>
@@ -35,10 +36,22 @@ namespace {
             return _minimum;
         }
 
+        void setHints(QSize hint, QSize minimum)
+        {
+            if (hint != _hint || minimum != _minimum) {
+                _hint = hint;
+                _minimum = minimum;
+                updateGeometry();
+            }
+        }
+
     private:
         QSize _hint;
         QSize _minimum;
     };
+
+    const char* const PanelSource = "_konsole_panel_source";
+    const char* const PanelProperties = "_konsole_panel_properties";
 
     // Content → its dock.
     QHash<const QWidget*, const QDockWidget*>& dockContents()
@@ -56,6 +69,29 @@ bool DockAdapter::isDockContent(const QWidget* widget)
 QWidget* DockAdapter::dockContent(const QDockWidget* dock)
 {
     return const_cast<QWidget*>(dockContents().key(dock));
+}
+
+QDockWidget* DockAdapter::addQmlPanel(QMainWindow* window, const QString& title, const QString& objectName, const QUrl& source, const QVariantMap& properties)
+{
+    auto* dock = new QDockWidget(window);
+    dock->setWindowTitle(title);
+    dock->setObjectName(objectName);
+    dock->setWidget(new DockPlaceholder(QSize(), QSize(), dock));
+    dock->setProperty(PanelSource, source);
+    dock->setProperty(PanelProperties, properties);
+    dock->setVisible(false);
+    dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+    window->addDockWidget(Qt::LeftDockWidgetArea, dock);
+    sonicDebug() << "plugin panel:" << title << source;
+    return dock;
+}
+
+void DockAdapter::setPanelSize(QObject* dock, const QSizeF& implicit, const QSizeF& minimum)
+{
+    auto* widget = qobject_cast<QDockWidget*>(dock);
+    if (auto* placeholder = widget ? dynamic_cast<DockPlaceholder*>(widget->widget()) : nullptr) {
+        placeholder->setHints(implicit.toSize(), minimum.toSize());
+    }
 }
 
 DockAdapter::DockAdapter(QObject* parent)
@@ -139,11 +175,20 @@ void DockAdapter::adopt(QDockWidget* dock)
     connect(dock, &QObject::destroyed, content, &QObject::deleteLater);
     connect(dock, &QObject::destroyed, this, [this, dock] {
         _contents.remove(dock);
+    });
+    watch(dock);
+    sonicDebug() << "plugin dock embedded:" << dock->windowTitle();
+}
+
+void DockAdapter::watch(QDockWidget* dock)
+{
+    _watched.insert(dock);
+    connect(dock, &QObject::destroyed, this, [this, dock] {
+        _watched.remove(dock);
         scheduleRefresh();
     });
     dock->installEventFilter(this);
     dock->widget()->installEventFilter(this);
-    sonicDebug() << "plugin dock embedded:" << dock->windowTitle();
 }
 
 void DockAdapter::scheduleRefresh()
@@ -164,12 +209,15 @@ void DockAdapter::refresh()
     if (_window) {
         const QList<QDockWidget*> widgets = _window->findChildren<QDockWidget*>(Qt::FindDirectChildrenOnly);
         for (QDockWidget* dock : widgets) {
-            if (!_contents.contains(dock)) {
+            const bool panel = dock->property(PanelSource).isValid();
+            if (panel && !_watched.contains(dock)) {
+                watch(dock);
+            } else if (!panel && !_contents.contains(dock)) {
                 adopt(dock);
             }
             QWidget* content = _contents.value(dock);
             QWidget* placeholder = dock->widget();
-            if (!content || !placeholder) {
+            if ((!panel && !content) || !placeholder) {
                 continue;
             }
             syncContent(dock);
@@ -180,12 +228,18 @@ void DockAdapter::refresh()
             // Without the mnemonic markers KAcceleratorManager adds ("&&" shows "&").
             QString title = dock->windowTitle();
             title.remove(QRegularExpression(QStringLiteral("&(?!&)")));
-            docks.append(QVariantMap{{QStringLiteral("dock"), QVariant::fromValue<QObject*>(dock)},
+            QVariantMap entry{{QStringLiteral("dock"), QVariant::fromValue<QObject*>(dock)},
                 {QStringLiteral("title"), title},
-                {QStringLiteral("contentWindow"), QVariant::fromValue<QObject*>(content->windowHandle())},
                 {QStringLiteral("titleRect"), titleRect},
                 {QStringLiteral("contentRect"), contentRect},
-                {QStringLiteral("visible"), visible}});
+                {QStringLiteral("visible"), visible}};
+            if (panel) {
+                entry.insert(QStringLiteral("source"), dock->property(PanelSource));
+                entry.insert(QStringLiteral("properties"), dock->property(PanelProperties));
+            } else {
+                entry.insert(QStringLiteral("contentWindow"), QVariant::fromValue<QObject*>(content->windowHandle()));
+            }
+            docks.append(entry);
         }
     }
     if (docks != _docks) {

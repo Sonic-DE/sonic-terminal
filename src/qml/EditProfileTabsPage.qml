@@ -6,6 +6,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls as QQC2
+import org.kde.desktop as QQC2
 import org.sonicde.terminal
 
 // The Edit Profile dialog's Tabs page (EditProfileTabsPage.ui): tab title formats and

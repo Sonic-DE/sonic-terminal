@@ -10,6 +10,9 @@ SonicDE's terminal app, with tabs, split views and profiles for working on the c
 - ZModem file transfers are no longer supported.
 - Keyboard shortcuts are now saved in `konsolerc`; your existing shortcuts are moved there
   the first time the terminal starts.
+- Third-party plugins built for the widget interface still load, but a `KCommandBar` they
+  open themselves doesn't show.
+- Other programs can now show a terminal through the `org.sonicde.terminal.app` QML module.
 
 ## 26.08.2 (2026-10-20)
 

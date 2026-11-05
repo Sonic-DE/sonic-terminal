@@ -1,6 +1,4 @@
 
-ki18n_wrap_ui(extra_sshplugin_SRCS sshwidget.ui)
-
 ecm_qt_declare_logging_category(
     extra_sshplugin_SRCS
     HEADER sshmanagerplugindebug.h
@@ -14,13 +12,17 @@ ecm_qt_declare_logging_category(
 kcoreaddons_add_plugin(konsole_sshmanagerplugin
 SOURCES
     sshmanagerplugin.cpp
-    sshmanagerpluginwidget.cpp
+    sshmanagerbackend.cpp
     sshmanagermodel.cpp
     sshmanagerfiltermodel.cpp
-    sshtreeview.cpp
     ${extra_sshplugin_SRCS}
 INSTALL_NAMESPACE
     "konsoleplugins"
+)
+
+qt_add_resources(konsole_sshmanagerplugin "sshmanagerpanel"
+    PREFIX "/org/sonicde/terminal/plugins/sshmanager"
+    FILES SSHManagerPanel.qml
 )
 
 configure_file(konsole_sshmanager.in.json konsole_sshmanager.json)

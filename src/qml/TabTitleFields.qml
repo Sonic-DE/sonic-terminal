@@ -6,6 +6,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls as QQC2
+import org.kde.desktop as QQC2
 import org.sonicde.terminal
 
 // RenameTabWidget: the tab title formats with their Insert menus, and the tab colours.

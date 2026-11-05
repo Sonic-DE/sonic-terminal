@@ -75,7 +75,8 @@ ShortcutStore::~ShortcutStore() = default;
 
 ShortcutStore* ShortcutStore::instance()
 {
-    static auto* store = new ShortcutStore(KSharedConfig::openConfig(), QCoreApplication::instance());
+    // By name: in a host, its own config isn't the terminal's.
+    static auto* store = new ShortcutStore(KSharedConfig::openConfig(QStringLiteral("konsolerc")), QCoreApplication::instance());
     return store;
 }
 

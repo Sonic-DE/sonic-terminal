@@ -1,15 +1,17 @@
 
-ki18n_wrap_ui(EXTRA_QUICKCOMMANDSPLUGIN_SRCS qcwidget.ui)
-
 kcoreaddons_add_plugin(konsole_quickcommandsplugin
 SOURCES
     quickcommandsplugin.cpp
-    quickcommandswidget.cpp
+    quickcommandsbackend.cpp
     quickcommandsmodel.cpp
     filtermodel.cpp
-    ${EXTRA_QUICKCOMMANDSPLUGIN_SRCS}
 INSTALL_NAMESPACE
     "konsoleplugins"
+)
+
+qt_add_resources(konsole_quickcommandsplugin "quickcommandspanel"
+    PREFIX "/org/sonicde/terminal/plugins/quickcommands"
+    FILES QuickCommandsPanel.qml
 )
 
 configure_file(konsole_quickcommands.in.json konsole_quickcommands.json)

@@ -5,6 +5,7 @@
 
 import QtQuick
 import QtQuick.Controls as QQC2
+import org.kde.desktop as QQC2
 import org.sonicde.terminal
 
 // One choice of an Enum setting (a radio button of a kcfg_<setting> button group, named

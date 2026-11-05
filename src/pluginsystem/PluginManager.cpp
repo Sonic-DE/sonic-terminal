@@ -8,14 +8,18 @@
 #include "PluginManager.h"
 
 #include "IKonsolePlugin.h"
+#include "IKonsoleQmlPlugin.h"
 #include "MainWindow.h"
-#include "konsoledebug.h"
+#include "quick/DockAdapter.h"
+
+#include <Sonic/Logging/Log>
 
 #include <KLocalizedString>
 #include <KPluginFactory>
 #include <KPluginMetaData>
 
 #include <QAction>
+#include <QDockWidget>
 
 namespace Konsole
 {
@@ -42,16 +46,18 @@ void PluginManager::loadAllPlugins()
         if (plugin_version == release_version) {
             return true;
         } else {
-            qCWarning(KonsoleDebug) << "Ignoring" << data.name() << "plugin version (" << plugin_version << ") doesn't match release version ("
-                                    << release_version << ")";
+            sonicWarning() << "Ignoring" << data.name() << "plugin version (" << plugin_version << ") doesn't match release version (" << release_version
+                           << ")";
             return false;
         }
     });
     for (const auto &metaData : std::as_const(pluginMetaData)) {
         const KPluginFactory::Result result = KPluginFactory::instantiatePlugin<IKonsolePlugin>(metaData);
         if (!result) {
+            sonicWarning() << "plugin not loaded:" << metaData.name() << result.errorString;
             continue;
         }
+        sonicInfo() << "plugin loaded:" << metaData.name() << (qobject_cast<IKonsoleQmlPlugin*>(result.plugin) ? "(QML interface)" : "(widget interface)");
 
         d->plugins.push_back(result.plugin);
     }
@@ -62,6 +68,16 @@ void PluginManager::registerMainWindow(Konsole::MainWindow *window)
     QList<QAction *> internalPluginSubmenus;
     for (auto *plugin : d->plugins) {
         plugin->addMainWindow(window);
+        if (auto* qmlPlugin = qobject_cast<IKonsoleQmlPlugin*>(plugin)) {
+            const QList<QmlPanel> panels = qmlPlugin->panels(window);
+            for (const QmlPanel& panel : panels) {
+                QDockWidget* dock = DockAdapter::addQmlPanel(window, panel.title, panel.objectName, panel.source, panel.properties);
+                if (panel.toggleAction) {
+                    connect(panel.toggleAction, &QAction::triggered, dock, &QDockWidget::setVisible);
+                    connect(dock, &QDockWidget::visibilityChanged, panel.toggleAction, &QAction::setChecked);
+                }
+            }
+        }
         internalPluginSubmenus.append(plugin->menuBarActions(window));
         window->addPlugin(plugin);
     }

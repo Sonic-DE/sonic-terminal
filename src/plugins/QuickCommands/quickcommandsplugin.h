@@ -6,6 +6,7 @@
 #define QUICKCOMMANDSPLUGIN_H
 
 #include <pluginsystem/IKonsolePlugin.h>
+#include <pluginsystem/IKonsoleQmlPlugin.h>
 
 namespace Konsole
 {
@@ -13,9 +14,9 @@ class SessionController;
 class MainWindow;
 }
 
-class QuickCommandsPlugin : public Konsole::IKonsolePlugin
-{
+class QuickCommandsPlugin : public Konsole::IKonsolePlugin, public Konsole::IKonsoleQmlPlugin {
     Q_OBJECT
+    Q_INTERFACES(Konsole::IKonsoleQmlPlugin)
 
 public:
     QuickCommandsPlugin(QObject *object, const QVariantList &args);
@@ -24,6 +25,7 @@ public:
     void createWidgetsForMainWindow(Konsole::MainWindow *mainWindow) override;
     void activeViewChanged(Konsole::SessionController *controller, Konsole::MainWindow *mainWindow) override;
     QList<QAction *> menuBarActions(Konsole::MainWindow *mainWindow) const override;
+    QList<Konsole::QmlPanel> panels(Konsole::MainWindow* mainWindow) override;
 
 private:
     struct Private;

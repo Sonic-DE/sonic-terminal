@@ -5,6 +5,7 @@
 
 import QtQuick
 import QtQuick.Controls as QQC2
+import org.kde.desktop as QQC2
 import org.sonicde.terminal
 
 // A kcfg_<setting> spin box: an Int setting of a SettingsEditor, with QSpinBox's suffix.

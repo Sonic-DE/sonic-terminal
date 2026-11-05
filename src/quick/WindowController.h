@@ -11,9 +11,10 @@
 
 #include <QObject>
 #include <QPointer>
+#include <QShortcut>
 
+class QQuickItem;
 class QQuickWindow;
-class QShortcut;
 class QWindow;
 
 namespace Konsole {
@@ -38,10 +39,15 @@ class KONSOLEAPP_EXPORT WindowController : public QObject {
 public:
     // Before the window's first show().
     explicit WindowController(MainWindow* window);
+    // No window of its own: another program's item shows the compat window, which follows its
+    // place on screen; shortcuts apply while it has the focus.
+    WindowController(MainWindow* window, QQuickItem* item);
     ~WindowController() override;
 
     QObject* compatWindow() const;
     QQuickWindow* qmlWindow() const;
+    // Where the terminal is on screen: the QML window, or the window holding the item.
+    QWindow* shownWindow() const;
     bool translucent() const;
     static WindowController* controllerOf(const QObject* compatWindow);
 
@@ -65,7 +71,10 @@ protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
+    void setUpCompatWindow();
     void createQmlWindow();
+    void watchActions();
+    void followItem();
     void followQmlGeometry();
     void followQmlWindowState();
     void setCompatGeometry(const QRect& geometry);
@@ -78,12 +87,14 @@ private:
 
     QPointer<MainWindow> _window;
     QPointer<QQuickWindow> _qmlWindow;
+    QPointer<QQuickItem> _item;
+    QPointer<QWindow> _itemWindow;
     QPointer<QWindow> _bridgedWindow;
     // A facade that got focus before its view was in the scene.
     QPointer<TerminalDisplay> _pendingFocus;
     // The compat window's action shortcuts, on the QML window (its actions' own don't fire
-    // while a QML window has focus).
-    QList<QShortcut*> _shortcuts;
+    // while a QML window has focus). A host's window can go first.
+    QList<QPointer<QShortcut>> _shortcuts;
     QPointer<QObject> _commandBar;
     bool _shortcutsScheduled = false;
     bool _syncing = false;

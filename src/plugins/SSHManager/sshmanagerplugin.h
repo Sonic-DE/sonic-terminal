@@ -9,6 +9,7 @@
 #define SSHMANAGERPLUGIN_H
 
 #include <pluginsystem/IKonsolePlugin.h>
+#include <pluginsystem/IKonsoleQmlPlugin.h>
 
 #include <memory>
 
@@ -23,9 +24,9 @@ class QStandardItemModel;
 
 struct SSHManagerPluginPrivate;
 
-class SSHManagerPlugin : public Konsole::IKonsolePlugin
-{
+class SSHManagerPlugin : public Konsole::IKonsolePlugin, public Konsole::IKonsoleQmlPlugin {
     Q_OBJECT
+    Q_INTERFACES(Konsole::IKonsoleQmlPlugin)
 public:
     SSHManagerPlugin(QObject *object, const QVariantList &args);
     ~SSHManagerPlugin() override;
@@ -33,6 +34,7 @@ public:
     void createWidgetsForMainWindow(Konsole::MainWindow *mainWindow) override;
     void activeViewChanged(Konsole::SessionController *controller, Konsole::MainWindow *mainWindow) override;
     QList<QAction *> menuBarActions(Konsole::MainWindow *mainWindow) const override;
+    QList<Konsole::QmlPanel> panels(Konsole::MainWindow* mainWindow) override;
 
     static void
     requestConnection(QSortFilterProxyModel *filterModel, QStandardItemModel *model, Konsole::SessionController *controller, const QModelIndex &idx);

@@ -80,6 +80,12 @@ ecm_add_tests(
     ToolbarEditorTest.cpp
     LINK_LIBRARIES ${KONSOLE_TEST_LIBS} KF6::Parts
 )
+# As another program: only the QML module, on the import path.
+ecm_add_test(TerminalModuleTest.cpp LINK_LIBRARIES Qt::Test Qt::QuickWidgets KF6::XmlGui KF6::ConfigCore)
+target_compile_definitions(TerminalModuleTest PRIVATE TERMINAL_QML_DIR="${CMAKE_CURRENT_BINARY_DIR}/../qml" TERMINAL_QML_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/..")
+add_dependencies(TerminalModuleTest konsoleprivateplugin konsoleappplugin)
+# A host's style needn't be the terminal's.
+set_tests_properties(TerminalModuleTest PROPERTIES ENVIRONMENT "QT_QUICK_CONTROLS_STYLE=Fusion")
 # The widget settings pages the tests compare with aren't exported by konsoleapp.
 set(widget_settings_pages
     ../settings/GeneralSettings.cpp

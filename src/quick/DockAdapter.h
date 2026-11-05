@@ -10,10 +10,14 @@
 #include <QHash>
 #include <QObject>
 #include <QPointer>
+#include <QSet>
+#include <QSizeF>
+#include <QUrl>
 #include <QVariantList>
 #include <QtQml/qqmlregistration.h>
 
 class QDockWidget;
+class QMainWindow;
 class QWidget;
 
 namespace Konsole {
@@ -27,7 +31,8 @@ class KONSOLEPRIVATE_EXPORT DockAdapter : public QObject {
     Q_OBJECT
     QML_ELEMENT
     Q_PROPERTY(QObject* window READ window WRITE setWindow NOTIFY windowChanged)
-    // In the window: {dock, title, contentWindow (QWindow), titleRect, contentRect, visible}.
+    // In the window: {dock, title, contentWindow (QWindow), titleRect, contentRect, visible};
+    // a QML panel has {source, properties} instead of a content window.
     Q_PROPERTY(QVariantList docks READ docks NOTIFY changed)
 
 public:
@@ -40,9 +45,13 @@ public:
     // A plugin dock's content, embedded in a QML window as a top-level widget of its own.
     static bool isDockContent(const QWidget* widget);
     static QWidget* dockContent(const QDockWidget* dock);
+    // A QML plugin panel: a hidden dock in the compat window whose place the QML window draws
+    // the panel in, the panel's sizes (setPanelSize()) being the dock's hints.
+    static QDockWidget* addQmlPanel(QMainWindow* window, const QString& title, const QString& objectName, const QUrl& source, const QVariantMap& properties);
 
     // The QML title's close button: the real dock closes (the plugin's toggle follows).
     Q_INVOKABLE void closeDock(QObject* dock);
+    Q_INVOKABLE void setPanelSize(QObject* dock, const QSizeF& implicit, const QSizeF& minimum);
 
 Q_SIGNALS:
     void windowChanged();
@@ -55,11 +64,13 @@ private:
     void scheduleRefresh();
     void refresh();
     void adopt(QDockWidget* dock);
+    void watch(QDockWidget* dock);
     void syncContent(QDockWidget* dock);
 
     QPointer<QWidget> _window;
     // Dock → its content, taken out as a native window.
     QHash<QDockWidget*, QPointer<QWidget>> _contents;
+    QSet<QDockWidget*> _watched;
     QVariantList _docks;
     bool _refreshScheduled = false;
 };

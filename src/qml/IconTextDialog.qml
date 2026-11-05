@@ -6,6 +6,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls as QQC2
+import org.kde.desktop as QQC2
 import org.kde.kirigami as Kirigami
 
 // Configure Toolbars' Change Text (IconTextEditDialog): an action's icon text, never empty,

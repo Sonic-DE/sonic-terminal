@@ -6,6 +6,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls as QQC2
+import org.kde.desktop as QQC2
 
 // A KPageDialog with the Tabbed face: one tab per page (DialogPage children).
 DialogWindow {

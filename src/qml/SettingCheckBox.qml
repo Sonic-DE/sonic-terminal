@@ -5,6 +5,7 @@
 
 import QtQuick
 import QtQuick.Controls as QQC2
+import org.kde.desktop as QQC2
 import org.sonicde.terminal
 
 // A kcfg_<setting> check box: a Bool setting of a SettingsEditor; the setting's tooltip

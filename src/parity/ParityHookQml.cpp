@@ -79,15 +79,9 @@ namespace {
         return object.startsWith(u'@') ? object.mid(1) : object;
     }
 
-    // By object name: QObject children, then the item tree (view delegates have no QObject parent).
-    QQuickItem* findItem(QWindow* dialog, const QString& object)
+    QQuickItem* findInItems(QQuickItem* root, const QString& name)
     {
-        const QString name = objectName(object);
-        if (auto* found = dialog->findChild<QQuickItem*>(name)) {
-            return found;
-        }
-        auto* quick = qobject_cast<QQuickWindow*>(dialog);
-        QList<QQuickItem*> items = {quick ? quick->contentItem() : nullptr};
+        QList<QQuickItem*> items = {root};
         while (!items.isEmpty()) {
             QQuickItem* item = items.takeFirst();
             if (!item) {
@@ -99,6 +93,43 @@ namespace {
             items += item->childItems();
         }
         return nullptr;
+    }
+
+    // By object name: QObject children, then the item tree (view delegates have no QObject parent).
+    QQuickItem* findItem(QWindow* dialog, const QString& object)
+    {
+        const QString name = objectName(object);
+        if (auto* found = dialog->findChild<QQuickItem*>(name)) {
+            return found;
+        }
+        auto* quick = qobject_cast<QQuickWindow*>(dialog);
+        return findInItems(quick ? quick->contentItem() : nullptr, name);
+    }
+
+    // The item if it is a button, else a control's first button (KeySequenceItem).
+    QObject* buttonIn(QQuickItem* found)
+    {
+        if (!found || found->inherits("QQuickAbstractButton")) {
+            return found;
+        }
+        QList<QQuickItem*> items = found->childItems();
+        while (!items.isEmpty()) {
+            QQuickItem* item = items.takeFirst();
+            if (item->inherits("QQuickAbstractButton") && item->isVisible()) {
+                return item;
+            }
+            items += item->childItems();
+        }
+        return nullptr;
+    }
+
+    bool setText(QQuickItem* field, const QString& text)
+    {
+        if (!field || !(field->inherits("QQuickTextInput") || field->inherits("QQuickTextEdit"))) {
+            return false;
+        }
+        field->setProperty("text", text);
+        return true;
     }
 
     bool isDialog(const QWindow* window)
@@ -148,20 +179,7 @@ QObject* qmlDialogButton(QWindow* dialog, const QString& object, const QString& 
         return nullptr;
     }
     if (!object.isEmpty()) {
-        QQuickItem* found = findItem(quick, object);
-        if (!found || found->inherits("QQuickAbstractButton")) {
-            return found;
-        }
-        // A control made of buttons (KeySequenceItem): its first one.
-        QList<QQuickItem*> items = found->childItems();
-        while (!items.isEmpty()) {
-            QQuickItem* item = items.takeFirst();
-            if (item->inherits("QQuickAbstractButton") && item->isVisible()) {
-                return item;
-            }
-            items += item->childItems();
-        }
-        return nullptr;
+        return buttonIn(findItem(quick, object));
     }
     if (standardButton) {
         // DialogButtonBox::standardButton(), through the engine (its return type is private), of
@@ -283,12 +301,7 @@ bool selectQmlRow(QWindow* dialog, const QString& object, int row, const QString
 
 bool setQmlText(QWindow* dialog, const QString& object, const QString& text)
 {
-    auto* field = findItem(dialog, object);
-    if (!field || !field->inherits("QQuickTextInput")) {
-        return false;
-    }
-    field->setProperty("text", text);
-    return true;
+    return setText(findItem(dialog, object), text);
 }
 
 bool clickQmlItem(QWindow* dialog, const QString& object, int row, int column, const QString& text)
@@ -348,5 +361,36 @@ bool allowedWidget(const QWidget* widget)
 QWidget* dockContent(const QDockWidget* dock)
 {
     return DockAdapter::dockContent(dock);
+}
+
+QObject* qmlPanel(const MainWindow* window, const QString& title)
+{
+    auto* qml = qobject_cast<QQuickWindow*>(qmlWindow(window));
+    QQuickItem* panel = qml ? findInItems(qml->contentItem(), QStringLiteral("panel:") + title) : nullptr;
+    return panel && panel->isVisible() && panel->property("item").value<QObject*>() ? panel : nullptr;
+}
+
+QObject* qmlPanelButton(QObject* panel, const QString& object)
+{
+    return buttonIn(findInItems(qobject_cast<QQuickItem*>(panel), objectName(object)));
+}
+
+bool setQmlPanelText(QObject* panel, const QString& object, const QString& text)
+{
+    return setText(findInItems(qobject_cast<QQuickItem*>(panel), objectName(object)), text);
+}
+
+bool clickQmlPanelItem(QObject* panel, const QString& object, const QString& text, const QString& kind)
+{
+    QQuickItem* tree = findInItems(qobject_cast<QQuickItem*>(panel), objectName(object));
+    auto* model = tree ? tree->property("model").value<QAbstractItemModel*>() : nullptr;
+    if (!model || model->match(model->index(0, 0), Qt::DisplayRole, text, 1, Qt::MatchExactly | Qt::MatchRecursive).isEmpty()) {
+        return false;
+    }
+    // Deferred: a row may open a modal dialog.
+    QTimer::singleShot(0, tree, [tree, text, kind] {
+        QMetaObject::invokeMethod(tree, "clickItemByText", Q_ARG(QVariant, text), Q_ARG(QVariant, kind));
+    });
+    return true;
 }
 }

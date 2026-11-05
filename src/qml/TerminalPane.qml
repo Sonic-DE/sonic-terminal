@@ -5,6 +5,7 @@
 
 import QtQuick
 import QtQuick.Controls as Controls
+import org.kde.desktop as Controls
 import org.kde.kirigami as Kirigami
 import org.kde.qqc2desktopstyle.private as StylePrivate
 import org.sonicde.terminal

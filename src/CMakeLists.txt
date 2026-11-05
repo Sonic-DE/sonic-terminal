@@ -396,6 +396,7 @@ qt_add_qml_module(konsoleprivate
         qml/KeyBindingEditorDialog.qml
         qml/MnemonicLabel.qml
         qml/PageDialog.qml
+        qml/PanelTree.qml
         qml/PartInfoPage.qml
         qml/PartSettingsDialog.qml
         qml/ProfileCheckBox.qml
@@ -471,17 +472,18 @@ add_library(konsoleapp SHARED Application.cpp
     delegates/ProfileShortcutDelegate.cpp
     SonicLoggingApp.cpp
     quick/WindowController.cpp
+    quick/TerminalHost.cpp
 )
 
 generate_export_header(konsoleapp BASE_NAME konsoleapp)
 
-# The QML window; loaded from resources until phase 5 installs the module.
 qt_add_qml_module(konsoleapp
     URI org.sonicde.terminal.app
     VERSION 1.0
     OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/qml/org/sonicde/terminal/app
     QML_FILES
         qml/Main.qml
+        qml/TerminalArea.qml
     IMPORTS
         org.sonicde.terminal
 )
@@ -505,6 +507,8 @@ if(KONSOLE_PARITY_HOOKS)
     add_subdirectory(parity/compatplugin)
 endif()
 
+target_include_directories(konsoleapp PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/quick)
+
 target_link_libraries(konsoleapp PUBLIC
   konsoleprivate
   Sonic::Logging
@@ -525,6 +529,20 @@ set_target_properties(konsoleapp PROPERTIES
 )
 
 install(TARGETS konsoleapp ${KDE_INSTALL_TARGETS_DEFAULT_ARGS} LIBRARY NAMELINK_SKIP)
+
+# The QML modules, for other programs: their QML is in the libraries' resources.
+# The engine looks for lib<name>.so; KDECMakeSettings takes the prefix off modules.
+set_target_properties(konsoleprivateplugin konsoleappplugin PROPERTIES PREFIX "lib")
+install(TARGETS konsoleprivateplugin DESTINATION ${KDE_INSTALL_QMLDIR}/org/sonicde/terminal)
+install(FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/qml/org/sonicde/terminal/qmldir
+    ${CMAKE_CURRENT_BINARY_DIR}/qml/org/sonicde/terminal/konsoleprivate.qmltypes
+    DESTINATION ${KDE_INSTALL_QMLDIR}/org/sonicde/terminal)
+install(TARGETS konsoleappplugin DESTINATION ${KDE_INSTALL_QMLDIR}/org/sonicde/terminal/app)
+install(FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/qml/org/sonicde/terminal/app/qmldir
+    ${CMAKE_CURRENT_BINARY_DIR}/qml/org/sonicde/terminal/app/konsoleapp.qmltypes
+    DESTINATION ${KDE_INSTALL_QMLDIR}/org/sonicde/terminal/app)
 
 set(konsole_SRCS
     main.cpp
