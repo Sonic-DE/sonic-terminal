@@ -2,9 +2,9 @@ bin/konsole -
 bin/konsoleprofile ecea051c24450fd4a07ee07041bff0a0b9e5da5c98a0239eab3b5ba86455d176
 lib64/libkonsoleapp.so.26.08.2 -
 lib64/libkonsoleprivate.so.26.08.2 -
-lib64/plugins/kf6/parts/konsolepart.so -
-lib64/plugins/konsoleplugins/konsole_quickcommandsplugin.so -
-lib64/plugins/konsoleplugins/konsole_sshmanagerplugin.so -
+lib64/qt6/plugins/kf6/parts/konsolepart.so -
+lib64/qt6/plugins/konsoleplugins/konsole_quickcommandsplugin.so -
+lib64/qt6/plugins/konsoleplugins/konsole_sshmanagerplugin.so -
 share/applications/org.kde.konsole.desktop 77cc01f72c5cd9381b8e3e44e2d241f2020aa486806a39329059e17dda5630a8
 share/doc/HTML/ca/konsole/draganddrop-contextmenu.png -
 share/doc/HTML/ca/konsole/index.cache.bz2 -
