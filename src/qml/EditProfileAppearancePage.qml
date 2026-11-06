@@ -62,7 +62,7 @@ DialogPage {
             text: i18n("Cursor")
         }
         QQC2.TabButton {
-            text: i18n("Miscellaneous")
+            text: i18nc("Items that do not fit in other categories", "Miscellaneous")
         }
         QQC2.TabButton {
             text: i18n("Complex Text Layout")
@@ -190,7 +190,7 @@ DialogPage {
                 QQC2.Button {
                     objectName: "newColorSchemeButton"
                     Layout.fillWidth: true
-                    text: i18n("New...")
+                    text: i18nc("@action:button Create an alternate color scheme", "New...")
                     icon.name: "list-add"
                     onClicked: root.editor.editColorScheme(root.selectedScheme, true, this)
                     QQC2.ToolTip.text: i18n("Create a new color scheme based upon the selected scheme")
@@ -268,7 +268,7 @@ DialogPage {
                 // expanding list beside them does.
                 Layout.fillWidth: true
                 Layout.horizontalStretchFactor: 0
-                text: i18n("Choose...")
+                text: i18nc("@action:button open a dialog with list of fonts", "Choose...")
                 icon.name: "preferences-desktop-font"
                 onClicked: root.editor.chooseFont(this)
             }
@@ -298,8 +298,8 @@ DialogPage {
                 // Profile files' key, misspelled.
                 profileProperty: "UseFontLineChararacters"
                 preview: true
-                text: i18n("Use line characters contained in font")
-                toolTip: i18n("Use the selected font for line characters instead of the builtin code")
+                text: i18nc("Characters for drawing lines for a frame or box in TUI programs. Not a row of characters.", "Use line characters contained in font")
+                toolTip: i18nc("Characters for drawing lines for a frame or box in TUI programs. Not a row of characters.", "Use the selected font for line characters instead of the builtin code")
             }
             Item {}
             Setting {
@@ -329,27 +329,27 @@ DialogPage {
                     profileProperty: "CursorShape"
                     value: 0
                     preview: true
-                    text: i18n("Block")
+                    text: i18nc("A solid rectangular", "Block")
                 }
                 Choice {
                     objectName: "cursorShapeIBeam"
                     profileProperty: "CursorShape"
                     value: 1
                     preview: true
-                    text: i18n("I-Beam")
+                    text: i18nc("A vertical line on the left edge", "I-Beam")
                 }
                 Choice {
                     objectName: "cursorShapeUnderline"
                     profileProperty: "CursorShape"
                     value: 2
                     preview: true
-                    text: i18n("Underline")
+                    text: i18nc("A hortizonal line on the bottom edge", "Underline")
                 }
             }
 
             SectionLabel {
                 Layout.alignment: Qt.AlignRight | Qt.AlignTop
-                text: i18n("Color:")
+                text: i18nc("Cursor color options", "Color:")
             }
             ColumnLayout {
                 spacing: 0
@@ -454,7 +454,7 @@ DialogPage {
 
             QQC2.GroupBox {
                 Layout.fillWidth: true
-                title: i18n("Terminal contents")
+                title: i18nc("@title:group", "Terminal contents")
 
                 GridLayout {
                     anchors.fill: parent
@@ -468,7 +468,7 @@ DialogPage {
                     QQC2.SpinBox {
                         id: lineSpacingSpinner
 
-                        readonly property string suffix: i18n(" px")
+                        readonly property string suffix: i18nc("(pixels) visual size unit", " px")
 
                         objectName: "lineSpacingSpinner"
                         editable: true
@@ -490,7 +490,7 @@ DialogPage {
                     QQC2.SpinBox {
                         id: marginsSpinner
 
-                        readonly property string suffix: i18n(" px")
+                        readonly property string suffix: i18nc("(pixels) visual size unit", " px")
 
                         objectName: "marginsSpinner"
                         editable: true
@@ -596,7 +596,7 @@ DialogPage {
                     MnemonicLabel {
                         objectName: "borderLabel"
                         enabled: borderWhenActiveCheckbox.checked
-                        label: i18n("Color:")
+                        label: i18nc("Border color options", "Color:")
                         buddy: focusBorderColor
                     }
                     ColorButton {

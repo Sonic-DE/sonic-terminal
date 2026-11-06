@@ -87,14 +87,14 @@ DialogPage {
 
                 objectName: "urlHintsModifierMeta"
                 modifier: Qt.MetaModifier
-                text: i18n("Meta")
+                text: i18nc("key on keyboard", "Meta")
             }
         }
 
         Gap {}
 
         SectionLabel {
-            text: i18n("Miscellaneous:")
+            text: i18nc("Items that do not fit in other categories", "Miscellaneous:")
         }
         Setting {
             objectName: "enableReverseUrlHints"
@@ -181,13 +181,13 @@ DialogPage {
                 objectName: "lineNumsURL"
                 profileProperty: "LineNumbers"
                 value: 1
-                text: i18n("When &URL hints show")
+                text: i18nc("When showing URL hints", "When &URL hints show")
             }
             Choice {
                 objectName: "lineNumsAlways"
                 profileProperty: "LineNumbers"
                 value: 2
-                text: i18n("A&lways")
+                text: i18nc("Always", "A&lways")
             }
         }
     }

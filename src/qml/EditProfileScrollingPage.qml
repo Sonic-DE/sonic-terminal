@@ -83,7 +83,7 @@ DialogPage {
             objectName: "scrollBarRightButton"
             profileProperty: "ScrollBarPosition"
             value: 1
-            text: i18n("Ri&ght side")
+            text: i18nc("@option:radio Show scrollbar on the right side", "Ri&ght side")
             toolTip: i18n("Show the scroll bar on the right side of the terminal window")
         }
         Item {}
@@ -91,7 +91,7 @@ DialogPage {
             objectName: "scrollBarLeftButton"
             profileProperty: "ScrollBarPosition"
             value: 0
-            text: i18n("&Left side")
+            text: i18nc("@option:radio Show scrollbar on the left side", "&Left side")
             toolTip: i18n("Show the scroll bar on the left side of the terminal window")
         }
         Item {}
@@ -99,7 +99,7 @@ DialogPage {
             objectName: "scrollBarHiddenButton"
             profileProperty: "ScrollBarPosition"
             value: 2
-            text: i18n("Hidden")
+            text: i18nc("@option:radio Hide the scroll bar", "Hidden")
         }
 
         Gap {}

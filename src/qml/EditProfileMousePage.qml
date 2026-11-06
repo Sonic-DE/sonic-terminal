@@ -44,7 +44,7 @@ DialogPage {
             text: i18n("Text interaction")
         }
         QQC2.TabButton {
-            text: i18n("Miscellaneous")
+            text: i18nc("Items that do not fit in other categories", "Miscellaneous")
         }
     }
 
@@ -61,7 +61,7 @@ DialogPage {
                 Layout.alignment: Qt.AlignRight
                 label: i18n("Word characters:")
                 buddy: wordCharacterEdit
-                QQC2.ToolTip.text: i18n("Characters which are considered part of a word when double-clicking to select whole words in the terminal.")
+                QQC2.ToolTip.text: i18nc("@info:tooltip", "Characters which are considered part of a word when double-clicking to select whole words in the terminal.")
             }
             QQC2.TextField {
                 id: wordCharacterEdit
@@ -70,7 +70,7 @@ DialogPage {
                 Layout.fillWidth: true
                 text: root.editor.value("WordCharacters")
                 onTextEdited: root.editor.setValue("WordCharacters", text)
-                QQC2.ToolTip.text: i18n("Characters which are considered part of a word when double-clicking to select whole words in the terminal.")
+                QQC2.ToolTip.text: i18nc("@info:tooltip", "Characters which are considered part of a word when double-clicking to select whole words in the terminal.")
                 QQC2.ToolTip.visible: hovered
                 QQC2.ToolTip.delay: Qt.styleHints.mousePressAndHoldInterval
             }
@@ -174,7 +174,7 @@ DialogPage {
                 MnemonicLabel {
                     label: i18n("Text Editor Command: ")
                     buddy: textEditorCombo
-                    QQC2.ToolTip.text: i18n("Text editor to use when opening text file URLs at a given line/column.")
+                    QQC2.ToolTip.text: i18nc("@info:tooltip", "Text editor to use when opening text file URLs at a given line/column.")
                 }
                 QQC2.ComboBox {
                     id: textEditorCombo
@@ -185,7 +185,7 @@ DialogPage {
                     textRole: "text"
                     Component.onCompleted: currentIndex = root.editor.value("TextEditorCmd")
                     onActivated: index => root.editor.setValue("TextEditorCmd", index)
-                    QQC2.ToolTip.text: i18n("Text editor to use when opening text file URLs at a given line/column.")
+                    QQC2.ToolTip.text: i18nc("@info:tooltip", "Text editor to use when opening text file URLs at a given line/column.")
                     QQC2.ToolTip.visible: hovered
                     QQC2.ToolTip.delay: Qt.styleHints.mousePressAndHoldInterval
 

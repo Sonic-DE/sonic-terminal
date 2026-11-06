@@ -133,7 +133,7 @@ DialogWindow {
                     objectName: "pageSearch"
                     Layout.fillWidth: true
                     focus: true
-                    placeholderText: i18nc("@info:placeholder", "Search…")
+                    placeholderText: qsTranslate("KPageView", "Search…", "@info:placeholder")
                     onTextChanged: searchTimer.restart()
                 }
 

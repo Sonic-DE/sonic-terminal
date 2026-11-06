@@ -14,6 +14,7 @@ SonicDE's terminal app, with tabs, split views and profiles for working on the c
   open themselves doesn't show.
 - Other programs can now show a terminal through the `org.sonicde.terminal.app` QML module,
   including the whole terminal with its tabs and toolbars, as the Terminal Panel widget does.
+- Scripts can now also reach the terminal under a SonicDE D-Bus name, `org.sonicde.terminal-<pid>`.
 - With the Terminal Panel widget in a panel, opening a terminal now brings that panel out with a
   new tab, ready for typing. Commands and `--separate` still get their own window, and so does
   "Open a New Window".

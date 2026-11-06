@@ -292,7 +292,7 @@ DialogWindow {
         id: testArea
 
         Layout.fillWidth: true
-        title: i18n("Test Area")
+        title: i18nc("Title of the area where you test your keys are properly configured", "Test Area")
         padding: 0
         topPadding: label.implicitHeight + spacing
         background: null

@@ -57,7 +57,7 @@ DialogPage {
             objectName: parent.namePrefix + "URL"
             profileProperty: parent.profileProperty
             value: 1
-            text: i18n("When URL hints show")
+            text: i18nc("When showing URL hints", "When URL hints show")
         }
         Choice {
             objectName: parent.namePrefix + "Always"
@@ -142,7 +142,7 @@ DialogPage {
 
                     objectName: "profileNameEdit"
                     Layout.fillWidth: true
-                    placeholderText: i18n("Profile name")
+                    placeholderText: i18nc("@label:textbox", "Profile name")
                     enabled: root.editor.nameEditable
                     text: root.editor.nameEditable ? root.editor.value("Name") : root.editor.groupNames()
                     QQC2.ToolTip.text: i18n("A descriptive name for the profile")
@@ -342,7 +342,7 @@ DialogPage {
                 Layout.fillWidth: true
                 Layout.preferredWidth: Kirigami.Units.gridUnit * 20
                 wrapMode: Text.WordWrap
-                text: i18n("<html><head/><body><p><span style=\" font-style:italic;\">Settings → Configure Konsole → General → Remember window size</span> must be disabled for these entries to work.</p></body></html>")
+                text: i18nc("@info", "<html><head/><body><p><span style=\" font-style:italic;\">Settings → Configure Konsole → General → Remember window size</span> must be disabled for these entries to work.</p></body></html>")
             }
 
             MnemonicLabel {

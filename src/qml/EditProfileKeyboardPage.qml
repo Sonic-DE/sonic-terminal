@@ -122,7 +122,7 @@ DialogPage {
             QQC2.Button {
                 objectName: "newKeyBindingsButton"
                 Layout.fillWidth: true
-                text: i18n("New...")
+                text: i18nc("@action:button Create an alternate key binding", "New...")
                 icon.name: "list-add"
                 onClicked: root.editor.editKeyBindings(root.selectedBindings, true, this)
                 QQC2.ToolTip.text: i18n("Create a new key bindings scheme based upon the selected bindings")
