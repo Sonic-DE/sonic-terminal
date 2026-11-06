@@ -6,6 +6,7 @@
 #include "ProfileEditor.h"
 
 #include "ColorSchemeEditorBackend.h"
+#include "CompatWindows.h"
 #include "Enumeration.h"
 #include "FontDialog.h"
 #include "FrameworkDialogScope.h"
@@ -145,6 +146,10 @@ void ProfileEditor::setSetAsDefault(bool isDefault)
 
 QString ProfileEditor::defaultProfileText() const
 {
+    // In a host's process it is still Sonic Terminal's profile, not the host's.
+    if (CompatWindows::hostedProcess()) {
+        return i18n("Default profile for new terminal sessions in %1", QStringLiteral("Sonic Terminal"));
+    }
     QString appName = QCoreApplication::applicationName();
     if (!appName.isEmpty() && appName != QLatin1String("konsole")) {
         appName[0] = appName.at(0).toUpper();

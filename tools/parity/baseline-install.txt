@@ -5,7 +5,7 @@ lib64/libkonsoleprivate.so.26.08.2 -
 lib64/qt6/plugins/kf6/parts/konsolepart.so -
 lib64/qt6/plugins/konsoleplugins/konsole_quickcommandsplugin.so -
 lib64/qt6/plugins/konsoleplugins/konsole_sshmanagerplugin.so -
-share/applications/org.kde.konsole.desktop 77cc01f72c5cd9381b8e3e44e2d241f2020aa486806a39329059e17dda5630a8
+share/applications/org.kde.konsole.desktop 8482aa0273a0ece1510878aad65f347cac77f01442fc0419bf4b55f0f2414404
 share/doc/HTML/ca/konsole/draganddrop-contextmenu.png -
 share/doc/HTML/ca/konsole/index.cache.bz2 -
 share/doc/HTML/ca/konsole/index.docbook -
@@ -43,7 +43,7 @@ share/doc/HTML/uk/konsole/index.cache.bz2 -
 share/doc/HTML/uk/konsole/index.docbook -
 share/doc/HTML/zh_CN/konsole/index.cache.bz2 -
 share/doc/HTML/zh_CN/konsole/index.docbook -
-share/kglobalaccel/org.kde.konsole.desktop 77cc01f72c5cd9381b8e3e44e2d241f2020aa486806a39329059e17dda5630a8
+share/kglobalaccel/org.kde.konsole.desktop 8482aa0273a0ece1510878aad65f347cac77f01442fc0419bf4b55f0f2414404
 share/kio/servicemenus/konsolerun.desktop b53e8530939cda4476973c1f7ae790235171b59570fadfb77df53275404080a9
 share/knotifications6/konsole.notifyrc 05a46b6c5888297692fcffaa954d5919f41bd2b1d396ecefd9ac7b0c087d01cb
 share/locale/af/LC_MESSAGES/konsole.mo -
