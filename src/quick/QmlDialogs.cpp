@@ -29,13 +29,17 @@ namespace QmlDialogs {
     {
         // Qt Quick settings must precede the first QML.
         static QQmlEngine* engine = [] {
-            if (QQuickStyle::name().isEmpty()) {
-                QQuickStyle::setStyle(QStringLiteral("org.kde.desktop"));
+            // A host's process keeps its own: it may have loaded QML already.
+            if (!CompatWindows::hostedProcess()) {
+                if (QQuickStyle::name().isEmpty()) {
+                    QQuickStyle::setStyle(QStringLiteral("org.kde.desktop"));
+                }
+                // QML text renders like the widgets' (only affects items created afterwards).
+                QQuickWindow::setTextRenderType(QQuickWindow::NativeTextRendering);
             }
-            // QML text renders like the widgets' (only affects items created afterwards).
-            QQuickWindow::setTextRenderType(QQuickWindow::NativeTextRendering);
             auto* engine = new QQmlEngine(qApp);
-            KLocalization::setupLocalizedContext(engine);
+            // Not the application's domain: in a host that is the host's.
+            KLocalization::setupLocalizedContext(engine)->setTranslationDomain(QStringLiteral("konsole"));
             QObject::connect(engine, &QQmlEngine::warnings, engine, [](const QList<QQmlError>& warnings) {
                 for (const QQmlError& warning : warnings) {
                     sonicWarning() << "qml:" << warning.toString();

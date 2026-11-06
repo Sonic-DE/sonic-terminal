@@ -224,10 +224,11 @@ WindowController::WindowController(MainWindow* window)
     CompatWindows::setShownWindow(window, _qmlWindow);
 }
 
-WindowController::WindowController(MainWindow* window, QQuickItem* item)
+WindowController::WindowController(MainWindow* window, QQuickItem* item, bool fullTerminal)
     : QObject(window)
     , _window(window)
     , _item(item)
+    , _fullTerminal(fullTerminal)
 {
     setUpCompatWindow();
     connect(item, &QQuickItem::xChanged, this, &WindowController::followItem);
@@ -248,6 +249,9 @@ WindowController::WindowController(MainWindow* window, QQuickItem* item)
     followFrames(item->window());
     connect(item, &QQuickItem::activeFocusChanged, this, &WindowController::scheduleShortcuts);
     watchActions();
+    if (fullTerminal) {
+        rewireFindAction();
+    }
     followItem();
 }
 
@@ -306,10 +310,14 @@ bool WindowController::translucent() const
 
 void WindowController::setBlur(bool blur)
 {
-    if (!_qmlWindow || blur == _blur) {
+    if (blur == _blur) {
         return;
     }
     _blur = blur;
+    Q_EMIT blurChanged();
+    if (!_qmlWindow) {
+        return;
+    }
     if (blur) {
         // The platform theme's tools-area blur mustn't replace the full-window one.
         _qmlWindow->setProperty("_silver_skip_tools_blur", true);
@@ -321,6 +329,11 @@ void WindowController::setBlur(bool blur)
         _qmlWindow->setProperty("_silver_skip_tools_blur", false);
     }
     sonicDebug() << "QML window blur" << blur;
+}
+
+bool WindowController::blur() const
+{
+    return _blur;
 }
 
 void WindowController::applyBlur()
@@ -381,7 +394,11 @@ void WindowController::createQmlWindow()
 #endif
 
     watchActions();
+    rewireFindAction();
+}
 
+void WindowController::rewireFindAction()
+{
     // Find Action: KXmlGuiWindow's KCommandBar would open in the hidden compat window.
     if (QAction* findAction = _window->actionCollection()->action(QStringLiteral("open_kcommand_bar"))) {
         disconnect(findAction, &QAction::triggered, _window, nullptr);
@@ -495,7 +512,7 @@ void WindowController::rebuildShortcuts()
         KActionCollection* collection = client->actionCollection();
         // In a host, as with the part: only the session's. The window's would answer for the
         // host's own keys.
-        if (!collection || (_item && client != activeController)) {
+        if (!collection || (_item && !_fullTerminal && client != activeController)) {
             continue;
         }
         connect(collection, &KActionCollection::inserted, this, &WindowController::scheduleShortcuts, Qt::UniqueConnection);

@@ -86,6 +86,15 @@ target_compile_definitions(TerminalModuleTest PRIVATE TERMINAL_QML_DIR="${CMAKE_
 add_dependencies(TerminalModuleTest konsoleprivateplugin konsoleappplugin)
 # A host's style needn't be the terminal's.
 set_tests_properties(TerminalModuleTest PROPERTIES ENVIRONMENT "QT_QUICK_CONTROLS_STYLE=Fusion")
+# Its own process: a full terminal host is a process's choice.
+ecm_add_test(TerminalPanelModuleTest.cpp LINK_LIBRARIES Qt::Test Qt::Quick Qt::Widgets KF6::XmlGui)
+target_compile_definitions(TerminalPanelModuleTest PRIVATE TERMINAL_QML_DIR="${CMAKE_CURRENT_BINARY_DIR}/../qml")
+add_dependencies(TerminalPanelModuleTest konsoleprivateplugin konsoleappplugin)
+set_tests_properties(TerminalPanelModuleTest PROPERTIES ENVIRONMENT "QT_QUICK_CONTROLS_STYLE=Fusion")
+ecm_add_test(PanelOpenTest.cpp LINK_LIBRARIES ${KONSOLE_TEST_LIBS} Qt::Quick Qt::Widgets Sonic::Ipc)
+target_compile_definitions(PanelOpenTest PRIVATE TERMINAL_QML_DIR="${CMAKE_CURRENT_BINARY_DIR}/../qml")
+add_dependencies(PanelOpenTest konsoleprivateplugin konsoleappplugin)
+set_tests_properties(PanelOpenTest PROPERTIES ENVIRONMENT "QT_QUICK_CONTROLS_STYLE=Fusion")
 # The widget settings pages the tests compare with aren't exported by konsoleapp.
 set(widget_settings_pages
     ../settings/GeneralSettings.cpp

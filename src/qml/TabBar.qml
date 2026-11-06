@@ -16,6 +16,8 @@ Item {
     id: root
 
     required property QtObject compatWindow
+    // In a panel: what is behind it shows through.
+    property bool transparentBackground: false
 
     TabBarAdapter {
         id: tabs
@@ -50,7 +52,7 @@ Item {
         currentIndex: tabs.currentIndex
         // The widget is painted on its window's background.
         background: Rectangle {
-            color: Kirigami.Theme.backgroundColor
+            color: root.transparentBackground ? "transparent" : Kirigami.Theme.backgroundColor
         }
         // A ListView, since TabBar shows only the tabs its ListView lays out; it reproduces the
         // hidden bar's tabRect()s: tabs in a row overlapping as the style makes them, scrolled

@@ -141,11 +141,23 @@ void PaneTreeAdapter::refresh()
             Q_EMIT dataChanged(changed, changed, {GeometryRole, ShownRole, HeaderTabBarBaseRole});
         }
     }
-    if (handles != _handles || centralGeometry != _centralGeometry) {
+    QRect shownPanesGeometry;
+    for (const Pane& pane : std::as_const(current)) {
+        if (pane.shown) {
+            shownPanesGeometry |= pane.geometry;
+        }
+    }
+    if (handles != _handles || centralGeometry != _centralGeometry || shownPanesGeometry != _shownPanesGeometry) {
         _handles = handles;
         _centralGeometry = centralGeometry;
+        _shownPanesGeometry = shownPanesGeometry;
         Q_EMIT layoutChanged();
     }
+}
+
+QRect PaneTreeAdapter::shownPanesGeometry() const
+{
+    return _shownPanesGeometry;
 }
 
 QRect PaneTreeAdapter::centralGeometry() const

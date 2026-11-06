@@ -34,6 +34,12 @@ Q_SIGNALS:
  * palette() gives a widget's palette in the group its QML window's activation implies.
  */
 namespace CompatWindows {
+    // This process is another program's (TerminalHost): its Qt Quick settings are its own.
+    KONSOLEPRIVATE_EXPORT void setHostedProcess();
+    KONSOLEPRIVATE_EXPORT bool hostedProcess();
+    // A host with tabs, toolbars and the terminal's menus, not the KPart's reduced set.
+    KONSOLEPRIVATE_EXPORT void setFullTerminalHost();
+    KONSOLEPRIVATE_EXPORT bool fullTerminalHost();
     KONSOLEPRIVATE_EXPORT void add(const QObject* window);
     // Its QML window, once created.
     KONSOLEPRIVATE_EXPORT void setShownWindow(const QObject* window, QWindow* shown);

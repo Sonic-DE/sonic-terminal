@@ -63,6 +63,7 @@ ecm_find_qmlmodule(org.kde.qqc2desktopstyle.private REQUIRED)
 ecm_find_qmlmodule(org.kde.kquickcontrols REQUIRED)
 
 find_package(SonicLogging 6.31.0 REQUIRED)
+find_package(SonicIpc 6.31.0 REQUIRED)
 
 find_package(KF6 ${KF6_DEP_VERSION} REQUIRED
     Bookmarks

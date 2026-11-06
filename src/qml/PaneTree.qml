@@ -14,6 +14,8 @@ Item {
     required property QtObject compatWindow
     // Where the compat window's central widget is, in the window.
     readonly property rect centralGeometry: panes.centralGeometry
+    // Around the shown terminals, in this item.
+    readonly property rect shownPanesGeometry: panes.shownPanesGeometry
 
     PaneTreeAdapter {
         id: panes

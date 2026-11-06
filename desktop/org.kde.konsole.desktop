@@ -354,7 +354,7 @@ Name[uk]=Відкрити нове вікно
 Name[zh_CN]=打开新窗口
 Name[zh_TW]=開啟新視窗
 Icon=window-new
-Exec=konsole
+Exec=konsole --separate
 
 [Desktop Action NewTab]
 Name=Open a New Tab

@@ -20,6 +20,17 @@ QQC2.ToolBar {
     // [{toolBar, buttonStyle, iconSize, items}]
     required property var line
     property bool vertical: false
+    // In a panel: it looks like part of the panel, and the host has its own menu.
+    property bool transparentBackground: false
+    property bool hostContextMenu: false
+    signal contextMenuRequested(Item item, point position)
+
+    Binding {
+        target: bar.background
+        property: "visible"
+        value: false
+        when: bar.transparentBackground
+    }
 
     // The hidden toolbars take this bar's extent, so the compat central widget lies where
     // the QML central area is.
@@ -57,7 +68,13 @@ QQC2.ToolBar {
 
                 TapHandler {
                     acceptedButtons: Qt.RightButton
-                    onTapped: eventPoint => bar.chrome.toolBarContextMenu(toolBar.modelData.toolBar, toolBar, eventPoint.position)
+                    onTapped: eventPoint => {
+                        if (bar.hostContextMenu) {
+                            bar.contextMenuRequested(toolBar, eventPoint.position);
+                        } else {
+                            bar.chrome.toolBarContextMenu(toolBar.modelData.toolBar, toolBar, eventPoint.position);
+                        }
+                    }
                 }
 
                 // QToolBar's handle while the positions aren't locked: drag it to a window edge.

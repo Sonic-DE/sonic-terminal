@@ -15,6 +15,7 @@
 #include "ShortcutStore.h"
 #include "ViewManager.h"
 #include "config-konsole.h"
+#include "quick/PanelOpen.h"
 #include "widgets/ViewContainer.h"
 
 // OS specific
@@ -30,6 +31,7 @@
 #include <KCrash>
 #include <KIconTheme>
 #include <KLocalizedString>
+#include <KStartupInfo>
 
 #if HAVE_DBUS
 #include <KDBusService>
@@ -223,6 +225,16 @@ int main(int argc, char *argv[])
     about.processCommandLine(parser.data());
 
 #if HAVE_DBUS
+    // A Terminal Panel widget takes a plain terminal as a tab; without one, the window opens as ever.
+    if (!needNewProcess && !app->isSessionRestored() && Konsole::PanelOpen::canUsePanel(*parser, customCommand)) {
+        const QString workDir = parser->value(QStringLiteral("workdir"));
+        if (Konsole::PanelOpen::openTab(workDir.isEmpty() ? QString() : QDir::current().absoluteFilePath(workDir))) {
+            KStartupInfo::appStarted();
+            delete app;
+            return 0;
+        }
+    }
+
     /// ! DON'T TOUCH THIS ! ///
     const KDBusService::StartupOption startupOption =
         Konsole::KonsoleSettings::useSingleInstance() && !needNewProcess ? KDBusService::Unique : KDBusService::Multiple;

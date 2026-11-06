@@ -271,7 +271,8 @@ void MainWindow::activationRequest(const QString &xdgActivationToken)
     Q_UNUSED(xdgActivationToken)
 #if WITH_X11
     const WindowController* controller = WindowController::controllerOf(this);
-    KX11Extras::forceActiveWindow(controller ? controller->qmlWindow()->winId() : winId());
+    const QWindow* shown = controller ? controller->shownWindow() : nullptr;
+    KX11Extras::forceActiveWindow(shown ? shown->winId() : winId());
 #endif
 }
 

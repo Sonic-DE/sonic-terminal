@@ -40,8 +40,9 @@ public:
     // Before the window's first show().
     explicit WindowController(MainWindow* window);
     // No window of its own: another program's item shows the compat window, which follows its
-    // place on screen; shortcuts apply while it has the focus.
-    WindowController(MainWindow* window, QQuickItem* item);
+    // place on screen; shortcuts apply while it has the focus. With fullTerminal, the window's
+    // shortcuts too, not only the session's.
+    WindowController(MainWindow* window, QQuickItem* item, bool fullTerminal);
     ~WindowController() override;
 
     QObject* compatWindow() const;
@@ -53,6 +54,7 @@ public:
 
     // MainWindow's bodies that act on the visible window call these instead.
     void setBlur(bool blur);
+    bool blur() const;
     void setFrameless(bool frameless);
     void activateMenuBar();
 
@@ -66,6 +68,7 @@ public:
 Q_SIGNALS:
     void menuBarActivated();
     void commandBarRequested(QObject* model);
+    void blurChanged();
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
@@ -74,6 +77,7 @@ private:
     void setUpCompatWindow();
     void createQmlWindow();
     void watchActions();
+    void rewireFindAction();
     void followItem();
     void followQmlGeometry();
     void followQmlWindowState();
@@ -96,6 +100,7 @@ private:
     // while a QML window has focus). A host's window can go first.
     QList<QPointer<QShortcut>> _shortcuts;
     QPointer<QObject> _commandBar;
+    bool _fullTerminal = false;
     bool _shortcutsScheduled = false;
     bool _syncing = false;
     bool _translucent = false;

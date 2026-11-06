@@ -12,7 +12,11 @@ SonicDE's terminal app, with tabs, split views and profiles for working on the c
   the first time the terminal starts.
 - Third-party plugins built for the widget interface still load, but a `KCommandBar` they
   open themselves doesn't show.
-- Other programs can now show a terminal through the `org.sonicde.terminal.app` QML module.
+- Other programs can now show a terminal through the `org.sonicde.terminal.app` QML module,
+  including the whole terminal with its tabs and toolbars, as the Terminal Panel widget does.
+- With the Terminal Panel widget in a panel, opening a terminal now brings that panel out with a
+  new tab, ready for typing. Commands and `--separate` still get their own window, and so does
+  "Open a New Window".
 
 ## 26.08.2 (2026-10-20)
 

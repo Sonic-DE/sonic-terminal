@@ -29,6 +29,8 @@ class KONSOLEPRIVATE_EXPORT PaneTreeAdapter : public QAbstractListModel {
     QML_ELEMENT
     Q_PROPERTY(QObject* window READ window WRITE setWindow NOTIFY windowChanged)
     Q_PROPERTY(QRect centralGeometry READ centralGeometry NOTIFY layoutChanged)
+    // Around the shown terminals, in the central widget.
+    Q_PROPERTY(QRect shownPanesGeometry READ shownPanesGeometry NOTIFY layoutChanged)
     // {geometry, orientation (Qt::Orientation), palette}
     Q_PROPERTY(QVariantList handles READ handles NOTIFY layoutChanged)
 
@@ -48,6 +50,7 @@ public:
     void setWindow(QObject* window);
     // The central widget in the window.
     QRect centralGeometry() const;
+    QRect shownPanesGeometry() const;
     QVariantList handles() const;
 
     int rowCount(const QModelIndex& parent = QModelIndex()) const override;
@@ -77,6 +80,7 @@ private:
     QList<Pane> _panes;
     QVariantList _handles;
     QRect _centralGeometry;
+    QRect _shownPanesGeometry;
     QTimer _refresh;
 };
 }

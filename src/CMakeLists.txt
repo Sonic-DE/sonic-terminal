@@ -473,6 +473,7 @@ add_library(konsoleapp SHARED Application.cpp
     SonicLoggingApp.cpp
     quick/WindowController.cpp
     quick/TerminalHost.cpp
+    quick/PanelOpen.cpp
 )
 
 generate_export_header(konsoleapp BASE_NAME konsoleapp)
@@ -484,6 +485,7 @@ qt_add_qml_module(konsoleapp
     QML_FILES
         qml/Main.qml
         qml/TerminalArea.qml
+        qml/TerminalPanelArea.qml
     IMPORTS
         org.sonicde.terminal
 )
@@ -509,6 +511,7 @@ endif()
 
 target_include_directories(konsoleapp PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/quick)
 
+target_link_libraries(konsoleapp PRIVATE Sonic::Ipc)
 target_link_libraries(konsoleapp PUBLIC
   konsoleprivate
   Sonic::Logging

@@ -33,6 +33,29 @@ namespace CompatWindows {
             static QHash<const QObject*, QPointer<QWindow>> hash;
             return hash;
         }
+
+        bool s_hostedProcess = false;
+        bool s_fullTerminalHost = false;
+    }
+
+    void setHostedProcess()
+    {
+        s_hostedProcess = true;
+    }
+
+    bool hostedProcess()
+    {
+        return s_hostedProcess;
+    }
+
+    void setFullTerminalHost()
+    {
+        s_fullTerminalHost = true;
+    }
+
+    bool fullTerminalHost()
+    {
+        return s_fullTerminalHost;
     }
 
     void add(const QObject* window)
