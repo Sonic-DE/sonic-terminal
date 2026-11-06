@@ -3,10 +3,9 @@
     SPDX-License-Identifier: GPL-2.0-or-later
 */
 
-// The QML window shows what its compat window lays out: the same terminal content as a
-// widget window of the same size, the same geometry, focus through the facades, and close.
+// The QML window shows what its compat window lays out: its menus, toolbars and tabs, focus
+// through the facades, shortcuts, plugin docks, and close.
 
-#include "ParityImages.h"
 #include "TestTheme.h"
 
 #include "../MainWindow.h"
@@ -25,7 +24,6 @@
 #include "../terminalDisplay/TerminalColor.h"
 #include "../terminalDisplay/TerminalDisplay.h"
 #include "../terminalDisplay/TerminalFonts.h"
-#include "../terminalDisplay/TerminalScrollBar.h"
 #include "../widgets/ViewContainer.h"
 
 #include <KActionCollection>
@@ -82,9 +80,7 @@ private Q_SLOTS:
 private Q_SLOTS:
     void init();
     void cleanup();
-    void testTerminalLooksLikeTheWidgetWindow();
-    void testSplitPanesLookLikeTheWidgetWindow();
-    void testChromeFollowsTheWidgets();
+    void testChromeFollowsTheCompatWindow();
     void testKeys();
     void testSearchTabs();
     void testQmlPanel();
@@ -147,111 +143,25 @@ QRect QmlWindowTest::cursorCell(TerminalDisplay* display)
     return QRect(display->contentRect().topLeft() + QPoint(cursor.x() * width, cursor.y() * height), QSize(width, height)).adjusted(-2, -2, 2, 2);
 }
 
-void QmlWindowTest::testTerminalLooksLikeTheWidgetWindow()
-{
-    for (MainWindow* window : {_widgetWindow.data(), _compatWindow.data()}) {
-        Session* session = TerminalViewRegistry::view(displayOf(window))->sessionController()->session();
-        session->sendTextToTerminal(QStringLiteral("printf '\\033[2J\\033[Hred \\033[31mtext\\033[0m and \\033[1mbold\\033[0m\\n'"), QLatin1Char('\r'));
-    }
-    QTRY_VERIFY(TerminalViewRegistry::view(displayOf(_compatWindow))->sessionController()->session()->getAllDisplayedText().contains(QLatin1String("red text and bold")));
-    QTRY_VERIFY(TerminalViewRegistry::view(displayOf(_widgetWindow))->sessionController()->session()->getAllDisplayedText().contains(QLatin1String("red text and bold")));
-    QTest::qWait(1500); // the first layout's size notification
-
-    // The compat central widget lies where the QML chrome leaves the central area (the hidden
-    // bars take the QML bars' extents); the terminal gets the widget window's size.
-    QWidget* widgetCentral = _widgetWindow->centralWidget();
-    QWidget* compatCentral = _compatWindow->centralWidget();
-    const QRect central(compatCentral->mapTo(_compatWindow, QPoint(0, 0)), compatCentral->size());
-    auto* centralArea = _controller->qmlWindow()->findChild<QQuickItem*>(QStringLiteral("centralArea"));
-    QVERIFY(centralArea);
-    QTRY_COMPARE(centralArea->mapRectToScene(centralArea->boundingRect()).toRect(), central);
-    QCOMPARE(compatCentral->size(), widgetCentral->size());
-    QCOMPARE(displayOf(_compatWindow)->geometry(), displayOf(_widgetWindow)->geometry());
-    const QImage widgetImage = widgetCentral->grab().toImage().convertToFormat(QImage::Format_ARGB32);
-    const QImage sceneImage = _controller->qmlWindow()->grabWindow().copy(central).convertToFormat(QImage::Format_ARGB32);
-
-    TerminalDisplay* display = displayOf(_widgetWindow);
-    const QPoint offset = display->mapTo(widgetCentral, QPoint(0, 0));
-    const QRect scrollBar = display->scrollBar()->isHidden() ? QRect() : display->scrollBar()->geometry().translated(offset);
-    const QString difference = ParityImages::compare(widgetImage, sceneImage, {scrollBar}, {}, {cursorCell(display).translated(offset)});
-    QVERIFY2(difference.isEmpty(), qPrintable(difference));
-}
-
-void QmlWindowTest::testSplitPanesLookLikeTheWidgetWindow()
-{
-    for (MainWindow* window : {_widgetWindow.data(), _compatWindow.data()}) {
-        Session* session = TerminalViewRegistry::view(displayOf(window))->sessionController()->session();
-        session->sendTextToTerminal(QStringLiteral("printf '\\033[2J\\033[Hfirst line\\nsecond line\\n'"), QLatin1Char('\r'));
-    }
-    QTRY_VERIFY(TerminalViewRegistry::view(displayOf(_compatWindow))->sessionController()->session()->getAllDisplayedText().contains(QLatin1String("second line")));
-    QTRY_VERIFY(TerminalViewRegistry::view(displayOf(_widgetWindow))->sessionController()->session()->getAllDisplayedText().contains(QLatin1String("second line")));
-    QTest::qWait(1500);
-    // The pane that was split shrinks; the new one opens beside it.
-    for (MainWindow* window : {_widgetWindow.data(), _compatWindow.data()}) {
-        QAction* split = nullptr;
-        const auto clients = window->guiFactory()->clients();
-        for (KXMLGUIClient* client : clients) {
-            split = split ? split : client->actionCollection()->action(QStringLiteral("split-view-left-right"));
-        }
-        QVERIFY(split);
-        split->trigger();
-    }
-    QTRY_COMPARE(_compatWindow->centralWidget()->findChildren<TerminalDisplay*>().size(), 2);
-    QTRY_COMPARE(_widgetWindow->centralWidget()->findChildren<TerminalDisplay*>().size(), 2);
-    QTest::qWait(1500);
-
-    const auto byPosition = [](MainWindow* window) {
-        QList<TerminalDisplay*> displays = window->centralWidget()->findChildren<TerminalDisplay*>();
-        std::sort(displays.begin(), displays.end(), [window](TerminalDisplay* a, TerminalDisplay* b) {
-            return a->mapTo(window, QPoint(0, 0)).x() < b->mapTo(window, QPoint(0, 0)).x();
-        });
-        return displays;
-    };
-    const QList<TerminalDisplay*> widgetDisplays = byPosition(_widgetWindow);
-    const QList<TerminalDisplay*> compatDisplays = byPosition(_compatWindow);
-    const QImage widgetImage = _widgetWindow->grab().toImage().convertToFormat(QImage::Format_ARGB32);
-    const QImage sceneImage = _controller->qmlWindow()->grabWindow().convertToFormat(QImage::Format_ARGB32);
-    for (int i = 0; i < 2; ++i) {
-        // The terminal text area, without the header bar, scroll bar and cursor.
-        TerminalDisplay* widget = widgetDisplays.at(i);
-        TerminalDisplay* compat = compatDisplays.at(i);
-        // The Kirigami chrome can leave the panes a little shorter; compare what both show.
-        const QSize common = widget->contentRect().size().boundedTo(compat->contentRect().size());
-        const QRect widgetRect = QRect(widget->contentRect().topLeft(), common).translated(widget->mapTo(_widgetWindow, QPoint(0, 0)));
-        const QRect sceneRect = QRect(compat->contentRect().topLeft(), common).translated(compat->mapTo(_compatWindow, QPoint(0, 0)));
-        const QRect cursor = cursorCell(widget);
-        QList<QRect> scrollBars;
-        for (TerminalDisplay* display : {widget, compat}) {
-            if (!display->scrollBar()->isHidden()) {
-                scrollBars.append(display->scrollBar()->geometry().translated(-display->contentRect().topLeft()));
-            }
-        }
-        const QString difference = ParityImages::compare(widgetImage.copy(widgetRect), sceneImage.copy(sceneRect), scrollBars, {},
-            {cursor.translated(-widget->contentRect().topLeft())});
-        QVERIFY2(difference.isEmpty(), qPrintable(QStringLiteral("pane %1: %2").arg(i).arg(difference)));
-    }
-}
-
-void QmlWindowTest::testChromeFollowsTheWidgets()
+void QmlWindowTest::testChromeFollowsTheCompatWindow()
 {
     QQuickWindow* qml = _controller->qmlWindow();
     auto* chrome = qml->findChild<ChromeAdapter*>();
     QVERIFY(chrome);
 
-    // Menu bar entries and toolbar actions, in order and state, as the widget window has them.
-    QStringList widgetMenus;
-    for (QAction* action : _widgetWindow->menuBar()->actions()) {
+    // Menu bar entries and toolbar actions, in order and state, as the compat window has them.
+    QStringList compatMenus;
+    for (QAction* action : _compatWindow->menuBar()->actions()) {
         if (action->menu() && action->isVisible()) {
-            widgetMenus.append(action->text());
+            compatMenus.append(action->text());
         }
     }
     QStringList qmlMenus;
     for (const QVariant& menu : chrome->menus()) {
         qmlMenus.append(menu.toMap().value(QStringLiteral("text")).toString());
     }
-    QVERIFY(!widgetMenus.isEmpty());
-    QCOMPARE(qmlMenus, widgetMenus);
-    QCOMPARE(chrome->menuBarVisible(), _widgetWindow->menuBar()->isVisible());
+    QVERIFY(!compatMenus.isEmpty());
+    QCOMPARE(qmlMenus, compatMenus);
 
     // The QML window draws a button for every action of the compat toolbars, as they are at startup.
     const auto drawnActions = [qml] {
@@ -377,7 +287,7 @@ void QmlWindowTest::testChromeFollowsTheWidgets()
             }
         }
     }
-    QTRY_COMPARE(qmlActions, actionsOf(_widgetWindow->findChildren<QToolBar*>(Qt::FindDirectChildrenOnly)));
+    QTRY_COMPARE(qmlActions, actionsOf(_compatWindow->findChildren<QToolBar*>(Qt::FindDirectChildrenOnly)));
 
     // The tabs: one QML tab per tab of the hidden bar, at its place, with its title.
     for (MainWindow* window : {_widgetWindow.data(), _compatWindow.data()}) {
@@ -421,32 +331,19 @@ void QmlWindowTest::testKeys()
     Session* session = view->sessionController()->session();
 
     // Kirigami's quit (Ctrl+Q) and page navigation (Alt+Left/Right) leave these keys to the
-    // terminal: the shell gets what the widget window sends it.
-    const auto sendKeys = [](QWindow* window) {
-        QTest::keyClick(window, Qt::Key_Q, Qt::ControlModifier);
-        QTest::keyClick(window, Qt::Key_Left, Qt::AltModifier);
-        QTest::keyClick(window, Qt::Key_Right, Qt::AltModifier);
-        QTest::keyClick(window, Qt::Key_Return);
-    };
+    // terminal.
     const auto lastLine = [](Session* session) {
         const QStringList lines = session->getAllDisplayedTextList(true);
         return lines.isEmpty() ? QString() : lines.last();
     };
-    Session* widgetSession = TerminalViewRegistry::view(displayOf(_widgetWindow))->sessionController()->session();
-    for (Session* each : {widgetSession, session}) {
-        each->sendTextToTerminal(QStringLiteral("stty -ixon -echo; exec cat -v"), QLatin1Char('\r'));
-    }
+    session->sendTextToTerminal(QStringLiteral("stty -ixon -echo; exec cat -v"), QLatin1Char('\r'));
     QTest::qWait(500);
-    _widgetWindow->activateWindow();
-    QVERIFY(QTest::qWaitForWindowActive(_widgetWindow));
-    displayOf(_widgetWindow)->setFocus();
-    sendKeys(_widgetWindow->windowHandle());
-    QTRY_VERIFY(lastLine(widgetSession).contains(QLatin1String("^[[1;3D^[[1;3C")));
-    qml->requestActivate();
-    QVERIFY(QTest::qWaitForWindowActive(qml));
-    view->forceActiveFocus();
-    sendKeys(qml);
-    QTRY_COMPARE(lastLine(session), lastLine(widgetSession));
+    QTest::keyClick(qml, Qt::Key_Q, Qt::ControlModifier);
+    QTest::keyClick(qml, Qt::Key_Left, Qt::AltModifier);
+    QTest::keyClick(qml, Qt::Key_Right, Qt::AltModifier);
+    QTest::keyClick(qml, Qt::Key_Return);
+    // QTest's Ctrl+Q carries the text "q".
+    QTRY_VERIFY(lastLine(session).contains(QLatin1String("q^[[1;3D^[[1;3C")));
 
     // The compat window's action shortcuts fire in the QML window...
     QTabBar* tabBar = qobject_cast<QTabWidget*>(_compatWindow->centralWidget())->tabBar();

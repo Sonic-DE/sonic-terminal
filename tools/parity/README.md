@@ -1,9 +1,8 @@
-# Parity tests
+# Test tools
 
-Checks that sonic-terminal's QML interface looks and behaves exactly like the widget
-interface it replaces, and that everything outside programs rely on keeps working.
-Each scenario drives konsole through a script and captures images and text; `compare.py`
-compares a run with the baseline taken from the widget build.
+Checks that everything outside programs rely on keeps working, and that the QML build keeps no
+stray widgets. Each scenario drives konsole through a script; a run fails when the hook can't
+complete a step.
 
 ## Environment
 
@@ -24,19 +23,12 @@ D-Bus, `HOME` and XDG directories, no CUPS and no PulseAudio. It fails if `konso
 
 ```sh
 tools/parity/run-all.py --env <env> --prefix <builder>/state/install-stage/usr \
-    --plugin-baseline <builder>/state/parity/plugin-baseline --output <dir> \
-    [--baseline <builder>/state/parity/baseline] [--only <scenario> ...]
+    --plugin-baseline <builder>/state/parity/plugin-baseline --output <dir> [--only <scenario> ...]
 ```
 
-The application window is the QML window; `run-all.py` compares it with the widget
-window's baseline by panes (`compare.py --qml-window`, below).
+`scenarios/list.txt` names the scenarios and their options.
 
-Each scenario runs twice: normally and with a color scheme whose text colors equal
-their backgrounds; the pixels that differ form the text mask. `scenarios/list.txt`
-names the scenarios and their options.
-
-Baselines are local to the machine that made them (fonts, Qt build, installed
-applications in context menus) and live in `<builder>/state/parity/`: `baseline/`,
+Baselines are local to the machine that made them and live in `<builder>/state/parity/`:
 `abi-baseline/` (see `abicheck.sh`) and `plugin-baseline/` (the widget-interface test
 plugin, `src/parity/compatplugin`).
 
@@ -57,38 +49,9 @@ Other checks:
   error box. ctest `NoWidgetsTest` runs it when the
   build is configured with `KONSOLE_PARITY_ENV=<env>` and `KONSOLE_PARITY_PREFIX=<prefix>`.
 
-## Comparison rules
-
-- Text files (`trace.txt`, `dbus.txt`, `env-masked.txt`, `xprop-*.txt`,
-  `accessible-*.txt`, `describe-*.txt`, `stdout.txt`, plugin logs) must match exactly.
-  `xprop-*.txt` is compared as a sorted set of properties: the X server lists them in
-  the order they were last changed, which depends on timing.
-- Outside the text mask and the overlay mask, images must be identical.
-- Inside the text mask, at most 10 % of the mask's pixels may differ (anti-aliasing and
-  DPI handling). Symbolic icons take the text color, so they're part of the mask.
-- The overlay mask is the union of both sides' `<capture>.png.overlays` rectangles: the
-  scroll bars, find bars, messages and labels drawn over the terminals, minus what menus
-  and dialogs cover. At most 10 % of its pixels may differ: the QML build blends them
-  over the terminal once more than the widget build did.
-- With `--qml-window`, a capture whose `<capture>.png.panes` (the terminals' rectangles,
-  and on screen the menus and dialogs covering them) lists as many terminals on both
-  sides is compared pane by pane, each at its own position, over the size both share,
-  without the covered parts: the QML chrome follows Kirigami's metrics (its toolbar is
-  2 px taller, so terminals sit lower) and `QmlWindowTest` checks it instead. `xprop`'s
-  `_NET_WM_ICON_NAME` isn't compared (a widget window has it empty, a `QWindow` none).
-- A file present on one side only (`*.txt`, `*.png`, `*.png.overlays`, `*.png.panes`), a page or saved
-  capture named in a trace but missing, and a capture of a single colour all fail.
-  `selftest.py` (ctest `ParityCompareSelfTest`) checks each of these rules.
-- Differences are drawn into `<run>/report/diff-*.png` (red: differing pixels, blue
-  tint: text mask, green tint: overlays).
-- The hook stops a run with exit status 3 on the first failure: a capture or file it
-  can't write, a step that finds nothing to act on, an unknown op, action, page or
-  button. File names keep `[A-Za-z0-9._-]` and turn everything else into `_`.
-
-The phase 0 copy (`<builder>/state/parity/phase0-src`, the widget build the baseline
-comes from) is built and run in the same environment, so the private `HOME` path matches:
-`setup-env.py --build build-phase0` (run from the copy) and `run-all.py --build
-build-phase0`.
+The hook stops a run with exit status 3 on the first failure: a capture or file it
+can't write, a step that finds nothing to act on, an unknown op, action, page or
+button. File names keep `[A-Za-z0-9._-]` and turn everything else into `_`.
 
 ## Scenario format
 

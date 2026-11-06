@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Joseph Crowell <joseph.w.crowell@gmail.com>
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Run a parity scenario: konsole under the real SonicWin compositor on a private X server.
+"""Run a scenario: konsole under the real SonicWin compositor on a private X server.
 
 Everything is private (HOME, XDG dirs, D-Bus, X server); nothing reaches the user's
-session. See README.md for the scenario format and the comparison rules.
+session. See README.md for the scenario format.
 """
 
 import argparse
@@ -38,19 +38,12 @@ def write_ini(path, sections):
             out.write("\n")
 
 
-def color_scheme(prefix, name, hide_text):
-    """The color scheme's groups as kdeglobals expects them; hide_text paints text in its background."""
+def color_scheme(prefix, name):
+    """The color scheme's groups as kdeglobals expects them."""
     parser = configparser.RawConfigParser(strict=False)
     parser.optionxform = str
     parser.read(prefix / "share/color-schemes" / f"{name}.colors")
-    sections = {s: dict(parser.items(s)) for s in parser.sections()}
-    if hide_text:
-        for group, values in sections.items():
-            if group.startswith("Colors:") and "BackgroundNormal" in values:
-                for key in list(values):
-                    if key.startswith(("Foreground", "Decoration")):
-                        values[key] = values["BackgroundNormal"]
-    return sections
+    return {s: dict(parser.items(s)) for s in parser.sections()}
 
 
 def write_scheme(data, overrides):
@@ -66,10 +59,10 @@ def write_scheme(data, overrides):
     write_ini(data / "konsole/Parity.colorscheme", sections)
 
 
-def prepare_home(home, prefix, hide_text, scheme_overrides):
+def prepare_home(home, prefix, scheme_overrides):
     config = home / ".config"
     data = home / ".local/share"
-    globals_ = color_scheme(prefix, "SilverLight", hide_text)
+    globals_ = color_scheme(prefix, "SilverLight")
     globals_.setdefault("General", {}).update(
         ColorScheme="SilverLight", font="Noto Sans,10,-1,5,400,0,0,0,0,0,0,0,0,0,0,1",
         fixed="Hack,10,-1,5,400,0,0,0,0,0,0,0,0,0,0,1", menuFont="Noto Sans,10,-1,5,400,0,0,0,0,0,0,0,0,0,0,1",
@@ -197,7 +190,6 @@ def main():
     parser.add_argument("--output", required=True, help="directory for captures and traces")
     parser.add_argument("--env", required=True, help="environment made by setup-env.py")
     parser.add_argument("--prefix", required=True, help="builder install prefix, read only (<builder>/state/install-stage/usr)")
-    parser.add_argument("--hide-text", action="store_true", help="text-hidden color scheme, for the text mask")
     parser.add_argument("--scheme-set", action="append", default=[], metavar="KEY=VALUE",
                         help="terminal color scheme [General] override, e.g. Opacity=0.8 or Blur=true")
     parser.add_argument("--konsole-args", default="", help="extra konsole arguments, space separated")
@@ -230,7 +222,7 @@ def main():
     # Short: KIO's worker sockets live here and must fit the Unix socket path limit.
     runtime = Path(tempfile.mkdtemp(prefix="konsole-parity-", dir="/tmp"))
     runtime.chmod(0o700)
-    prepare_home(home, prefix, args.hide_text, args.scheme_set)
+    prepare_home(home, prefix, args.scheme_set)
     # The parity build's libraries before the prefix's: the stage's binaries (sonic-win) and QML
     # plugins are configured for /usr and would otherwise load the system's.
     env = {key: os.environ[key] for key in ("LANG",) if key in os.environ}

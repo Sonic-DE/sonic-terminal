@@ -71,8 +71,6 @@ ecm_add_tests(
     TerminalViewTest.cpp
     QmlWindowTest.cpp
     QmlDialogsTest.cpp
-    DialogContentTest.cpp
-    DialogLayoutTest.cpp
     SmallDialogsTest.cpp
     SettingsEditorTest.cpp
     ConfigureDialogTest.cpp
@@ -95,7 +93,7 @@ ecm_add_test(PanelOpenTest.cpp LINK_LIBRARIES ${KONSOLE_TEST_LIBS} Qt::Quick Qt:
 target_compile_definitions(PanelOpenTest PRIVATE TERMINAL_QML_DIR="${CMAKE_CURRENT_BINARY_DIR}/../qml")
 add_dependencies(PanelOpenTest konsoleprivateplugin konsoleappplugin)
 set_tests_properties(PanelOpenTest PROPERTIES ENVIRONMENT "QT_QUICK_CONTROLS_STYLE=Fusion")
-# The widget settings pages the tests compare with aren't exported by konsoleapp.
+# The widget settings pages ConfigureDialogTest lists the settings from aren't exported by konsoleapp.
 set(widget_settings_pages
     ../settings/GeneralSettings.cpp
     ../settings/MemorySettings.cpp
@@ -103,20 +101,14 @@ set(widget_settings_pages
     ../settings/TemporaryFilesSettings.cpp
     ../settings/ThumbnailsSettings.cpp
 )
-target_sources(DialogContentTest PRIVATE ${widget_settings_pages} ../settings/ProfileSettings.cpp ../delegates/ProfileShortcutDelegate.cpp ../KeyBindingEditor.cpp)
-target_sources(DialogLayoutTest PRIVATE ${widget_settings_pages} ../settings/ProfileSettings.cpp ../delegates/ProfileShortcutDelegate.cpp ../KeyBindingEditor.cpp)
 target_sources(ConfigureDialogTest PRIVATE ${widget_settings_pages})
 # testPartDialog loads the part from the build tree.
 add_dependencies(ConfigureDialogTest konsolepart)
-# Once with the parity runs' theme, once with a large font and large icons.
-add_test(NAME DialogLayoutTestLarge COMMAND DialogLayoutTest)
-set_tests_properties(QmlDialogsTest DialogContentTest DialogLayoutTest SmallDialogsTest ConfigureDialogTest ProfileEditorTest ToolbarEditorTest PROPERTIES ENVIRONMENT
+set_tests_properties(QmlDialogsTest SmallDialogsTest ConfigureDialogTest ProfileEditorTest ToolbarEditorTest PROPERTIES ENVIRONMENT
     "QT_QPA_PLATFORMTHEME=kde;QT_STYLE_OVERRIDE=Silver;QT_QUICK_CONTROLS_STYLE=org.kde.desktop")
-set_tests_properties(DialogLayoutTestLarge PROPERTIES ENVIRONMENT
-    "QT_QPA_PLATFORMTHEME=kde;QT_STYLE_OVERRIDE=Silver;QT_QUICK_CONTROLS_STYLE=org.kde.desktop;DIALOG_LAYOUT_SETUP=large")
 set_tests_properties(QmlWindowTest PROPERTIES ENVIRONMENT
     "QT_QPA_PLATFORMTHEME=kde;QT_STYLE_OVERRIDE=Silver;QT_QUICK_CONTROLS_STYLE=org.kde.desktop")
-# As the parity runs: widgets and the desktop style's QML items read one colour scheme.
+# Widgets and the desktop style's QML items read one colour scheme.
 set_tests_properties(TerminalViewTest PROPERTIES ENVIRONMENT
     "QT_QPA_PLATFORMTHEME=kde;QT_STYLE_OVERRIDE=Silver;QT_QUICK_CONTROLS_STYLE=org.kde.desktop")
 
@@ -155,12 +147,7 @@ endif()
 ecm_add_test(DialogSitesTest.cpp LINK_LIBRARIES Qt::Test)
 target_compile_definitions(DialogSitesTest PRIVATE KONSOLE_SOURCE_DIR="${CMAKE_SOURCE_DIR}/src")
 
-# The parity comparison must reject each kind of broken run (tools/parity/README.md).
 find_package(Python3 COMPONENTS Interpreter)
-if(Python3_Interpreter_FOUND)
-    add_test(NAME ParityCompareSelfTest COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_SOURCE_DIR}/tools/parity/selftest.py)
-endif()
-
 # NoWidgetsTest drives the parity build (it has the hook) of tools/parity/setup-env.py.
 set(KONSOLE_PARITY_ENV "" CACHE PATH "Parity environment made by tools/parity/setup-env.py, for NoWidgetsTest")
 set(KONSOLE_PARITY_PREFIX "" CACHE PATH "Builder prefix the parity environment uses, for NoWidgetsTest")

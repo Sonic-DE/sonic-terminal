@@ -5,7 +5,7 @@
 
 #pragma once
 
-// The parity runs' theme settings (tools/parity/run.py) for a test, written where the KDE
+// The theme settings of tools/parity/run.py for a test, written where the KDE
 // platform theme and Kirigami read them (QStandardPaths' test mode).
 
 #include <KConfig>

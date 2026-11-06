@@ -234,7 +234,6 @@ namespace {
             return nullptr;
         }
 
-        // compare.py builds the same names (safe_name); keep both in step.
         static QString safeName(const QString& name)
         {
             QString result = name;
@@ -268,8 +267,7 @@ namespace {
         }
 
         // The overlays (scroll bars, find bars, messages, labels) drawn over the terminals,
-        // relative to `origin` (a window) or in screen coordinates; compare.py tolerates
-        // anti-aliasing differences inside them.
+        // relative to `origin` (a window) or in screen coordinates.
         QList<QRect> overlays(const QWidget* origin)
         {
             window();
@@ -324,9 +322,7 @@ namespace {
             }
         }
 
-        // The terminals' rectangles (a QML window's chrome differs from the widget window's,
-        // so compare.py compares panes at their own positions), relative to `origin` or on
-        // screen, ordered top to bottom, left to right; on screen also the menus and dialogs
+        // The terminals' rectangles, relative to `origin` or on screen, ordered top to bottom, left to right; on screen also the menus and dialogs
         // covering them.
         void savePanes(const QString& name, const QWidget* origin)
         {
@@ -687,7 +683,7 @@ namespace {
             next(delayMs);
         }
 
-        // A QML dialog's capture, marked for compare.py's colour rule (no pixel parity).
+        // A QML dialog's capture.
         void captureQmlDialog(QPointer<QWindow> dialog, const QString& name, bool close, bool image)
         {
             trace(QStringLiteral("dialog ") + name + QStringLiteral(" ") + dialog->title());
@@ -738,7 +734,7 @@ namespace {
             });
         }
 
-        // The dialog's capture with compare.py's QML marker, and the screen around it.
+        // The dialog's capture, and the screen around it.
         void saveQmlDialog(QWindow* dialog, const QString& file)
         {
             if (save(grabQmlDialog(dialog), file)) {
