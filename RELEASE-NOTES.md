@@ -2,10 +2,11 @@
 
 SonicDE's terminal app, with tabs, split views and profiles for working on the command line.
 
-## Unreleased
+## 26.08.3 (2026-11-10)
 
 - The terminal now records its logs through SonicDE's unified logging system.
-- The terminal window is now drawn with QML; it looks and works as before.
+- The terminal window and its dialogs, such as the settings, profile editor, toolbar and shortcut editors and the
+  command bar, are now drawn with QML; they look, work and are translated as before.
 - The tab bar's "Use user-defined stylesheet" option has been removed.
 - ZModem file transfers are no longer supported.
 - Keyboard shortcuts are now saved in `konsolerc`; your existing shortcuts are moved there
@@ -18,6 +19,8 @@ SonicDE's terminal app, with tabs, split views and profiles for working on the c
 - With the Terminal Panel widget in a panel, opening a terminal now brings that panel out with a
   new tab, ready for typing. Commands and `--separate` still get their own window, and so does
   "Open a New Window".
+- Behind the scenes: new automated checks compare the terminal's look and behaviour, and its compatibility with
+  other programs and plugins, against a reference.
 
 ## 26.08.2 (2026-10-20)
 
