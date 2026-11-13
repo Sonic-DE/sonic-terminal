@@ -512,6 +512,8 @@ endif()
 target_include_directories(konsoleapp PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/quick)
 
 target_link_libraries(konsoleapp PRIVATE Sonic::Ipc)
+# QPlatformMenuBar: the global menu follows the QML window.
+target_link_libraries(konsoleapp PRIVATE Qt::GuiPrivate)
 target_link_libraries(konsoleapp PUBLIC
   konsoleprivate
   Sonic::Logging

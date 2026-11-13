@@ -124,6 +124,14 @@ if(HAVE_DBUS)
     add_dependencies(DBusCodecTest konsole)
     add_test(NAME DBusCodecTest COMMAND ${DBUS_RUN_SESSION_EXECUTABLE} $<TARGET_FILE:DBusCodecTest>)
 
+    # A bus of its own, on which it is the global menu's registrar.
+    add_executable(QmlWindowGlobalMenuTest QmlWindowGlobalMenuTest.cpp)
+    target_link_libraries(QmlWindowGlobalMenuTest ${KONSOLE_TEST_LIBS} Qt::DBus)
+    add_test(NAME QmlWindowGlobalMenuTest COMMAND ${DBUS_RUN_SESSION_EXECUTABLE}
+        --config-file=${CMAKE_SOURCE_DIR}/tools/parity/private-bus.conf -- $<TARGET_FILE:QmlWindowGlobalMenuTest>)
+    set_tests_properties(QmlWindowGlobalMenuTest PROPERTIES ENVIRONMENT
+        "QT_QPA_PLATFORMTHEME=kde;QT_STYLE_OVERRIDE=Silver;QT_QUICK_CONTROLS_STYLE=org.kde.desktop")
+
     find_program(XWININFO_EXECUTABLE xwininfo)
     if(XWININFO_EXECUTABLE)
         add_executable(WidgetWindowHelper WidgetWindowHelper.cpp)

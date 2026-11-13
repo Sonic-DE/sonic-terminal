@@ -50,6 +50,7 @@
 #include <QSurfaceFormat>
 #include <QTimer>
 #include <QWidget>
+#include <qpa/qplatformmenu.h>
 
 namespace Konsole {
 namespace {
@@ -344,6 +345,16 @@ void WindowController::applyBlur()
     }
 }
 
+void WindowController::exportMenuBar()
+{
+    // A global menu (panel or title bar) reads the menu bar from the window on screen.
+    QPlatformMenuBar* bar = _window->menuBar()->platformMenuBar();
+    if (bar && _qmlWindow && _qmlWindow->handle()) {
+        bar->handleReparent(_qmlWindow);
+        sonicDebug() << "menu bar exported for the QML window";
+    }
+}
+
 void WindowController::setFrameless(bool frameless)
 {
     if (_qmlWindow) {
@@ -374,6 +385,7 @@ void WindowController::createQmlWindow()
         _qmlWindow->setFormat(format);
     }
     _qmlWindow->installEventFilter(this);
+    exportMenuBar();
     // The window manager sees the compat window's identity (role, title, icon).
     _qmlWindow->setProperty("_q_xcb_wm_window_role", _window->objectName());
     _qmlWindow->setTitle(_window->windowTitle());
@@ -654,6 +666,7 @@ bool WindowController::eventFilter(QObject* watched, QEvent* event)
         && static_cast<QPlatformSurfaceEvent*>(event)->surfaceEventType() == QPlatformSurfaceEvent::SurfaceCreated) {
         // A new native window starts without blur.
         QMetaObject::invokeMethod(this, &WindowController::applyBlur, Qt::QueuedConnection);
+        exportMenuBar();
     }
     if (_item) {
         const QEvent::Type type = event->type();

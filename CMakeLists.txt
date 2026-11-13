@@ -52,6 +52,9 @@ find_package(Qt6 ${QT_MIN_VERSION} CONFIG REQUIRED
     QuickWidgets
     Widgets
 )
+if (Qt6_VERSION VERSION_GREATER_EQUAL "6.10.0")
+    find_package(Qt6GuiPrivate ${QT_MIN_VERSION} REQUIRED NO_MODULE)
+endif()
 # QML modules load from qrc:/qt/qml (QQmlEngine's default import path).
 qt_policy(SET QTP0001 NEW)
 
