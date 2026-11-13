@@ -6,6 +6,8 @@ SonicDE's terminal app, with tabs, split views and profiles for working on the c
 
 - Minimizing a terminal window works again: the window stays in the taskbar and can be restored,
   instead of disappearing while the terminal keeps running in the background.
+- With a global menu in use, in a panel or the title bar's menu button, the terminal's menus show
+  there again.
 
 ## 26.08.3 (2026-11-10)
 

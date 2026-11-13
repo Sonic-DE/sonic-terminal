@@ -84,6 +84,7 @@ private:
     void setCompatGeometry(const QRect& geometry);
     void followCompatGeometry();
     void applyBlur();
+    void exportMenuBar();
     void connectFocusBridge();
     void bridgeFocus(QObject* object);
     void scheduleShortcuts();
