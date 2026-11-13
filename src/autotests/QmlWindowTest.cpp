@@ -96,6 +96,7 @@ private Q_SLOTS:
     void testFocusBridge();
     void testShortcutClientsAreDistinct();
     void testCloseClosesTheCompatWindow();
+    void testMinimizeKeepsTheWindow();
 
 private:
     static TerminalDisplay* displayOf(MainWindow* window);
@@ -828,6 +829,22 @@ void QmlWindowTest::testCloseClosesTheCompatWindow()
     qml->close();
     QTRY_VERIFY(!_compatWindow || !_compatWindow->isVisible());
     QTRY_VERIFY(!qml || !qml->isVisible());
+}
+
+void QmlWindowTest::testMinimizeKeepsTheWindow()
+{
+    // Minimized by the window manager: iconified, not hidden (which withdraws it on X11). The
+    // compat window never is: Qt maps a native window it restores.
+    QQuickWindow* qml = _controller->qmlWindow();
+    qml->setWindowStates(Qt::WindowMinimized | Qt::WindowMaximized);
+    QTRY_VERIFY(_compatWindow->isMaximized());
+    QVERIFY(!_compatWindow->isMinimized());
+    QVERIFY(qml->isVisible());
+
+    qml->setWindowStates(Qt::WindowNoState);
+    QTRY_VERIFY(!_compatWindow->isMaximized());
+    QVERIFY(qml->isVisible());
+    QVERIFY(_compatWindow->isVisible());
 }
 
 QTEST_MAIN(QmlWindowTest)
