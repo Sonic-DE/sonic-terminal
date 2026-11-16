@@ -152,6 +152,9 @@ if(HAVE_DBUS)
     endif()
 endif()
 
+ecm_add_test(StyleElementTest.cpp LINK_LIBRARIES ${KONSOLE_TEST_LIBS} Qt::Quick Qt::Widgets)
+set_tests_properties(StyleElementTest PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 ecm_add_test(DialogSitesTest.cpp LINK_LIBRARIES Qt::Test)
 target_compile_definitions(DialogSitesTest PRIVATE KONSOLE_SOURCE_DIR="${CMAKE_SOURCE_DIR}/src")
 

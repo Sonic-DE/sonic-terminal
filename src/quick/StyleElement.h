@@ -8,8 +8,9 @@
 #include "konsoleprivate_export.h"
 
 #include <QFont>
+#include <QImage>
 #include <QPalette>
-#include <QQuickPaintedItem>
+#include <QQuickItem>
 #include <QtQml/qqmlregistration.h>
 
 namespace Konsole {
@@ -19,8 +20,9 @@ namespace Konsole {
  * Elements: "tabbarbase" (PE_FrameTabBarBase; shape is a QTabBar::Shape), "lineedit"
  * (PE_PanelLineEdit as QLineEdit::paintEvent() draws it), "splitter" (CE_Splitter as
  * QSplitterHandle::paintEvent() draws it; shape is the Qt::Orientation).
+ * Drawn in updatePolish(): widget styles may only be used on the GUI thread.
  */
-class KONSOLEPRIVATE_EXPORT StyleElement : public QQuickPaintedItem {
+class KONSOLEPRIVATE_EXPORT StyleElement : public QQuickItem {
     Q_OBJECT
     QML_ELEMENT
     Q_PROPERTY(QString element READ element WRITE setElement NOTIFY changed)
@@ -51,12 +53,19 @@ public:
     int lineWidth() const;
     void setLineWidth(int width);
 
-    void paint(QPainter* painter) override;
-
 Q_SIGNALS:
     void changed();
 
+protected:
+    void updatePolish() override;
+    QSGNode* updatePaintNode(QSGNode* node, UpdatePaintNodeData* data) override;
+    void geometryChange(const QRectF& newGeometry, const QRectF& oldGeometry) override;
+    void itemChange(ItemChange change, const ItemChangeData& value) override;
+
 private:
+    void paint(QPainter* painter);
+
+    QImage _image;
     QString _element;
     int _shape = 0;
     QPalette _palette;

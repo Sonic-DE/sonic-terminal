@@ -8,6 +8,7 @@
 #include <QApplication>
 #include <QPainter>
 #include <QQuickWindow>
+#include <QSGImageNode>
 #include <QStyle>
 #include <QStyleOptionFrame>
 #include <QStyleOptionTabBarBase>
@@ -15,8 +16,55 @@
 
 namespace Konsole {
 StyleElement::StyleElement(QQuickItem* parent)
-    : QQuickPaintedItem(parent)
+    : QQuickItem(parent)
 {
+    setFlag(ItemHasContents);
+}
+
+void StyleElement::updatePolish()
+{
+    if (isVisible() && window() && width() >= 1 && height() >= 1) {
+        const qreal ratio = window()->effectiveDevicePixelRatio();
+        _image = QImage((size() * ratio).toSize(), QImage::Format_ARGB32_Premultiplied);
+        _image.setDevicePixelRatio(ratio);
+        _image.fill(Qt::transparent);
+        QPainter painter(&_image);
+        paint(&painter);
+    } else {
+        _image = QImage();
+    }
+    update();
+}
+
+QSGNode* StyleElement::updatePaintNode(QSGNode* node, UpdatePaintNodeData*)
+{
+    // A new node owns each new texture, so the old one goes with the old node.
+    delete node;
+    if (_image.isNull()) {
+        return nullptr;
+    }
+    QSGImageNode* imageNode = window()->createImageNode();
+    imageNode->setTexture(window()->createTextureFromImage(_image));
+    imageNode->setOwnsTexture(true);
+    imageNode->setRect(boundingRect());
+    return imageNode;
+}
+
+void StyleElement::geometryChange(const QRectF& newGeometry, const QRectF& oldGeometry)
+{
+    QQuickItem::geometryChange(newGeometry, oldGeometry);
+    if (newGeometry.size() != oldGeometry.size()) {
+        polish();
+    }
+}
+
+void StyleElement::itemChange(ItemChange change, const ItemChangeData& value)
+{
+    if (change == ItemVisibleHasChanged || change == ItemEnabledHasChanged || change == ItemDevicePixelRatioHasChanged
+        || change == ItemSceneChange) {
+        polish();
+    }
+    QQuickItem::itemChange(change, value);
 }
 
 QString StyleElement::element() const
@@ -28,7 +76,7 @@ void StyleElement::setElement(const QString& element)
 {
     if (_element != element) {
         _element = element;
-        update();
+        polish();
         Q_EMIT changed();
     }
 }
@@ -42,7 +90,7 @@ void StyleElement::setShape(int shape)
 {
     if (_shape != shape) {
         _shape = shape;
-        update();
+        polish();
         Q_EMIT changed();
     }
 }
@@ -55,7 +103,7 @@ QPalette StyleElement::stylePalette() const
 void StyleElement::setStylePalette(const QPalette& palette)
 {
     _palette = palette;
-    update();
+    polish();
     Q_EMIT changed();
 }
 
@@ -67,7 +115,7 @@ QFont StyleElement::styleFont() const
 void StyleElement::setStyleFont(const QFont& font)
 {
     _font = font;
-    update();
+    polish();
     Q_EMIT changed();
 }
 
@@ -80,7 +128,7 @@ void StyleElement::setFocused(bool focus)
 {
     if (_focused != focus) {
         _focused = focus;
-        update();
+        polish();
         Q_EMIT changed();
     }
 }
@@ -94,7 +142,7 @@ void StyleElement::setHover(bool hover)
 {
     if (_hover != hover) {
         _hover = hover;
-        update();
+        polish();
         Q_EMIT changed();
     }
 }
@@ -108,7 +156,7 @@ void StyleElement::setLineWidth(int width)
 {
     if (_lineWidth != width) {
         _lineWidth = width;
-        update();
+        polish();
         Q_EMIT changed();
     }
 }
