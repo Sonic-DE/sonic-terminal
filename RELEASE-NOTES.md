@@ -8,6 +8,8 @@ SonicDE's terminal app, with tabs, split views and profiles for working on the c
   instead of disappearing while the terminal keeps running in the background.
 - With a global menu in use, in a panel or the title bar's menu button, the terminal's menus show
   there again.
+- The terminal no longer crashes on start with some third-party application styles, such as
+  Darkly.
 
 ## 26.08.3 (2026-11-10)
 
