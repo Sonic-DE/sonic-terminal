@@ -2,7 +2,7 @@
 
 SonicDE's terminal app, with tabs, split views and profiles for working on the command line.
 
-## Unreleased
+## 26.08.3.1 (2026-11-23)
 
 - Minimizing a terminal window works again: the window stays in the taskbar and can be restored,
   instead of disappearing while the terminal keeps running in the background.
