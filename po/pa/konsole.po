@@ -877,8 +877,8 @@ msgstr "ਆਉਟਪੁੱਟ:"
 #: main.cpp:189
 #, kde-format
 msgctxt "@title"
-msgid "Konsole"
-msgstr "ਕੇਨਸੋਲ"
+msgid "Terminal"
+msgstr "ਟਰਮੀਨਲ"
 
 #: main.cpp:191
 #, kde-format

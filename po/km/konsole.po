@@ -943,11 +943,10 @@ msgid "Output:"
 msgstr "លទ្ធផល​ ៖"
 
 #: main.cpp:189
-#, fuzzy, kde-format
-#| msgid "Konsole"
+#, kde-format
 msgctxt "@title"
-msgid "Konsole"
-msgstr "Konsole"
+msgid "Terminal"
+msgstr "ស្ថានីយ"
 
 #: main.cpp:191
 #, kde-format

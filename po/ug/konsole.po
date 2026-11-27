@@ -915,11 +915,10 @@ msgid "Output:"
 msgstr "چىقار:"
 
 #: main.cpp:189
-#, fuzzy, kde-format
-#| msgid "Konsole"
+#, kde-format
 msgctxt "@title"
-msgid "Konsole"
-msgstr "Konsole"
+msgid "Terminal"
+msgstr "تېرمىنال"
 
 #: main.cpp:191
 #, kde-format

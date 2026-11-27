@@ -146,7 +146,7 @@ SessionController::SessionController(Session *sessionParam, TerminalDisplay *vie
 
     // handle user interface related to session (menus etc.)
     if (qApp->applicationName() != QLatin1String("konsole")) {
-        setComponentName(QStringLiteral("konsole"), i18n("Konsole"));
+        setComponentName(QStringLiteral("konsole"), i18nc("@title", "Terminal"));
     }
     if (isKonsolePart()) {
         setXMLFile(QStringLiteral("partui.rc"));

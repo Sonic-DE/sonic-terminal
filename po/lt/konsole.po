@@ -933,8 +933,8 @@ msgstr "Išvestis:"
 #: main.cpp:189
 #, kde-format
 msgctxt "@title"
-msgid "Konsole"
-msgstr "Konsolė"
+msgid "Terminal"
+msgstr "Terminalas"
 
 #: main.cpp:191
 #, kde-format

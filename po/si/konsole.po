@@ -961,11 +961,10 @@ msgid "Output:"
 msgstr "ප්‍රථිධානය:"
 
 #: main.cpp:189
-#, fuzzy, kde-format
-#| msgid "Konsole"
+#, kde-format
 msgctxt "@title"
-msgid "Konsole"
-msgstr "Konsole"
+msgid "Terminal"
+msgstr "අග්‍රය"
 
 #: main.cpp:191
 #, fuzzy, kde-format

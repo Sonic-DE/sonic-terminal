@@ -874,8 +874,8 @@ msgstr "வெளியீடு:"
 #: main.cpp:189
 #, kde-format
 msgctxt "@title"
-msgid "Konsole"
-msgstr "கான்சோல்"
+msgid "Terminal"
+msgstr "முனையம்"
 
 #: main.cpp:191
 #, kde-format

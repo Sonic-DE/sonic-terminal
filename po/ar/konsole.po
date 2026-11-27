@@ -889,8 +889,8 @@ msgstr "الناتج:"
 #: main.cpp:189
 #, kde-format
 msgctxt "@title"
-msgid "Konsole"
-msgstr "كونسول"
+msgid "Terminal"
+msgstr "طرفيّة"
 
 #: main.cpp:191
 #, kde-format

@@ -933,11 +933,10 @@ msgid "Output:"
 msgstr "Izlaz:"
 
 #: main.cpp:189
-#, fuzzy, kde-format
-#| msgid "Konsole Window"
+#, kde-format
 msgctxt "@title"
-msgid "Konsole"
-msgstr "Konsole prozor"
+msgid "Terminal"
+msgstr "Terminal"
 
 #: main.cpp:191
 #, kde-format

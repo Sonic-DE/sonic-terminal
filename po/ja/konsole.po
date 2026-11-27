@@ -903,8 +903,8 @@ msgstr "出力:"
 #: main.cpp:189
 #, kde-format
 msgctxt "@title"
-msgid "Konsole"
-msgstr "Konsole"
+msgid "Terminal"
+msgstr "ターミナル"
 
 #: main.cpp:191
 #, kde-format

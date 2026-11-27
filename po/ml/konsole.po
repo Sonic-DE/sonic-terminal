@@ -898,10 +898,10 @@ msgid "Output:"
 msgstr "ഫലം:"
 
 #: main.cpp:189
-#, fuzzy, kde-format
+#, kde-format
 msgctxt "@title"
-msgid "Konsole"
-msgstr "കണ്‍സോള്‍"
+msgid "Terminal"
+msgstr "ടെര്‍മിനല്‍"
 
 #: main.cpp:191
 #, fuzzy, kde-format

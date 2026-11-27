@@ -4,6 +4,8 @@ SonicDE's terminal app, with tabs, split views and profiles for working on the c
 
 ## Unreleased
 
+- The terminal is now called Terminal in the application launcher, its window title and its menus
+  (About, Handbook, Configure), in every language.
 - With several tabs open, the tab bar now meets the terminal cleanly, with no see-through line
   between them.
 

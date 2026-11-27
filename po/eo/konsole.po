@@ -898,8 +898,8 @@ msgstr "Eligo:"
 #: main.cpp:189
 #, kde-format
 msgctxt "@title"
-msgid "Konsole"
-msgstr "Konzolo"
+msgid "Terminal"
+msgstr "Terminalo"
 
 #: main.cpp:191
 #, kde-format
