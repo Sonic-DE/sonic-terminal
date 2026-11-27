@@ -180,11 +180,16 @@ Kirigami.AbstractApplicationWindow {
             compatWindow: root.controller.compatWindow
         }
 
-        // The tab widget's row (tab bar and corner buttons) on the window background.
+        // The tab widget's row (tab bar and corner buttons) on the window background, up to the
+        // terminals: in document mode QTabWidget paints nothing between its bar and its pages.
         Rectangle {
+            readonly property real barTop: tabBar.y - paneTree.centralGeometry.y
+            readonly property real barBottom: barTop + tabBar.height
+            readonly property rect panes: paneTree.shownPanesGeometry
+            readonly property bool barAbove: panes.height <= 0 || barTop < panes.y
             width: parent.width
-            y: tabBar.y - paneTree.centralGeometry.y
-            height: tabBar.height
+            y: barAbove || panes.height <= 0 ? barTop : Math.min(barTop, panes.y + panes.height)
+            height: (barAbove && panes.height > 0 ? Math.max(barBottom, panes.y) : barBottom) - y
             visible: tabBar.visible
             z: 1
             color: Kirigami.Theme.backgroundColor
