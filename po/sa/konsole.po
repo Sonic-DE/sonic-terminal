@@ -883,8 +883,8 @@ msgstr "उत्पादनम् :"
 #: main.cpp:189
 #, kde-format
 msgctxt "@title"
-msgid "Konsole"
-msgstr "सान्त्वनम्"
+msgid "Terminal"
+msgstr "टर्मिनल्"
 
 #: main.cpp:191
 #, kde-format

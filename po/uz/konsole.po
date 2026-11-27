@@ -934,10 +934,9 @@ msgid "Output:"
 msgstr "Tarixni saqlash"
 
 #: main.cpp:189
-#, fuzzy, kde-format
-#| msgid "Konsole"
+#, kde-format
 msgctxt "@title"
-msgid "Konsole"
+msgid "Terminal"
 msgstr "Terminal"
 
 #: main.cpp:191

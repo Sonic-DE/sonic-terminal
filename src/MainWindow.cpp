@@ -160,7 +160,7 @@ MainWindow::MainWindow()
 {
     if (isHosted(this)) {
         // Konsole's XML, not <host>ui.rc; the host's quitting isn't this window's.
-        setComponentName(QStringLiteral("konsole"), i18n("Konsole"));
+        setComponentName(QStringLiteral("konsole"), i18nc("@title", "Terminal"));
         setAttribute(Qt::WA_QuitOnClose, false);
     }
 

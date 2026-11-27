@@ -961,11 +961,10 @@ msgid "Output:"
 msgstr "అవుట్పుట్:"
 
 #: main.cpp:189
-#, fuzzy, kde-format
-#| msgid "Konsole"
+#, kde-format
 msgctxt "@title"
-msgid "Konsole"
-msgstr "కాన్సోల్"
+msgid "Terminal"
+msgstr "టెర్మినల్"
 
 #: main.cpp:191
 #, fuzzy, kde-format

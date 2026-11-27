@@ -196,13 +196,13 @@ int main(int argc, char *argv[])
     KLocalizedString::setApplicationDomain("konsole");
 
     KAboutData about(QStringLiteral("konsole"),
-                     i18nc("@title", "Konsole"),
-                     QStringLiteral(KONSOLE_VERSION),
-                     i18nc("@title", "Terminal emulator"),
-                     KAboutLicense::GPL_V2,
-                     i18nc("@info:credit", "(c) 1997-2022, The Konsole Developers"),
-                     QString(),
-                     QStringLiteral("https://konsole.kde.org/"));
+        i18nc("@title", "Terminal"),
+        QStringLiteral(KONSOLE_VERSION),
+        i18nc("@title", "Terminal emulator"),
+        KAboutLicense::GPL_V2,
+        i18nc("@info:credit", "(c) 1997-2022, The Konsole Developers"),
+        QString(),
+        QStringLiteral("https://konsole.kde.org/"));
     fillAboutData(about);
 
     KAboutData::setApplicationData(about);

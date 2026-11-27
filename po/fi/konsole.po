@@ -909,8 +909,8 @@ msgstr "Tuloste:"
 #: main.cpp:189
 #, kde-format
 msgctxt "@title"
-msgid "Konsole"
-msgstr "Konsole"
+msgid "Terminal"
+msgstr "Pääteikkuna"
 
 #: main.cpp:191
 #, kde-format

@@ -860,8 +860,8 @@ msgstr ""
 #: main.cpp:189
 #, kde-format
 msgctxt "@title"
-msgid "Konsole"
-msgstr ""
+msgid "Terminal"
+msgstr "ଟର୍ମିନାଲ"
 
 #: main.cpp:191
 #, kde-format

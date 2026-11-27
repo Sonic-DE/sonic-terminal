@@ -884,8 +884,8 @@ msgstr "გამოტანა:"
 #: main.cpp:189
 #, kde-format
 msgctxt "@title"
-msgid "Konsole"
-msgstr "Konsole"
+msgid "Terminal"
+msgstr "ტერმინალი"
 
 #: main.cpp:191
 #, kde-format

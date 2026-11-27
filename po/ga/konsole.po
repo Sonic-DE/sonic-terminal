@@ -887,8 +887,8 @@ msgstr "Aschur:"
 #: main.cpp:189
 #, kde-format
 msgctxt "@title"
-msgid "Konsole"
-msgstr "Konsole"
+msgid "Terminal"
+msgstr "Teirminéal"
 
 #: main.cpp:191
 #, kde-format

@@ -897,8 +897,8 @@ msgstr "Väljund:"
 #: main.cpp:189
 #, kde-format
 msgctxt "@title"
-msgid "Konsole"
-msgstr "Konsool"
+msgid "Terminal"
+msgstr "Terminal"
 
 #: main.cpp:191
 #, kde-format

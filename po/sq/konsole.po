@@ -915,11 +915,10 @@ msgid "Output:"
 msgstr "Dalja:"
 
 #: main.cpp:189
-#, fuzzy, kde-format
-#| msgid "New &Window"
+#, kde-format
 msgctxt "@title"
-msgid "Konsole"
-msgstr "Dritare e &Re"
+msgid "Terminal"
+msgstr "Terminali"
 
 #: main.cpp:191
 #, kde-format

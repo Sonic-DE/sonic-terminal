@@ -879,8 +879,8 @@ msgstr "출력:"
 #: main.cpp:189
 #, kde-format
 msgctxt "@title"
-msgid "Konsole"
-msgstr "Konsole"
+msgid "Terminal"
+msgstr "터미널"
 
 #: main.cpp:191
 #, kde-format

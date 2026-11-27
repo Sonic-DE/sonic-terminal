@@ -887,8 +887,8 @@ msgstr "Ieșire:"
 #: main.cpp:189
 #, kde-format
 msgctxt "@title"
-msgid "Konsole"
-msgstr "Konsolă"
+msgid "Terminal"
+msgstr "Terminal"
 
 #: main.cpp:191
 #, kde-format

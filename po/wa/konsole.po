@@ -973,11 +973,10 @@ msgid "Output:"
 msgstr "Rexhowe :"
 
 #: main.cpp:189
-#, fuzzy, kde-format
-#| msgid "Konsole"
+#, kde-format
 msgctxt "@title"
-msgid "Konsole"
-msgstr "Konsole"
+msgid "Terminal"
+msgstr "Terminå"
 
 #: main.cpp:191
 #, fuzzy, kde-format
