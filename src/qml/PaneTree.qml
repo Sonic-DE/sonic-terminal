@@ -44,12 +44,12 @@ Item {
             required property bool shown
             required property var model
             headerTabBarBase: model.headerTabBarBase
+            followsFacade: true
             x: geometry.x
             y: geometry.y
             width: geometry.width
             height: geometry.height
             visible: shown
-            Component.onCompleted: view.followsFacade = true
         }
     }
 }

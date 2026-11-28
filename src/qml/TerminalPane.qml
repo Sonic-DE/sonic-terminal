@@ -19,12 +19,17 @@ Item {
     // The widget header bar draws a tab bar base line when what is above it is not a tab
     // bar, a terminal or a splitter; the pane tree knows what is above.
     property bool headerTabBarBase: false
+    // In a pane tree the facade's layout places the pane; on its own the pane sizes the facade.
+    property bool followsFacade: false
 
     implicitWidth: view ? view.implicitWidth : 0
     implicitHeight: view ? view.implicitHeight : 0
 
+    onFollowsFacadeChanged: if (view) view.followsFacade = followsFacade
     onViewChanged: {
         if (view) {
+            // Before the move: a hidden pane would otherwise hide a following facade for good.
+            view.followsFacade = pane.followsFacade;
             view.parent = pane;
             view.x = 0;
             view.y = 0;
