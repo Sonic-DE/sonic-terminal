@@ -87,6 +87,7 @@ private Q_SLOTS:
     void testShortcutsOutsideCollections();
     void testPluginDock();
     void testClosedDockRoomIsRepainted();
+    void testRestoredBackgroundTabsArePainted();
     void testDialogsAreTransientForTheQmlWindow();
     void testHamburgerMenuOpensUnderItsButton();
     void testFirstTerminalHasFocus();
@@ -570,6 +571,43 @@ void QmlWindowTest::testClosedDockRoomIsRepainted()
     };
     QTRY_COMPARE(stripPixel().rgb(), background.rgb());
     delete dock;
+}
+
+void QmlWindowTest::testRestoredBackgroundTabsArePainted()
+{
+    // As restoreSession() in main.cpp: all tabs exist before show(), then each is made current
+    // in turn. A background tab opened later must show its terminal.
+    QPointer<MainWindow> window = new MainWindow();
+    QPointer<WindowController> controller = new WindowController(window);
+    for (int i = 0; i < 3; ++i) {
+        window->createSession(ProfileManager::instance()->defaultProfile(), QDir::tempPath());
+    }
+    window->resize(1000, 700);
+    window->show();
+    auto* container = qobject_cast<QTabWidget*>(window->centralWidget());
+    QCOMPARE(container->count(), 3);
+    for (int i = 0; i < container->count(); ++i) {
+        container->setCurrentIndex(i);
+    }
+    QQuickWindow* qml = controller->qmlWindow();
+    QVERIFY(QTest::qWaitForWindowExposed(qml));
+
+    for (int i : {0, 1}) {
+        auto* display = container->widget(i)->findChild<TerminalDisplay*>();
+        QVERIFY(display);
+        TerminalView* view = TerminalViewRegistry::view(display);
+        QVERIFY(view);
+        container->setCurrentIndex(i);
+        QTRY_VERIFY(view->isVisible());
+        QTRY_COMPARE(qRound(view->width()), display->width());
+        const QColor background = display->terminalColor()->backgroundColor();
+        const auto contentPixel = [qml, view, display] {
+            const QRect content = display->contentRect();
+            return qml->grabWindow().pixelColor(view->mapToScene(QPointF(content.right() - 40, content.bottom() - 20)).toPoint());
+        };
+        QTRY_COMPARE(contentPixel().rgba(), background.rgb());
+    }
+    delete window;
 }
 
 void QmlWindowTest::testDialogsAreTransientForTheQmlWindow()

@@ -8,6 +8,8 @@ SonicDE's terminal app, with tabs, split views and profiles for working on the c
   (About, Handbook, Configure), in every language.
 - With several tabs open, the tab bar now meets the terminal cleanly, with no see-through line
   between them.
+- When your last session is restored at login, every tab of a terminal window shows its
+  terminal again, not just the one in front; the others no longer stay see-through.
 
 ## 26.08.3.1 (2026-11-23)
 
