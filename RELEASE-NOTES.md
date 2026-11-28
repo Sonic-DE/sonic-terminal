@@ -2,7 +2,7 @@
 
 SonicDE's terminal app, with tabs, split views and profiles for working on the command line.
 
-## Unreleased
+## 26.08.3.2 (2026-11-29)
 
 - The terminal is now called Terminal in the application launcher, its window title and its menus
   (About, Handbook, Configure), in every language.
